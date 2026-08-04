@@ -48,6 +48,49 @@ it. The scorer never filters and never gates. A person decides.
 The authoring and currency halves are being assembled from an existing delivery
 platform.
 
+## The model map
+
+Which model does which job lives in one file, [`config/model-map.json`](config/model-map.json),
+and every assignment carries the reason it was made. A model change is then a
+reviewable diff rather than a behaviour change nobody sees.
+
+```bash
+node scripts/validate-model-map.mjs --inventory <your-deployed-model-registry.json>
+```
+
+**It refuses to start when a mapped model is not deployed**, and names the model
+and the job that wanted it:
+
+```text
+REFUSING TO START. 1 problem(s):
+
+  [model-not-deployed] job "code-samples" is mapped to "kimi-k2-9-code", which is not in the deployed set
+      fix: deploy kimi-k2-9-code in your model registry, or remap the job.
+           Orchard will not substitute a similar model.
+```
+
+There is no nearest-match fallback. Orchard consumes endpoints and never
+provisions, so a missing model is a human action somewhere else, and a
+substitution would swallow the only signal that says so.
+
+Three things the validator also enforces, each because getting it wrong is
+expensive and silent:
+
+- **The token parameter dialect is declared per model, never inferred.** Two
+  models in the estate this was built against contradict each other: one rejects
+  `max_tokens` with HTTP 400, the other rejects `max_completion_tokens` with
+  HTTP 422. A missing dialect is a failure, not a default.
+- **Voice is validated by name only.** Speech voices have no deployment,
+  capacity, or quota row, so looking for them in the deployment list would fail
+  every startup. A voice that emits no word-boundary events is rejected, because
+  captions and lip sync cannot align to it.
+- **Actor-licensed avatars are rejected.** Access to them ends when the actor's
+  contract does, and a library fronted by one breaks on a date you do not
+  control.
+
+**Adopters:** the shipped map names one operator's models. Point the validator at
+your own inventory and it will tell you, job by job, exactly what you need.
+
 ## The content database
 
 Content lives in files. The database is compiled from them.

@@ -1,0 +1,106 @@
+{
+  "$schema": "./model-map.schema.json",
+  "version": "1.0",
+  "description": "Which model does which job. One file, so a model change is a reviewable diff rather than a behaviour change nobody sees. Every assignment carries the reason it was made. See ADR-0018.",
+  "rules": [
+    "FAIL LOUDLY. If a mapped model is not in the deployed set, Orchard refuses to start and names the model and the job that wanted it. There is no silent substitution and no nearest-match fallback, because a fallback swallows the only signal that says a human needs to go deploy something.",
+    "THE TOKEN PARAMETER DIALECT IS PER MODEL AND IS DECLARED, NEVER INFERRED. Two deployed models contradict each other: the gpt-5-6 family rejects max_tokens with HTTP 400, and mistral-large-3 rejects max_completion_tokens with HTTP 422. No single global setting serves both.",
+    "VOICE IS NOT A DEPLOYMENT. Azure Speech voices are selected by SSML voice name and have no deployment, capacity, or quota row. Validating them against the deployment list would fail every startup, so they are validated by name only.",
+    "NEVER RANK, BUDGET, OR SCHEDULE BY RAW CAPACITY. Capacity is a per-model unit. phi-4-reasoning at 1000 and flux-2-pro at 4 are not a thousand-to-four ratio of anything."
+  ],
+  "endpoint": {
+    "requires": "any OpenAI-compatible endpoint",
+    "note": "Orchard must never require a particular cloud or a particular Foundry. The model ids below are this operator's; an adopter replaces them with their own and the validator tells them exactly which ones are missing."
+  },
+  "jobs": {
+    "drafting": {
+      "model": "gpt-5-6-sol",
+      "dialect": "max_completion_tokens",
+      "why": "1.05M context, structured output, vision. Capacity 1000, the widest headroom of any reasoning deployment."
+    },
+    "verification": {
+      "model": "gpt-5-6-terra",
+      "dialect": "max_completion_tokens",
+      "why": "The instance registry names it the reviewer LLM, OpenAI half of the two-vendor pair. Already the decided role."
+    },
+    "adversary": {
+      "model": "grok-4-1-fast-reasoning",
+      "dialect": "max_tokens",
+      "why": "The registry names it the reviewer LLM, xAI half. A different vendor family is what makes the pair meaningful; two OpenAI arms would agree with each other for the wrong reasons."
+    },
+    "arbiter": {
+      "model": "gpt-5-6-luna",
+      "dialect": "max_completion_tokens",
+      "why": "A third OpenAI arm, kept separate from drafter and verifier so the arbiter never judges its own output."
+    },
+    "triage": {
+      "model": "grok-4-1-fast-non-reasoning",
+      "dialect": "max_tokens",
+      "why": "Explicitly a low-latency arm. Classification and routing only, never content."
+    },
+    "bulk-classification": {
+      "model": "deepseek-v4-flash",
+      "dialect": "max_tokens",
+      "why": "Second low-latency arm, so bulk passes do not contend with triage for the same deployment."
+    },
+    "code-samples": {
+      "model": "kimi-k2-7-code",
+      "dialect": "max_tokens",
+      "why": "The only deployment carrying code-generation. Capacity 100, the tightest reasoning deployment in the estate, so batch code work is throughput bound here."
+    },
+    "image-primary": {
+      "model": "flux-2-pro",
+      "dialect": "n/a",
+      "why": "Primary generator, carries the character and style-lock load. Up to 8 reference images, 4 MP. Capacity 4, the lowest in the estate: any batch of diagrams is bound here."
+    },
+    "image-exploration": {
+      "model": "flux-1-1-pro",
+      "dialect": "n/a",
+      "why": "Fast, cheap exploration arm at capacity 30. The release valve for the capacity-4 primary. Text only, no reference lock."
+    },
+    "image-single-reference-edit": {
+      "model": "flux-1-kontext-pro",
+      "dialect": "n/a",
+      "why": "One reference image, 1 MP cap."
+    },
+    "image-fallback": {
+      "model": "mai-image-25",
+      "dialect": "n/a",
+      "why": "First-party fallback and A-B baseline, so image work survives a third-party outage."
+    },
+    "currency-mapping": {
+      "model": "text-embedding-3-large",
+      "dialect": "n/a",
+      "why": "The registry says it closes the semantic mapping gap from a changed source to the affected content items. That is precisely the currency engine's job."
+    },
+    "bulk-indexing": {
+      "model": "text-embedding-3-small",
+      "dialect": "n/a",
+      "why": "Cheaper embedding arm for bulk or draft indexing."
+    }
+  },
+  "voices": {
+    "narration": {
+      "voice": "en-US-Ava:DragonHDLatestNeural",
+      "why": "A standard or HD neural voice, NOT mai-voice-2. SPIKE-07 found MAI-Voice-2 emits no WordBoundary events, so nothing downstream can align captions or lip sync to it, and the avatar documentation enumerates only standard and custom voices as drivers."
+    },
+    "narration-alternate": {
+      "voice": "en-US-AndrewMultilingualNeural",
+      "why": "Second narrator so a long course is not one voice end to end. Verified working on this resource."
+    }
+  },
+  "avatars": {
+    "default": "Camila",
+    "roster": ["Faris", "Clara", "Camila"],
+    "why": "Standard talking heads on the existing resource. All three verified photographic and sharing one house style, so they read as a single faculty. No Limited Access, no deployment, no new vendor. Clara reads lighter and suits beginner material; Faris and Camila read more formal and suit the executive track.",
+    "excluded": {
+      "models": ["Harry", "Jeff", "Lisa", "Lori", "Max", "Meg"],
+      "why": "Actor-licensed and withdrawable. Jeff is withdrawn from December 2026. A content library fronted by one of these breaks when the contract lapses."
+    },
+    "rule": "The content database records which avatar rendered each module, so a withdrawal produces a re-render list rather than a hunt."
+  },
+  "notCovered": {
+    "speech-to-text": "Deferred. The instructor package is pre-rendered at publish time and the learner never speaks to it. If live Q&A is ever wanted, the Voice Live API already supports avatars plus speech conversation in this region.",
+    "video-generation": "No model. sora-2 is rejected in the instance registry for physics-tuned realism, an under-18-only RAI profile, a region block, and rejection of human faces on image-to-video. Instructor video comes from the Azure Speech batch avatar API, which is not a model deployment."
+  }
+}
