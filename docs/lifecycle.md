@@ -152,6 +152,67 @@ budget is raised per role in the brief, never globally, because the global value
 feeds the pre-flight cost projection and raising it aborts the run on the spend
 ceiling before request one.
 
+## Is the lifecycle actually a cycle? Not yet. Three breaks.
+
+Each phase works. **The handoffs between them do not**, and that is a different
+claim from "the phases are built". Tested 2026-08-04.
+
+| Break | What happens today | Consequence |
+|---|---|---|
+| **Phase 2 to Phase 3** | The queue holds 24 items needing creation. The ensemble reads **hand-written briefs**. The two lists have no relationship. | Nothing in the queue can ever be picked up. Work is chosen by whoever edits the brief file. |
+| **Phase 3 to Phase 2** | The ensemble writes a proposal to a directory. Nothing reads it back. | The queue never learns anything happened. An item stays `queued` forever and a human reconciles two lists by hand. |
+| **Phase 3 to Phase 5** | Nothing records what was published, or from which proposal. | Provenance of a published item back to the run that produced it does not exist. |
+
+`scripts/ingest-proposals.mjs` closes the second break. Run against the two real
+proposals from the first successful ensemble run, it reported:
+
+```text
+0 work item(s) would move
+
+2 proposal(s) NOT MATCHED to any queue item, so nothing was recorded for them
+```
+
+**That is the first break stated precisely.** The proposals are real and their
+verdicts are real, and neither can be attached to anything, because the briefs
+that produced them were written by hand and carry no queue subject id.
+
+**The rule that closes it: a brief must carry the subject id of the queue item it
+serves.** Until then the ingest reports unmatched rather than guessing, because a
+wrong match writes a real state change onto the wrong content.
+
+Two behaviours the ingest will not have, whatever else changes:
+
+- **It never publishes.** A proposal is inert until a human accepts it. The
+  ingest records that a proposal exists and what the reviewers concluded.
+- **It never overrides a human.** An item a person moved to `rejected` or `done`
+  stays there. Automation may propose a state change and may not perform one.
+
+## Phase 4 is on hold, and the reason is a design question not a technical one
+
+**Held 2026-08-04 by owner decision**, so that the Learn surface can be designed
+before anything is rendered against it. Rendering 29 modules against a structure
+that is about to change would be waste, and the avatar and voice choices are
+already recorded and do not expire.
+
+**The load-bearing rule, which the hold does not change: instructor-led is a
+second RENDERING of one module, not a second track and not a replacement for
+self-paced.**
+
+The platform is already built this way. Every class-ready module already carries
+`class-script.json`, `captions/`, `transcripts/`, `alternatives/` and
+`integrity.json` beside the module itself. Everything exists except rendered
+audio and video.
+
+Two separate tracks would mean maintaining the same subject twice. They drift,
+and when a cited source changes the currency engine cannot reconcile two copies
+of the same claim. A `hasInstructorPackage` flag on the row is far cheaper than a
+parallel catalogue, and it keeps one source of truth feeding every rendering
+derived from it.
+
+So the Learn redesign is a question about **presentation and navigation**, not
+about replacing one catalogue with another. A learner should be able to read a
+module or watch it, and both should come from the same content.
+
 ## How a candidate is scored
 
 Scoring exists to make selection arguable rather than instinctive. It does not
