@@ -16,7 +16,8 @@
     "roles": {
       "drafter": {
         "deployment": "gpt-5-6-sol",
-        "providerFamily": "OpenAI"
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
       },
       "verifier": {
         "deployment": "grok-4-20-reasoning",

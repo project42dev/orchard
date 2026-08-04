@@ -90,6 +90,68 @@ flowchart TD
     end
 ```
 
+## The authoring ensemble: six roles are required, four exist
+
+Every piece of content, whether written for the first time or corrected after a
+source changed, must pass through the same ordered ensemble. **The same ensemble
+applies to the scheduled currency scans.** It is one platform with two triggers,
+so a role added here is a role the weekly run gets too, and an update needs
+research more than a first draft does: the whole trigger is that a cited source
+changed, and nothing can assess that without reading what changed.
+
+Each role runs as a separate call, with its own prompt, against a **different
+vendor family** wherever the roles check each other. Two models from one family
+agree for reasons that have nothing to do with whether the content is right.
+
+| # | Role | Owns | State |
+|---|---|---|---|
+| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | **NOT BUILT** |
+| 2 | **Drafter** | Writes the content from the brief and the researcher's evidence. | Built |
+| 3 | **Verifier** | Checks every claim against the supplied evidence. Different vendor family from the drafter, enforced. | Built |
+| 4 | **Adversary** | Attacks the draft rather than reviewing it. Looks for what is overstated, unsupported, or invented. | Built |
+| 5 | **Arbiter** | Breaks a tie when the verifier and adversary disagree. Never judges its own output. | Built |
+| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | **NOT BUILT** |
+
+### Why the two missing roles are the two that matter
+
+The ensemble is strongest exactly where it is easiest to over-build, three
+independent checkers, and absent at both ends.
+
+**Without a researcher**, the drafter can only restate its brief. A brief
+instruction such as "do not invent tool names, version numbers, or configuration
+keys" becomes a hope rather than a control, because there is no supplied evidence
+to check an invention against. The verifier is then checking prose against prose.
+
+**Without a finalizer**, nothing owns the things a reader actually judges the
+content by: whether the sources are listed, whether the exam questions can be
+answered from the material, and whether the module sits in the right place in a
+path. Those are not writing problems and a drafter will not catch them.
+
+### The constraint a researcher must respect
+
+Fetched source text is **untrusted data, never instruction**. The platform
+already fences it inside a per-run nonce so retrieved text cannot forge a closing
+delimiter and resume instruction context, and a run aborts rather than stripping
+a forged delimiter. A researcher role uses that existing machinery. It does not
+get a new, looser path to the model.
+
+### Proven, 2026-08-04
+
+The four built roles ran end to end against the live estate: **9 requests,
+$0.57, four vendor families**, drafter `gpt-5-6-sol`, verifier
+`grok-4-20-reasoning`, adversary `deepseek-v4-pro`, arbiter `mistral-large-3`.
+
+**Both proposals came back `blocked`.** The pipeline works and the content was
+not good enough, which is the correct outcome for a gate and the reason nothing
+was published. Missing roles 1 and 6 is the leading explanation.
+
+One defect fixed to get there: the drafter returned an **empty completion**
+because reasoning tokens are billed against `max_completion_tokens`, and a 4096
+budget was consumed entirely by reasoning before a single word of prose. The
+budget is raised per role in the brief, never globally, because the global value
+feeds the pre-flight cost projection and raising it aborts the run on the spend
+ceiling before request one.
+
 ## How a candidate is scored
 
 Scoring exists to make selection arguable rather than instinctive. It does not
