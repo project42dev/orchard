@@ -1693,6 +1693,12 @@ try {
                 [string] $adversary.content
             ) -join "`n"
 
+            # The arbiter was the one role that ignored the brief's token budget
+            # and stayed pinned at the 4096 default. It is also the role with
+            # the longest input, the draft plus two full reports, so a reasoning
+            # deployment here is the likeliest of the four to spend its whole
+            # budget on reasoning and return an empty completion. Same fix as
+            # the other three roles.
             $arbiterResult = Invoke-DeliveryRole -Role arbiter `
                 -WorkItemId ([string] $item.id) -WorkItemKey $workItemKey `
                 -DeploymentAlias $arbiterConfig.deployment `
@@ -1700,6 +1706,7 @@ try {
                 -SystemPrompt (Get-DeliveryRolePrompt -Name 'arbiter' -CanRetrieveUrls $false) `
                 -UserPrompt $arbiterPrompt -RateTable $rateTable -AccessToken $accessToken `
                 -UntrustedBlocks $untrusted `
+                -MaxCompletionTokens ([int](Get-Project42OptionalValue -InputObject $arbiterConfig -Name 'maxCompletionTokens' -Default 4096)) `
                 -Temperature (Get-Project42OptionalValue -InputObject $arbiterConfig -Name 'temperature' -Default $null)
 
             $verdictR = Get-RoleVerdict -Content $arbiterResult.content -Role arbiter

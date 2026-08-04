@@ -23,7 +23,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = resolve(HERE, '..', 'schema', 'content-db.sql');
-const SCHEMA_VERSION = '1.0';
+// 1.1 adds the publication table and the two provenance views. Additive only,
+// so an existing database picks them up on the next build without losing a row.
+const SCHEMA_VERSION = '1.1';
 
 // A surface is a directory of content plus the name the rest of the system
 // knows it by. Declared here rather than inferred, so adding one is a visible

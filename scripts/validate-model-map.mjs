@@ -51,7 +51,29 @@ export function loadDeployedModels(inventoryPath) {
     }]);
   }
   const doc = JSON.parse(readFileSync(inventoryPath, 'utf8'));
-  const rows = Array.isArray(doc) ? doc : (doc.models ?? doc.deployments ?? doc.entries ?? []);
+  const rows = Array.isArray(doc) ? doc : (doc.models ?? doc.deployments ?? doc.entries ?? null);
+
+  // An inventory keyed by alias, which is what a deployment catalogue naturally
+  // looks like: { "gpt-5-6-sol": { name, version, format }, ... }.
+  //
+  // Missing this shape produced the worst possible failure for a fail-loudly
+  // gate. The list shapes above yielded an EMPTY deployed set rather than an
+  // error, so every job was reported as not deployed, including the ones that
+  // plainly were. Thirteen jobs, thirteen identical problems, all wrong, and
+  // the output was indistinguishable from a genuinely unprovisioned tenant. A
+  // gate whose entire output is false positives is a gate nobody reads.
+  if (rows === null) {
+    return Object.entries(doc)
+      .filter(([, v]) => v && typeof v === 'object' && !Array.isArray(v))
+      .map(([alias, m]) => ({
+        id: alias,
+        status: m.status ?? 'unknown',
+        kind: m.kind ?? m.format ?? null,
+        deploymentName: m.deploymentName ?? m.name ?? null,
+        capabilities: Array.isArray(m.capabilities) ? m.capabilities : [],
+      }));
+  }
+
   return rows
     .filter((m) => m && m.id)
     .map((m) => ({
@@ -65,6 +87,10 @@ export function loadDeployedModels(inventoryPath) {
 
 export function validateModelMap({ map, deployed }) {
   const problems = [];
+  // Not problems: jobs whose model is present but declares no readiness status.
+  // Carried on the returned array as a property so every existing caller, which
+  // treats the result as a list of problems, keeps working unchanged.
+  const unchecked = [];
   const byId = new Map(deployed.map((m) => [m.id, m]));
 
   const jobs = map.jobs ?? {};
@@ -113,7 +139,18 @@ export function validateModelMap({ map, deployed }) {
       });
       continue;
     }
-    if (found.status !== 'deployed') {
+    // An inventory that declares no status per entry is the common case: a
+    // deployment catalogue lists what exists and says nothing about readiness.
+    // Treating that silence as "not ready" refused every job on a perfectly
+    // good inventory, which is the same false-positive failure as reading an
+    // alias-keyed file as empty.
+    //
+    // So the two are kept apart. A DECLARED bad status is a problem. An absent
+    // one is reported as a blind spot, in the same spirit as v_unmeasurable:
+    // say what was not checked rather than pretending it passed or failed.
+    if (found.status === 'unknown') {
+      unchecked.push({ job, model: spec.model });
+    } else if (found.status !== 'deployed') {
       problems.push({
         kind: 'model-not-ready', job, model: spec.model,
         detail: `job "${job}" is mapped to "${spec.model}", whose status is "${found.status}"`,
@@ -157,6 +194,7 @@ export function validateModelMap({ map, deployed }) {
     });
   }
 
+  problems.unchecked = unchecked;
   return problems;
 }
 
@@ -165,7 +203,12 @@ export function assertModelMap({ mapPath = DEFAULT_MAP_PATH, inventoryPath }) {
   const deployed = loadDeployedModels(inventoryPath);
   const problems = validateModelMap({ map, deployed });
   if (problems.length) throw new ModelMapError(problems);
-  return { map, deployed, jobs: Object.keys(map.jobs ?? {}).length };
+  return {
+    map,
+    deployed,
+    jobs: Object.keys(map.jobs ?? {}).length,
+    unchecked: problems.unchecked ?? [],
+  };
 }
 
 function parseArgs(argv) {
@@ -194,6 +237,15 @@ function main() {
     console.log(`model map:  ${mapPath}`);
     console.log(`inventory:  ${inventoryPath}`);
     console.log(`OK. ${r.jobs} job(s) mapped, every model deployed, every dialect declared.`);
+    if (r.unchecked.length) {
+      // Never let a clean run imply more than it checked.
+      console.log('');
+      console.log(`READINESS WAS NOT CHECKED FOR ${r.unchecked.length} OF ${r.jobs} JOB(S).`);
+      console.log('Your inventory lists these models but declares no status for them, so');
+      console.log('"every model deployed" above means present in the inventory, not verified ready:');
+      for (const u of r.unchecked) console.log(`  ${u.job}: ${u.model}`);
+      console.log('Add a status field per entry if you want that checked.');
+    }
   } catch (err) {
     if (!(err instanceof ModelMapError)) throw err;
     console.error(`model map:  ${mapPath}`);

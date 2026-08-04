@@ -1,0 +1,27 @@
+{
+  "version": "1.0",
+  "description": "Where content for each surface lands, so a generated brief can name a repository and a path. The delivery platform refuses to emit a proposal that cannot say which repository and paths it applies to, because a proposal a reviewer cannot locate cannot be reviewed. This file is the operator's, not Orchard's: an adopter replaces the repository and the templates with their own.",
+  "rules": [
+    "A SURFACE WITH NO TARGET IS NOT A SURFACE ORCHARD CAN AUTHOR FOR. The generator refuses rather than guessing a directory, and names the surface and the count of queued items stranded by it.",
+    "{topic} is the work item's subject id with its surface suffix removed. {subject} is the subject id unchanged. Nothing else is substituted.",
+    "The template describes where the work GOES, not where it is. A needs-creating item has no path yet, which is the point of the template."
+  ],
+  "repository": "project42dev/project42-platform",
+  "surfaces": {
+    "learn": {
+      "pathTemplate": "content/modules/{topic}/",
+      "suffix": "-learn",
+      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there."
+    },
+    "field-guide": {
+      "pathTemplate": "content/resources/{topic}/",
+      "suffix": "-field-guide",
+      "why": "Every indexed Field Guide resource lives under content/resources/<topic>/."
+    },
+    "visual-guide": {
+      "pathTemplate": null,
+      "suffix": "-visual-guide",
+      "why": "UNMAPPED, deliberately. No visual-guide content exists in the estate, so there is no observed directory to point at and inventing one would send a proposal somewhere nobody reviews. Eight queued items are waiting on this decision. Set a pathTemplate here when the surface gets a home."
+    }
+  }
+}

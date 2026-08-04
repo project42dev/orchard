@@ -1,0 +1,144 @@
+[
+  {
+    "id": "p42-create-cost-and-capacity-management-field-guide",
+    "subjectId": "cost-and-capacity-management-field-guide",
+    "workItemId": "create:cost-and-capacity-management-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Cost, capacity, and spend control for AI systems (Field Guide)",
+    "prompt": "Write the field-guide content for \"Cost, capacity, and spend control for AI systems (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nMeasured gap: Field Guide corpus: 3 word-boundary occurrence(s) of \\bcost (control|ceiling|management|governance)\\b|\\btokens? per minute\\b|\\bTPM\\b|\\bspend (limit|cap|control)\\b in the measured corpus; 4 occurrence(s) across 1 surveyed source(s)\nDemand signal: Present in 1 of 27 surveyed sources.\nSurveyed sources carrying this topic: google-cloud-agents.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/cost-and-capacity-management/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-cost-and-capacity-management-learn",
+    "subjectId": "cost-and-capacity-management-learn",
+    "workItemId": "create:cost-and-capacity-management-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Cost, capacity, and spend control for AI systems (Learn)",
+    "prompt": "Write the learn content for \"Cost, capacity, and spend control for AI systems (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nMeasured gap: Learn corpus: 1 word-boundary occurrence(s) of \\bcost (control|ceiling|management|governance)\\b|\\btokens? per minute\\b|\\bTPM\\b|\\bspend (limit|cap|control)\\b in the measured corpus; 4 occurrence(s) across 1 surveyed source(s)\nDemand signal: Present in 1 of 27 surveyed sources.\nSurveyed sources carrying this topic: google-cloud-agents.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/cost-and-capacity-management/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-executive-and-leader-track-field-guide",
+    "subjectId": "executive-and-leader-track-field-guide",
+    "workItemId": "create:executive-and-leader-track-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "AI for executives, leaders, and decision makers (Field Guide)",
+    "prompt": "Write the field-guide content for \"AI for executives, leaders, and decision makers (Field Guide)\", at beginner level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nMeasured gap: Field Guide corpus: 0 word-boundary occurrence(s) of \\bexecutives?\\b|\\bboard[- ]level\\b|\\bdecision[- ]makers?\\b|\\bC[- ]?suite\\b in the measured corpus; 21 occurrence(s) across 7 surveyed source(s)\nDemand signal: Present in 7 of 27 surveyed sources.\nSurveyed sources carrying this topic: pluralsight, edx, nvidia-dli, databricks-academy, udacity, google-cloud-agents, codecademy.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for beginner level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/executive-and-leader-track/"
+        ]
+      }
+    ]
+  }
+]

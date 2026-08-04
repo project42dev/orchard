@@ -46,19 +46,22 @@ flowchart TD
         B5 --> B7["Story created in the tracker<br/>linked to the work_item id"]
     end
 
-    B6 --> C1["Orchard pulls from v_queue"]
+    B6 --> C1["generate-briefs.mjs pulls from the queue<br/>brief id carries the subject id<br/>work_item state: claimed"]
 
     subgraph PHASE3["Phase 3, creation and publication"]
         C1 --> C2["Draft, verify, adversary, arbiter"]
-        C2 --> C3{"Ensemble agrees?"}
-        C3 -->|no| C4["Proposal blocked<br/>findings recorded"]
+        C2 --> C2a["Proposal written<br/>named after the brief"]
+        C2a --> C2b["ingest-proposals.mjs<br/>reads the run record"]
+        C2b --> C3{"Ensemble agrees?"}
+        C3 -->|no| C4["work_item state: blocked<br/>findings recorded"]
         C4 --> C2
-        C3 -->|yes| C5["Proposal ready<br/>inert, pending decision"]
+        C3 -->|yes| C5["work_item state: in-progress<br/>proposal inert, pending decision"]
         C5 --> C6{"Human approves?"}
         C6 -->|no| C4
         C6 -->|yes| C7["Content committed and published"]
-        C7 --> C8["work_item state: done<br/>item appears in the index"]
-        C7 --> C9["Story closed"]
+        C7 --> C7a["record-publication.mjs<br/>run, brief, proposal, accepter"]
+        C7a --> C8["work_item state: done<br/>item appears in the index"]
+        C7a --> C9["Story closed"]
     end
 
     C8 --> D1{"Instructor-led<br/>rendering wanted?"}
@@ -152,40 +155,96 @@ budget is raised per role in the brief, never globally, because the global value
 feeds the pre-flight cost projection and raising it aborts the run on the spend
 ceiling before request one.
 
-## Is the lifecycle actually a cycle? Not yet. Three breaks.
+## Is the lifecycle actually a cycle? Yes, as of 2026-08-04. All three breaks closed.
 
-Each phase works. **The handoffs between them do not**, and that is a different
-claim from "the phases are built". Tested 2026-08-04.
+Each phase worked long before the whole did, because the phases were the boxes
+and the breaks were in the arrows. Three arrows were missing.
 
-| Break | What happens today | Consequence |
+| Break | What happened | Closed by |
 |---|---|---|
-| **Phase 2 to Phase 3** | The queue holds 24 items needing creation. The ensemble reads **hand-written briefs**. The two lists have no relationship. | Nothing in the queue can ever be picked up. Work is chosen by whoever edits the brief file. |
-| **Phase 3 to Phase 2** | The ensemble writes a proposal to a directory. Nothing reads it back. | The queue never learns anything happened. An item stays `queued` forever and a human reconciles two lists by hand. |
-| **Phase 3 to Phase 5** | Nothing records what was published, or from which proposal. | Provenance of a published item back to the run that produced it does not exist. |
+| **Phase 2 to Phase 3** | The queue held 24 items needing creation. The ensemble read **hand-written briefs**. The two lists had no relationship, so nothing in the queue could ever be picked up and work was chosen by whoever last edited the brief file. | `scripts/generate-briefs.mjs` |
+| **Phase 3 to Phase 2** | The ensemble wrote a proposal to a directory. Nothing read it back, so an item stayed `queued` forever and a human reconciled two lists by hand. | `scripts/ingest-proposals.mjs` |
+| **Phase 3 to Phase 5** | Nothing recorded what was published or from which proposal, so provenance from a published item back to the run that produced it did not exist. | the `publication` table and `scripts/record-publication.mjs` |
 
-`scripts/ingest-proposals.mjs` closes the second break. Run against the two real
-proposals from the first successful ensemble run, it reported:
+### The rule that closes the outbound arrow
 
-```text
-0 work item(s) would move
+**A brief must carry the subject id of the queue item it serves.**
 
-2 proposal(s) NOT MATCHED to any queue item, so nothing was recorded for them
-```
+The delivery platform names its proposal file after the brief that produced it,
+and the ingest recovers the queue item from that filename. That filename is the
+entire channel from the ensemble back to the queue. So the generator encodes the
+subject id in the brief id, as `p42-create-<subject>` or `p42-update-<subject>`,
+and **refuses to emit a brief whose id would not survive the trip**: the platform
+lowercases and rewrites anything outside `a-z0-9._-` on its way to a filename,
+and an id that changes on the way through is an id that cannot be recovered.
 
-**That is the first break stated precisely.** The proposals are real and their
-verdicts are real, and neither can be attached to anything, because the briefs
-that produced them were written by hand and carry no queue subject id.
+Before this, run against the two real proposals from the first successful
+ensemble run, the ingest reported `0 work item(s) would move` and `2 proposal(s)
+NOT MATCHED`. It still reports unmatched rather than guessing, because a wrong
+match writes a real state change onto the wrong content. It just no longer has
+anything to report against a generated brief.
 
-**The rule that closes it: a brief must carry the subject id of the queue item it
-serves.** Until then the ingest reports unmatched rather than guessing, because a
-wrong match writes a real state change onto the wrong content.
-
-Two behaviours the ingest will not have, whatever else changes:
+### The return arrow, and what it will not do
 
 - **It never publishes.** A proposal is inert until a human accepts it. The
   ingest records that a proposal exists and what the reviewers concluded.
 - **It never overrides a human.** An item a person moved to `rejected` or `done`
   stays there. Automation may propose a state change and may not perform one.
+
+### The provenance arrow
+
+`record-publication.mjs` is the human's instrument, and its shape says so:
+`--accepted-by` is required and has no default, because a publication with
+nobody named on it is an automated publication and this pipeline does not do
+those. It is also the only tool that writes the terminal `done` state.
+
+`v_provenance` answers "which run wrote this, under which brief, and what did its
+reviewers conclude". Filtering the table on `run_id` answers the other direction,
+which is the query to run the day a model is found to be producing bad content.
+**`v_unprovenanced` is its honest companion**: content that predates the pipeline
+or was committed by hand has no row at all, and without it a mostly untraced
+estate would read as fully traced. Same reason `v_unmeasurable` exists.
+
+### Proven end to end, and what "proven" means here
+
+`scripts/test-lifecycle.mjs` walks one topic all the way round: discovered,
+queued, briefed, blocked by the ensemble's own reviewers, re-drafted, passed,
+accepted by a person, indexed by a rebuild, and then aged past its review cadence
+until the currency engine queues the same item again as an update. **31
+assertions on the arrows rather than the boxes.**
+
+The delivery platform is not run inside that test: it needs a managed identity
+and costs real money per run. What is reproduced exactly is the only thing it
+hands back, the run record, with the proposal filename built through the real
+normalizer. Separately, `Test-Project42DeliveryBriefs.ps1` drives the **generated
+backlog itself** through the real entry point with a synthetic transport, and
+checks that the proposal filenames the platform actually writes still recover
+back to their subject ids.
+
+### Three defects this work found, all on the happy path
+
+1. **The ingest did not know `ready-for-draft`**, which is the only pass
+   disposition the platform emits. Every failure path worked, so the run where
+   both proposals came back `blocked` looked like proof the tool worked. The
+   first proposal to PASS would have been filed as an unknown disposition and
+   its queue item left sitting.
+2. **The model map staffed the drafter and the verifier from the same vendor
+   family**, and the platform throws `INDEPENDENCE` on that at request time,
+   after the draft has been paid for. That ensemble could never have completed a
+   run. Brief generation now checks the same rule before any money is spent.
+3. **One subject can carry two work items at once**, a completed creation and an
+   open update, and the ingest keyed on subject id alone. An update proposal
+   would have reopened the completed creation, and the terminal-state guard read
+   whichever row SQLite returned first.
+
+### Still open, and not a broken handoff
+
+**Ten of the twenty-four queued items are on the `visual-guide` surface, which
+has no home directory in the estate.** The generator reports them as stranded and
+emits nothing for them, because a proposal that cannot name a repository and path
+cannot be reviewed. Giving that surface a `pathTemplate` in
+`config/surface-targets.json` is an owner decision about where visual guides
+live, not a defect in the cycle.
 
 ## Phase 4 is on hold, and the reason is a design question not a technical one
 

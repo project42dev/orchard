@@ -26,10 +26,22 @@ $deliveryScript = Join-Path $contentRoot 'Invoke-Project42Delivery.ps1'
 $briefRoot = Join-Path $contentRoot 'briefs'
 $harnessBrief = Join-Path $briefRoot 'harness-backlog.json'
 $engineBrief = Join-Path $briefRoot 'engine-template.json'
+# Written by scripts/generate-briefs.mjs from the content database work queue.
+# It is shipped and mountable exactly like the hand-written backlog, and it is
+# validated here for the same reason: a generated file is still a real input,
+# and a generator with passing unit tests can still emit something the platform
+# refuses at run time.
+$queueBrief = Join-Path $briefRoot 'queue-backlog.json'
 $schemaRoot = Join-Path $PSScriptRoot '..\project42-platform\schemas\content-maintenance'
 $testEndpoint = 'https://delivery-test.services.ai.azure.com'
 
 $assertions = 0
+
+# Get-Project42StableId is the platform's own brief-id-to-filename normalizer.
+# The generated brief ids are checked against the real function rather than
+# against a reimplementation of it, because a reimplementation that drifts is
+# exactly how the link back to the queue would break without anything failing.
+Import-Module (Join-Path $contentRoot 'Project42FoundryExecution.psm1')
 
 function Assert-Brief {
     param(
@@ -123,13 +135,17 @@ $null = New-Item -ItemType Directory -Path (Join-Path $root 'proposals') -Force
 try {
     # ------------------------------------------------ both files exist and parse
 
-    foreach ($file in @($harnessBrief, $engineBrief)) {
+    foreach ($file in @($harnessBrief, $engineBrief, $queueBrief)) {
         Assert-Brief -Condition (Test-Path -LiteralPath $file) -Message "Missing shipped brief: $file. Both jobs fail closed without it."
         $assertions++
     }
 
     $harnessBriefs = @(Get-Content -LiteralPath $harnessBrief -Raw | ConvertFrom-Json)
     $engineBriefs = @(Get-Content -LiteralPath $engineBrief -Raw | ConvertFrom-Json)
+    $queueBriefs = @(Get-Content -LiteralPath $queueBrief -Raw | ConvertFrom-Json)
+
+    Assert-Brief -Condition ($queueBriefs.Count -ge 1) -Message 'queue-backlog.json must be a JSON array with at least one brief.'
+    $assertions++
 
     # Both are read as arrays by Get-DeliveryWorkItemSet. The engine reads only
     # element zero, so a bare object rather than an array would make $Briefs[0]
@@ -141,7 +157,7 @@ try {
 
     # ------------------------------------------- required fields, on every brief
 
-    foreach ($brief in ($harnessBriefs + $engineBriefs)) {
+    foreach ($brief in ($harnessBriefs + $engineBriefs + $queueBriefs)) {
         $id = [string] $brief.id
         Assert-Brief -Condition (-not [string]::IsNullOrWhiteSpace($id)) -Message 'Every brief needs a non-empty id; it becomes the work item id.'
         $assertions++
@@ -170,9 +186,29 @@ try {
         $assertions++
     }
 
+    # ------------------------ the queue-driven briefs still point back at the queue
+
+    # This is the invariant that keeps the lifecycle a cycle. The delivery
+    # platform names its proposal after the brief, and scripts/ingest-proposals.mjs
+    # recovers the queue item from that name. A brief id that does not end with
+    # the subject id it serves silently reopens the Phase 2 to Phase 3 break: the
+    # ensemble runs, spends money, and its verdict cannot be attached to anything.
+    foreach ($brief in $queueBriefs) {
+        $id = [string] $brief.id
+        $subjectId = [string] $brief.subjectId
+        Assert-Brief -Condition (-not [string]::IsNullOrWhiteSpace($subjectId)) -Message "Generated brief '$id' carries no subjectId. Nothing can attach its proposal to a queue item."
+        $assertions++
+        Assert-Brief -Condition ($id.EndsWith($subjectId)) -Message "Generated brief '$id' does not end with its subject id '$subjectId'. The proposal filename is the only channel back to the queue."
+        $assertions++
+        Assert-Brief -Condition ($id -eq [string] (Get-Project42StableId -Value $id)) -Message "Generated brief '$id' is not already in stable-id form, so the platform would rewrite it on its way to a filename and the subject id would be unrecoverable."
+        $assertions++
+        Assert-Brief -Condition (@($brief.targets).Count -ge 1) -Message "Generated brief '$id' names no targets, so it would emit no proposal at all."
+        $assertions++
+    }
+
     # --------------------------------------- every referenced alias is priceable
 
-    $aliases = Get-BriefAliasSet -Path @($harnessBrief, $engineBrief)
+    $aliases = Get-BriefAliasSet -Path @($harnessBrief, $engineBrief, $queueBrief)
     Assert-Brief -Condition ($aliases.Count -ge 1) -Message 'No deployment aliases were resolved from the briefs.'
     $assertions++
     Write-Host "Aliases the operator's pricing.private.json MUST cover: $($aliases -join ', ')"
@@ -207,6 +243,45 @@ try {
     # The alias that actually reached the wire must be the one the brief names.
     foreach ($role in @('drafter', 'verifier', 'adversary')) {
         Assert-Brief -Condition ($transportLog.byRole.ContainsKey($role)) -Message "Role '$role' never reached the transport during the harness run."
+        $assertions++
+    }
+
+    # ------------------------- the generated backlog through the real entry point
+
+    # The generator's own unit tests cannot prove this. They assert what it
+    # emits; only the real entry point can say whether the platform accepts it.
+    $transportLog.calls = 0
+    $transportLog.byRole = @{}
+    $queueLog = & $deliveryScript `
+        -Mode harness `
+        -Endpoint $testEndpoint `
+        -BriefPath $queueBrief `
+        -RunRecordRoot (Join-Path $root 'run-records') `
+        -ProposalRoot (Join-Path $root 'proposals') `
+        -PricingPath $pricingPath `
+        -CheckpointPath (Join-Path $root 'queue.checkpoint.private.json') `
+        -SchemaRoot $schemaRoot `
+        -Transport $transport `
+        -Execute 6>&1 | Out-String
+
+    Assert-Brief -Condition ($transportLog.calls -ge (3 * $queueBriefs.Count)) -Message "The generated backlog did not fully expand: expected at least three role calls per brief across $($queueBriefs.Count) briefs, saw $($transportLog.calls)."
+    $assertions++
+    Assert-Brief -Condition ($queueLog -notmatch 'INDEPENDENCE:') -Message 'The generated backlog violates the cross-family independence rule at run time. The model map staffed two checking roles from one vendor.'
+    $assertions++
+    Assert-Brief -Condition ($queueLog -match 'outcome=') -Message 'The generated backlog produced no outcome line.'
+    $assertions++
+    Assert-Brief -Condition ($queueLog -notmatch 'no changed source and no targets') -Message 'A generated brief emitted no proposal, which means the ensemble would run and produce nothing publishable.'
+    $assertions++
+
+    # The proposal filenames are the channel back to the queue. Prove they carry
+    # a recoverable subject id, against the files the platform actually wrote.
+    foreach ($brief in $queueBriefs) {
+        $subjectId = [string] $brief.subjectId
+        $written = @(Get-ChildItem -Path (Join-Path $root 'proposals') -Filter 'proposal-*.json' |
+            Where-Object { $_.BaseName -replace '^proposal-', '' -replace '-[0-9a-f]{8}$', '' -eq [string] $brief.id })
+        Assert-Brief -Condition ($written.Count -ge 1) -Message "No proposal filename recovers back to brief '$($brief.id)'. The ingest would report it unmatched and the queue item would sit at 'claimed' forever."
+        $assertions++
+        Assert-Brief -Condition ($written[0].BaseName.Contains($subjectId)) -Message "The proposal for '$($brief.id)' does not carry subject id '$subjectId' in its filename."
         $assertions++
     }
 

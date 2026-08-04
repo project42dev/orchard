@@ -108,8 +108,10 @@ Cloudflare D1 database at the edge, and a plain file for anyone self-hosting.
 **Two halves, and the split is the whole design.** Derived tables (`item`,
 `citation`, `source`, `candidate`) are dropped and rebuilt every time, so losing
 the database costs nothing. Two tables are authoritative and survive every
-rebuild: `work_item`, which carries what a human decided, and `rendering`, which
-records what was actually produced. Neither can be reproduced from a checkout.
+rebuild: `work_item`, which carries what a human decided, `rendering`, which
+records what was actually produced, and `publication`, which records which
+ensemble run wrote a published item and who accepted it. None of the three can be
+reproduced from a checkout.
 
 The test for which half a table belongs in: **if a git checkout can reproduce
 it, it is derived. If it records a decision or an event, it is authoritative.**
@@ -126,12 +128,36 @@ A build **proposes** work and never resets it. `rejected` is terminal.
 | `v_stale_citation` | Same question, estate-wide, driven by citation dates and the source registry. |
 | `v_unmeasurable` | **What can the staleness views not see?** |
 | `v_render_manifest` | This avatar was withdrawn. What has to be re-rendered? |
+| `v_provenance` | Which run wrote this item, under which brief, and who accepted it? |
+| `v_unprovenanced` | **What published content has no provenance at all?** |
 
 `v_unmeasurable` exists because the first working build reported zero stale
 items and looked healthy. It was measuring 84 of 150, because 66 items declared
 neither field and dropped silently out of the count. **A low stale count is only
 good news if everything was eligible to be counted**, so the build prints the
 blind spot on every run and `needs-updating` reads both staleness signals.
+
+## The loop, and the rule that keeps it closed
+
+The queue drives the briefs, the briefs drive the ensemble, and the ensemble's
+verdict comes back to the queue.
+
+```bash
+node scripts/generate-briefs.mjs --db content.db --inventory <models.json> --out briefs/queue-backlog.json
+# ... a delivery run happens, and writes run records ...
+node scripts/ingest-proposals.mjs   --db content.db --run-records <dir> --apply
+node scripts/record-publication.mjs --db content.db --run-records <dir> --subject <id> --accepted-by "you" --apply
+```
+
+**A brief must carry the subject id of the queue item it serves.** The delivery
+platform names its proposal after the brief, and that filename is the entire
+channel back. So the generator encodes the subject id in the brief id and refuses
+to emit one that would not survive the trip. Without that rule the ensemble runs,
+spends money, and its verdict cannot be attached to anything.
+
+Two behaviours nothing here will ever have: **it never publishes**, because a
+proposal is inert until a person accepts it, and **it never overrides a person**,
+because `rejected` and `done` are theirs.
 
 ## Design rules that are not negotiable
 

@@ -6,6 +6,7 @@
     "FAIL LOUDLY. If a mapped model is not in the deployed set, Orchard refuses to start and names the model and the job that wanted it. There is no silent substitution and no nearest-match fallback, because a fallback swallows the only signal that says a human needs to go deploy something.",
     "THE TOKEN PARAMETER DIALECT IS PER MODEL AND IS DECLARED, NEVER INFERRED. Two deployed models contradict each other: the gpt-5-6 family rejects max_tokens with HTTP 400, and mistral-large-3 rejects max_completion_tokens with HTTP 422. No single global setting serves both.",
     "VOICE IS NOT A DEPLOYMENT. Azure Speech voices are selected by SSML voice name and have no deployment, capacity, or quota row. Validating them against the deployment list would fail every startup, so they are validated by name only.",
+    "THE CHECKING ROLES MUST COME FROM DIFFERENT VENDOR FAMILIES, AND THIS IS ENFORCED TWICE. The delivery platform throws INDEPENDENCE at run time if the verifier and the drafter share a family, which is after the draft has been paid for. Brief generation checks the same thing before a request is made. Two arms of one family agree for reasons that have nothing to do with whether the content is right.",
     "NEVER RANK, BUDGET, OR SCHEDULE BY RAW CAPACITY. Capacity is a per-model unit. phi-4-reasoning at 1000 and flux-2-pro at 4 are not a thousand-to-four ratio of anything."
   ],
   "endpoint": {
@@ -19,19 +20,19 @@
       "why": "1.05M context, structured output, vision. Capacity 1000, the widest headroom of any reasoning deployment."
     },
     "verification": {
-      "model": "gpt-5-6-terra",
-      "dialect": "max_completion_tokens",
-      "why": "The instance registry names it the reviewer LLM, OpenAI half of the two-vendor pair. Already the decided role."
+      "model": "grok-4-20-reasoning",
+      "dialect": "max_tokens",
+      "why": "CORRECTED 2026-08-04. This job was gpt-5-6-terra, which is OpenAI, the same family as the drafter. The delivery platform throws INDEPENDENCE at run time when the verifier and drafter families match, so that ensemble could never have completed a run: it would have paid for a draft and then aborted. grok-4-20-reasoning is the verifier that actually ran end to end on 2026-08-04."
     },
     "adversary": {
-      "model": "grok-4-1-fast-reasoning",
+      "model": "deepseek-v4-pro",
       "dialect": "max_tokens",
-      "why": "The registry names it the reviewer LLM, xAI half. A different vendor family is what makes the pair meaningful; two OpenAI arms would agree with each other for the wrong reasons."
+      "why": "CORRECTED 2026-08-04. This job was grok-4-1-fast-reasoning, which is now the verifier's family. The adversary exists to attack what the verifier accepted, so sharing a family with it defeats the role. deepseek-v4-pro is the adversary from the proven run."
     },
     "arbiter": {
-      "model": "gpt-5-6-luna",
-      "dialect": "max_completion_tokens",
-      "why": "A third OpenAI arm, kept separate from drafter and verifier so the arbiter never judges its own output."
+      "model": "mistral-large-3",
+      "dialect": "max_tokens",
+      "why": "CORRECTED 2026-08-04. This job was gpt-5-6-luna, a third OpenAI arm. Separate from the drafter is not the same as independent of it. mistral-large-3 is a fourth family and is the arbiter from the proven run, which makes the quartet four vendors deep."
     },
     "triage": {
       "model": "grok-4-1-fast-non-reasoning",

@@ -160,6 +160,76 @@ there was written after a probe silently measured the wrong thing and was
 believed. The shortest version: ask what a term *also* matches before you trust
 its count, and probe every name a product has held.
 
+## 6. Turn the queue into briefs
+
+A build turns open candidates and stale items into a work queue. This is what
+hands that queue to the authoring ensemble.
+
+**First, say where each surface's content lives.** Copy
+[`config/surface-targets.json`](../config/surface-targets.json) and set a
+`pathTemplate` for every surface you author. A surface with no template is
+refused rather than guessed at, because the delivery platform will not emit a
+proposal that cannot name a repository and path, and a proposal nobody can locate
+cannot be reviewed.
+
+```bash
+node scripts/generate-briefs.mjs \
+  --db        /path/to/content.db \
+  --inventory /path/to/your/model-inventory.json \
+  --registry  /path/to/your/opportunity-registry.json \
+  --targets   /path/to/your/surface-targets.json \
+  --out       /path/to/briefs/queue-backlog.json \
+  --limit     3
+```
+
+It writes the brief file and reports the ensemble it staffed from your model map.
+Nothing in the queue moves until you add `--apply`, which marks what it issued as
+`claimed` so a second run cannot double-issue the same subject.
+
+**Read the skipped list.** Items on a surface with no target are *stranded*, not
+deferred: nothing will pick them up until you give that surface a home.
+
+Each generated brief id ends with the subject id of the queue item it serves.
+That is not cosmetic. It is the only channel back from a proposal to the queue,
+and step 7 depends on it.
+
+## 7. Close the loop
+
+After a delivery run, tell the queue what happened:
+
+```bash
+node scripts/ingest-proposals.mjs \
+  --db          /path/to/content.db \
+  --run-records /path/to/run-records \
+  --apply
+```
+
+A passed proposal moves its item to `in-progress`; a blocked one moves it to
+`blocked`, which is deliberately distinct from nobody having tried. **It never
+publishes and never overrides a person**: an item somebody moved to `rejected` or
+`done` is reported as left alone.
+
+When you have read a proposal and committed the content, record that:
+
+```bash
+node scripts/record-publication.mjs \
+  --db          /path/to/content.db \
+  --run-records /path/to/run-records \
+  --subject     <subject-id> \
+  --accepted-by "your name" \
+  --apply
+```
+
+`--accepted-by` is required and has no default. A publication with nobody named
+on it is an automated publication, and this pipeline does not do those. This is
+also the only tool that writes the terminal `done` state, which is why a person
+runs it and a build does not.
+
+Afterwards, `v_provenance` answers which run wrote a given item, under which
+brief, and what its reviewers concluded. **Read `v_unprovenanced` alongside it**:
+content that predates the pipeline has no row at all, and without that view a
+mostly untraced estate reads as fully traced.
+
 ## What Orchard will never do to your environment
 
 - It will not create, scale, or delete a model deployment.
