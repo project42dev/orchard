@@ -213,6 +213,33 @@ So the Learn redesign is a question about **presentation and navigation**, not
 about replacing one catalogue with another. A learner should be able to read a
 module or watch it, and both should come from the same content.
 
+### Both renderings carry the knowledge check, and progress is identical
+
+**Decided 2026-08-04.** Instructor-led includes the same knowledge check, and a
+learner's record is the same whichever way they took the module.
+
+**This needs no change, and the reason is worth knowing.** The learning event
+contract already keys every command and event by `pathId` and `moduleId`, and
+carries no field for rendering, delivery mode, or format anywhere. Progress is
+therefore recorded **against the module, not against how it was consumed**, which
+is exactly the required behaviour and was true before anyone asked for it.
+
+Three consequences follow, and all three are desirable:
+
+- A learner can **read half a module and watch the rest**, and the record is one
+  record. Nothing forces a choice at the start.
+- **A badge or credential means the same thing** however it was earned, which is
+  the only defensible position if both renderings teach the same material and
+  ask the same questions.
+- **Completion cannot be gamed by switching rendering**, because there is nothing
+  to switch between as far as the record is concerned.
+
+**If a rendering is ever recorded, it must be an annotation and never a key.**
+Knowing which modules were watched is useful for two real purposes: judging
+whether the instructor work earns its cost, and building a re-render list if an
+avatar is withdrawn. Neither is a reason to let it touch completion, and adding a
+field to a portable learning record is a contract change rather than a detail.
+
 ## How a candidate is scored
 
 Scoring exists to make selection arguable rather than instinctive. It does not
