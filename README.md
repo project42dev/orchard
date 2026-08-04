@@ -147,6 +147,15 @@ blind spot on every run and `needs-updating` reads both staleness signals.
 5. **Nothing generates at read time.** Everything a reader consumes is produced
    at publish time and stored.
 
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| [docs/install.md](docs/install.md) | Connect Orchard to your own models. Start here. |
+| [docs/lifecycle.md](docs/lifecycle.md) | The whole content lifecycle, discovery through retirement. |
+| [docs/decisions.md](docs/decisions.md) | Why it works the way it does, and what failed first. |
+| [REPO-BOUNDARY.md](REPO-BOUNDARY.md) | What belongs here and what does not. |
+
 ## Licence
 
 Apache-2.0.
