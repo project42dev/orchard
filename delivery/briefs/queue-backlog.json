@@ -1,5 +1,56 @@
 [
   {
+    "id": "p42-create-agent-orchestration-visual-guide",
+    "subjectId": "agent-orchestration-visual-guide",
+    "workItemId": "create:agent-orchestration-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Agent orchestration and multi-agent patterns (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Agent orchestration and multi-agent patterns (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nMeasured gap: Visual Guide corpus: 4 word-boundary occurrence(s) of \\borchestrat\\w*|\\bmulti[- ]agent\\b|\\bagent handoffs?\\b in the measured corpus; 12 occurrence(s) across 3 surveyed source(s)\nDemand signal: Present in 3 of 27 surveyed sources.\nSurveyed sources carrying this topic: databricks-academy, codecademy, google-cloud-agents.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/agent-orchestration.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
     "id": "p42-create-cost-and-capacity-management-field-guide",
     "subjectId": "cost-and-capacity-management-field-guide",
     "workItemId": "create:cost-and-capacity-management-field-guide",
@@ -95,20 +146,23 @@
     ]
   },
   {
-    "id": "p42-create-executive-and-leader-track-field-guide",
-    "subjectId": "executive-and-leader-track-field-guide",
-    "workItemId": "create:executive-and-leader-track-field-guide",
+    "id": "p42-create-cost-and-capacity-management-visual-guide",
+    "subjectId": "cost-and-capacity-management-visual-guide",
+    "workItemId": "create:cost-and-capacity-management-visual-guide",
     "kind": "needs-creating",
-    "surface": "field-guide",
-    "title": "AI for executives, leaders, and decision makers (Field Guide)",
-    "prompt": "Write the field-guide content for \"AI for executives, leaders, and decision makers (Field Guide)\", at beginner level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nMeasured gap: Field Guide corpus: 0 word-boundary occurrence(s) of \\bexecutives?\\b|\\bboard[- ]level\\b|\\bdecision[- ]makers?\\b|\\bC[- ]?suite\\b in the measured corpus; 21 occurrence(s) across 7 surveyed source(s)\nDemand signal: Present in 7 of 27 surveyed sources.\nSurveyed sources carrying this topic: pluralsight, edx, nvidia-dli, databricks-academy, udacity, google-cloud-agents, codecademy.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "surface": "visual-guide",
+    "title": "Cost, capacity, and spend control for AI systems (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Cost, capacity, and spend control for AI systems (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nMeasured gap: Visual Guide corpus: 0 word-boundary occurrence(s) of \\bcost (control|ceiling|management|governance)\\b|\\btokens? per minute\\b|\\bTPM\\b|\\bspend (limit|cap|control)\\b in the measured corpus; 4 occurrence(s) across 1 surveyed source(s)\nDemand signal: Present in 1 of 27 surveyed sources.\nSurveyed sources carrying this topic: google-cloud-agents.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
     "acceptanceCriteria": [
       "Every source is listed at the end of the piece, with a URL that resolves over https.",
       "No tool name, version number, or configuration key appears that the supplied material does not establish.",
       "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
-      "The piece is written for beginner level and says so.",
-      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
-      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
     ],
     "roles": {
       "drafter": {
@@ -134,9 +188,10 @@
     },
     "targets": [
       {
-        "repository": "project42dev/project42-platform",
+        "repository": "project42dev/guide.project-42.dev",
         "pathPrefixes": [
-          "content/resources/executive-and-leader-track/"
+          "diagrams/cost-and-capacity-management.mmd",
+          "config/diagrams.json"
         ]
       }
     ]

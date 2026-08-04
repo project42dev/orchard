@@ -166,11 +166,20 @@ A build turns open candidates and stale items into a work queue. This is what
 hands that queue to the authoring ensemble.
 
 **First, say where each surface's content lives.** Copy
-[`config/surface-targets.json`](../config/surface-targets.json) and set a
-`pathTemplate` for every surface you author. A surface with no template is
+[`config/surface-targets.json`](../config/surface-targets.json) and set
+`pathTemplates` for every surface you author. A surface with no template is
 refused rather than guessed at, because the delivery platform will not emit a
 proposal that cannot name a repository and path, and a proposal nobody can locate
 cannot be reviewed.
+
+Two things that file exists to let you say, both learned the hard way:
+
+- **A surface can live in a different repository from the others.** Set
+  `repository` on the surface. Assuming one repository made a fully populated
+  surface read as one with no home at all.
+- **A surface can need more than one path.** An artifact plus its catalogue
+  entry is two paths, and a proposal that writes the first and not the second
+  produces something no reader can reach.
 
 ```bash
 node scripts/generate-briefs.mjs \

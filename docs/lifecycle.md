@@ -237,14 +237,34 @@ back to their subject ids.
    would have reopened the completed creation, and the terminal-state guard read
    whichever row SQLite returned first.
 
-### Still open, and not a broken handoff
+### A surface is not necessarily in the same repository as the others
 
-**Ten of the twenty-four queued items are on the `visual-guide` surface, which
-has no home directory in the estate.** The generator reports them as stranded and
-emits nothing for them, because a proposal that cannot name a repository and path
-cannot be reviewed. Giving that surface a `pathTemplate` in
-`config/surface-targets.json` is an owner decision about where visual guides
-live, not a defect in the cycle.
+The first version of the target map had one repository for everything, and on
+that assumption ten of the twenty-four queued items looked homeless: the
+`visual-guide` surface had no directory anywhere in the content platform.
+
+**It was never homeless. It was in a different repository.** Visual guides are
+the diagrams published on the Field Guide subdomain at `/diagrams` and
+`/diagrams/<id>`, where the interface calls them visual guides. The Mermaid
+source is `diagrams/<id>.mmd`, the catalogue entry is in `config/diagrams.json`,
+and the SVG under `public/diagrams/` is generated rather than authored.
+
+Two rules came out of it, and both are in `config/surface-targets.json`:
+
+- **A surface may override the default repository.** Assuming one repository is
+  what made a populated surface read as an empty one.
+- **A surface that needs a catalogue entry as well as a file declares both
+  paths.** A proposal that writes the artifact and never registers it produces
+  something no reader can reach.
+
+A third followed from the same place: a visual guide is not an article, so the
+brief for one carries a **form instruction** (produce Mermaid source plus a
+catalogue entry, never a hand-authored SVG) and acceptance criteria about
+`altText` and whether the diagram renders without a legend. A drafter handed the
+generic prose instruction writes prose, which cannot be published on that
+surface at all.
+
+All 24 queued items now resolve to a repository and a path. Nothing is stranded.
 
 ## Phase 4 is on hold, and the reason is a design question not a technical one
 

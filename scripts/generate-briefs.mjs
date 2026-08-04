@@ -220,16 +220,19 @@ export function resolveTarget(item, targets) {
   if (!surface) {
     return { error: `surface "${item.surface}" is not declared in the surface target map` };
   }
-  if (!surface.pathTemplate) {
-    return { error: `surface "${item.surface}" has no pathTemplate, so a proposal for it could not say where it applies` };
+  // pathTemplate (singular) is the older single-path form and is still honoured.
+  const templates = surface.pathTemplates ?? (surface.pathTemplate ? [surface.pathTemplate] : []);
+  if (!templates.length) {
+    return { error: `surface "${item.surface}" has no pathTemplates, so a proposal for it could not say where it applies` };
   }
-  const path = surface.pathTemplate
-    .replace('{topic}', topicSlug(item.subject_id, surface.suffix))
-    .replace('{subject}', item.subject_id);
+  const topic = topicSlug(item.subject_id, surface.suffix);
   return {
     target: {
-      repository: targets.repository,
-      pathPrefixes: [path],
+      // A surface may live in a different repository from the others. Visual
+      // guides do, and defaulting them to the content platform is what made
+      // them look like they had no home at all.
+      repository: surface.repository ?? targets.repository,
+      pathPrefixes: templates.map((t) => t.replace('{topic}', topic).replace('{subject}', item.subject_id)),
     },
   };
 }
@@ -272,7 +275,22 @@ const STANDING_CONSTRAINTS = [
   'Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.',
 ];
 
-export function buildPrompt(item, evidence, citations) {
+// A visual guide is not an article. Its deliverable is a Mermaid source file
+// plus a catalogue entry, and a drafter handed the generic prose instruction
+// will write prose, which cannot be published on that surface at all.
+const FORM_INSTRUCTIONS = {
+  mermaid: [
+    '',
+    'FORM. The deliverable is not prose. Produce two things:',
+    '1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.',
+    '2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.',
+    '',
+    'The altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.',
+    'Do not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.',
+  ],
+};
+
+export function buildPrompt(item, evidence, citations, surfaceConfig) {
   const lines = [];
   const level = evidence?.level ?? item.level ?? 'intermediate';
 
@@ -303,6 +321,9 @@ export function buildPrompt(item, evidence, citations) {
     }
   }
 
+  const form = FORM_INSTRUCTIONS[surfaceConfig?.form];
+  if (form) lines.push(...form);
+
   lines.push('', 'Constraints:');
   for (const c of STANDING_CONSTRAINTS) lines.push(`- ${c}`);
   return lines.join('\n');
@@ -317,6 +338,13 @@ const SURFACE_CRITERIA = {
   'field-guide': [
     'The piece answers a question a practitioner arrives with, and answers it before it explains itself.',
     'Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader.',
+  ],
+  'visual-guide': [
+    'The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.',
+    'The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.',
+    'The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.',
+    'The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.',
+    'No SVG is authored by hand. The rendered image is generated from the source.',
   ],
 };
 
@@ -359,6 +387,7 @@ export function briefFor({ item, roles, targets, evidence, citations }) {
 
   const resolved = resolveTarget(item, targets);
   if (resolved.error) return { error: resolved.error };
+  const surfaceConfig = targets.surfaces?.[item.surface];
 
   return {
     brief: {
@@ -370,7 +399,7 @@ export function briefFor({ item, roles, targets, evidence, citations }) {
       kind: item.kind,
       surface: item.surface,
       title: item.title,
-      prompt: buildPrompt(item, evidence, citations),
+      prompt: buildPrompt(item, evidence, citations, surfaceConfig),
       acceptanceCriteria: buildAcceptanceCriteria(item, evidence),
       roles,
       targets: [resolved.target],

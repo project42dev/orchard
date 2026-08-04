@@ -96,9 +96,27 @@ const targetsPath = join(root, 'targets.json');
 writeFileSync(targetsPath, JSON.stringify({
   repository: 'example/content',
   surfaces: {
-    learn: { pathTemplate: 'content/modules/{topic}/', suffix: '-learn' },
+    learn: { pathTemplates: ['content/modules/{topic}/'], suffix: '-learn' },
+    // Deliberately the older singular form, which must keep working.
     'field-guide': { pathTemplate: 'content/resources/{topic}/', suffix: '-field-guide' },
-    'visual-guide': { pathTemplate: null, suffix: '-visual-guide' },
+    'visual-guide': { pathTemplates: null, suffix: '-visual-guide' },
+  },
+}));
+
+// A second map where the visual surface has the home it really has: a different
+// repository, two paths, and a non-prose deliverable.
+const targetsMappedPath = join(root, 'targets-mapped.json');
+writeFileSync(targetsMappedPath, JSON.stringify({
+  repository: 'example/content',
+  surfaces: {
+    learn: { pathTemplates: ['content/modules/{topic}/'], suffix: '-learn' },
+    'field-guide': { pathTemplates: ['content/resources/{topic}/'], suffix: '-field-guide' },
+    'visual-guide': {
+      repository: 'example/site',
+      pathTemplates: ['diagrams/{topic}.mmd', 'config/diagrams.json'],
+      suffix: '-visual-guide',
+      form: 'mermaid',
+    },
   },
 }));
 
@@ -157,6 +175,33 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
     r.briefs.every((b) => b.acceptanceCriteria.length >= 3));
   check('every role carries its own completion budget, never a global one',
     r.briefs.every((b) => Object.values(b.roles).every((role) => role.maxCompletionTokens > 4096)));
+}
+
+// --- a surface in a different repository ---------------------------------------
+
+{
+  const r = generateBriefs({ ...base, targetsPath: targetsMappedPath, limit: 10 });
+  equal('nothing is stranded once every surface has a home', r.skipped.length, 0);
+  equal('and every eligible item gets a brief', r.briefs.length, 6);
+
+  const visual = r.briefs.find((b) => b.subjectId === 'd-visual-guide');
+  equal('a surface may live in a different repository from the others',
+    visual.targets[0].repository, 'example/site');
+  check('and may name more than one path, so the artifact and its catalogue entry both land',
+    visual.targets[0].pathPrefixes.length === 2
+    && visual.targets[0].pathPrefixes[0] === 'diagrams/d.mmd'
+    && visual.targets[0].pathPrefixes[1] === 'config/diagrams.json');
+  check('a non-prose surface tells the drafter what form the deliverable takes',
+    visual.prompt.includes('The deliverable is not prose') && visual.prompt.includes('Mermaid'));
+  check('and forbids hand-authoring the generated artifact',
+    visual.prompt.includes('Do not produce an SVG'));
+  check('and its criteria are about the diagram, not about prose',
+    visual.acceptanceCriteria.some((c) => c.includes('altText'))
+    && visual.acceptanceCriteria.some((c) => c.includes('renders on its own')));
+
+  const learn = r.briefs.find((b) => b.subjectId === 'alpha-learn');
+  check('a prose surface gets no form instruction', !learn.prompt.includes('Mermaid'));
+  equal('and still lands in the default repository', learn.targets[0].repository, 'example/content');
 }
 
 // --- stranded work is counted, not stopped at ---------------------------------
