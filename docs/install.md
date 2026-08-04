@@ -134,9 +134,20 @@ and writes nothing until you add `--apply`.
 
 ## 5. Run a discovery pass
 
+**First, take a copy of the starter registry.** Discovery reads and writes this
+file; it does not create one, and a cold clone has nothing to point `--registry`
+at:
+
+```bash
+cp content/opportunity-registry.starter.json /path/to/your/opportunity-registry.json
+```
+
+Then edit its `watchList` to name the catalogue pages you want to measure demand
+against. The shipped entry is a placeholder and will find nothing.
+
 ```bash
 node scripts/discover-content-opportunities.mjs \
-  --registry /path/to/opportunity-registry.json \
+  --registry /path/to/your/opportunity-registry.json \
   --corpus   /path/to/your/content \
   --probes   /path/to/your/probes.json \
   --out      /path/to/proposals.json \

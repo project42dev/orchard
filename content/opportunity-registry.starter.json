@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "registryVersion": "0.0.0",
+  "lastReviewed": "1970-01-01",
+  "purpose": "An empty opportunity registry to start from. Copy this somewhere outside the repository, point --registry at your copy, and let discovery fill it. It is content data rather than planning material: version it beside the content it governs, because a list the builder cannot see cannot drive a build.",
+  "usageRules": [
+    "Discovery inputs only. Never copy course outlines, lesson sequences, exercises, assessment items, artwork, branding, or proprietary teaching structure from any watched service.",
+    "Every delivered item needs original instruction, primary-source evidence, accessibility assets, and a named freshness owner.",
+    "A watch-list entry is evidence of market demand and topic vocabulary. It is never a content source.",
+    "A rejected entry stays rejected. No later run may propose it again."
+  ],
+  "coverageBaseline": {
+    "measuredOn": "1970-01-01",
+    "note": "Replace with your own measurement. Until discovery runs, nothing here has been measured."
+  },
+  "watchList": [
+    {
+      "id": "example-source",
+      "label": "Replace this with a real catalogue page you want to measure demand against",
+      "url": "https://example.com/courses",
+      "kind": "catalog",
+      "note": "The watch list is what discovery surveys for DEMAND. Entries are evidence that a topic is taught in the market. They are never a content source. Expect some sites to refuse automated access; discovery names the ones it could not reach on every run."
+    }
+  ],
+  "opportunities": []
+}
