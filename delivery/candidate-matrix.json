@@ -1,0 +1,182 @@
+{
+  "schemaVersion": "1.1",
+  "id": "project42-content-maintenance-candidates-2026-07-27",
+  "execution": {
+    "judgesPerCase": 2,
+    "minimumJudgeScore": 0.8,
+    "maximumCompletionTokens": 500,
+    "minimumDeploymentIntervalSeconds": 60,
+    "requestTimeoutSeconds": 180,
+    "maximumRetries": 2,
+    "maximumRequests": 300,
+    "maximumEstimatedCostUsd": 10,
+    "judgePool": [
+      {
+        "deploymentAlias": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "modelVersion": "2026-07-09"
+      },
+      {
+        "deploymentAlias": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "modelVersion": "1"
+      },
+      {
+        "deploymentAlias": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "modelVersion": "2026-04-23"
+      },
+      {
+        "deploymentAlias": "mistral-large-3",
+        "providerFamily": "Mistral AI",
+        "modelVersion": "1"
+      }
+    ]
+  },
+  "stages": [
+    {
+      "stage": "evidence-research",
+      "threshold": 0.9,
+      "candidates": [
+        {
+          "deploymentAlias": "gpt-5-6-sol",
+          "providerFamily": "OpenAI",
+          "modelVersion": "2026-07-09",
+          "purpose": "Deep primary-source synthesis and provenance mapping"
+        },
+        {
+          "deploymentAlias": "grok-4-20-reasoning",
+          "providerFamily": "xAI",
+          "modelVersion": "1",
+          "purpose": "Independent long-context research candidate"
+        },
+        {
+          "deploymentAlias": "deepseek-v4-pro",
+          "providerFamily": "DeepSeek",
+          "modelVersion": "2026-04-23",
+          "purpose": "Independent evidence extraction candidate"
+        }
+      ]
+    },
+    {
+      "stage": "curriculum-writing",
+      "threshold": 0.9,
+      "candidates": [
+        {
+          "deploymentAlias": "gpt-5-6-terra",
+          "providerFamily": "OpenAI",
+          "modelVersion": "2026-07-09",
+          "purpose": "Long-form accessible instructional writing candidate"
+        },
+        {
+          "deploymentAlias": "mistral-large-3",
+          "providerFamily": "Mistral AI",
+          "modelVersion": "1",
+          "purpose": "Provider-independent instructional writing candidate"
+        },
+        {
+          "deploymentAlias": "deepseek-v4-pro",
+          "providerFamily": "DeepSeek",
+          "modelVersion": "2026-04-23",
+          "purpose": "Structured technical curriculum candidate"
+        }
+      ]
+    },
+    {
+      "stage": "factual-verification",
+      "threshold": 0.95,
+      "candidates": [
+        {
+          "deploymentAlias": "grok-4-20-reasoning",
+          "providerFamily": "xAI",
+          "modelVersion": "1",
+          "purpose": "Independent contradiction and citation verifier candidate"
+        },
+        {
+          "deploymentAlias": "deepseek-v4-pro",
+          "providerFamily": "DeepSeek",
+          "modelVersion": "2026-04-23",
+          "purpose": "Independent claim-level verifier candidate"
+        },
+        {
+          "deploymentAlias": "llama-4-maverick-17b",
+          "providerFamily": "Meta",
+          "modelVersion": "1",
+          "purpose": "Open-weight verifier candidate"
+        }
+      ]
+    },
+    {
+      "stage": "assessment-review",
+      "threshold": 0.92,
+      "candidates": [
+        {
+          "deploymentAlias": "deepseek-v4-pro",
+          "providerFamily": "DeepSeek",
+          "modelVersion": "2026-04-23",
+          "purpose": "Assessment key and distractor review candidate"
+        },
+        {
+          "deploymentAlias": "gpt-5-6-terra",
+          "providerFamily": "OpenAI",
+          "modelVersion": "2026-07-09",
+          "purpose": "Mastery and feedback review candidate"
+        },
+        {
+          "deploymentAlias": "mistral-large-3",
+          "providerFamily": "Mistral AI",
+          "modelVersion": "1",
+          "purpose": "Independent assessment-quality candidate"
+        }
+      ]
+    },
+    {
+      "stage": "accessibility-review",
+      "threshold": 0.92,
+      "candidates": [
+        {
+          "deploymentAlias": "gpt-5-6-terra",
+          "providerFamily": "OpenAI",
+          "modelVersion": "2026-07-09",
+          "purpose": "Accessible lesson and narration review candidate"
+        },
+        {
+          "deploymentAlias": "llama-4-maverick-17b",
+          "providerFamily": "Meta",
+          "modelVersion": "1",
+          "purpose": "Open-weight accessibility review candidate"
+        },
+        {
+          "deploymentAlias": "mistral-large-3",
+          "providerFamily": "Mistral AI",
+          "modelVersion": "1",
+          "purpose": "Independent structure and alternative-format candidate"
+        }
+      ]
+    },
+    {
+      "stage": "release-proposal",
+      "threshold": 0.9,
+      "candidates": [
+        {
+          "deploymentAlias": "kimi-k2-7-code",
+          "providerFamily": "MoonshotAI",
+          "modelVersion": "2026-06-12",
+          "purpose": "Structured evidence and change-proposal assembly candidate"
+        },
+        {
+          "deploymentAlias": "gpt-5-6-luna",
+          "providerFamily": "OpenAI",
+          "modelVersion": "2026-07-09",
+          "purpose": "Efficient release-proposal assembly candidate"
+        },
+        {
+          "deploymentAlias": "phi-4-reasoning",
+          "providerFamily": "Microsoft",
+          "modelVersion": "1",
+          "purpose": "Microsoft small-model proposal candidate"
+        }
+      ]
+    }
+  ]
+}

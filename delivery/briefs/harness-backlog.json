@@ -1,0 +1,83 @@
+[
+  {
+    "id": "p42-content-5112-foundry-connect-guide",
+    "prompt": "Write the reference explanation of how a developer points an OpenAI-wire-compatible tool at an Azure AI Foundry deployment. Cover what the v1 API surface guarantees, which fields of a client configuration change and which do not, and why a tool with a configurable base URL needs no vendor-specific support. Do not invent tool names, version numbers, or configuration keys. If a specific tool's setting is not established by the supplied material, say so rather than guessing it.\n\nAddress these specific failure modes, which prior adversarial review found missing or overstated:\n1. Base URL trailing slash. State whether the path ends with a slash and explain that a double slash before an operation path can fail depending on server URL normalization. Be unambiguous in any format string you give.\n2. The double /v1 problem. Many OpenAI-compatible tools append /v1 to whatever base URL the user supplies, producing /openai/v1/v1/chat/completions. Name this explicitly as the most common concrete failure and tell the reader how to detect it.\n3. Do not overclaim about api-version. Describe the migration away from a dated query parameter without asserting it is universally rejected or unnecessary across every operation and region.\n4. Authentication reality. State plainly that a tool exposing only a static API key field typically cannot perform Microsoft Entra ID token acquisition at all, rather than implying it merely needs the right workflow.\n5. Every checklist step must carry a remediation path. A step that can fail with no stated next action strands the reader.",
+    "acceptanceCriteria": [
+      "Every configuration key named is one that appears in the supplied material, never inferred from the tool general reputation.",
+      "The explanation distinguishes what the v1 surface guarantees from what any individual client chooses to send.",
+      "No claim is made about a tool version that the supplied material does not establish.",
+      "The piece states plainly where a reader must consult vendor documentation rather than implying completeness.",
+      "The base URL format string is unambiguous about a trailing slash, and the double slash risk is stated.",
+      "The double /v1 path failure is named explicitly as a common failure mode, with a way to detect it.",
+      "Any statement about the dated api-version parameter describes a migration rather than asserting universal rejection.",
+      "The piece states that a tool exposing only a static API key field typically cannot acquire a Microsoft Entra ID token at all.",
+      "Every checklist step carries a remediation path for its failure case."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI"
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI"
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek"
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "Mistral AI"
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/ai-foundations/",
+          "content/resources/setup-quick-reference/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-content-5112-model-selection-criteria",
+    "prompt": "Write the guidance a reader needs to choose between reasoning deployments for a given task, framed around measurable properties rather than vendor claims. Explain what capacity means as a throughput ceiling and why it is not a spend control. Explain why a per-task choice should rest on measured behaviour rather than on a model's general reputation. Name no model as best overall.\n\nCite only sources whose URLs resolve directly over https. Do not cite DOIs, paywalled identifiers, or anything a reader cannot open. If you cannot support a claim with a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.",
+    "acceptanceCriteria": [
+      "Capacity is described as a throughput ceiling and explicitly not as a cost control.",
+      "No deployment is ranked as best overall; every recommendation is conditioned on a stated task property.",
+      "Any quantitative claim is either sourced from the supplied material or omitted.",
+      "The guidance tells the reader how to measure the property themselves, not merely which answer to accept.",
+      "Every cited source is a URL that resolves. Do not cite a DOI or identifier that cannot be fetched directly."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-terra",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI"
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek"
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "Mistral AI"
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/provider-comparison/",
+          "content/resources/model-provider-decisions/"
+        ]
+      }
+    ]
+  }
+]

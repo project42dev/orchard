@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "currency": "USD",
+  "asOf": "REPLACE_WITH_CURRENT_UTC_TIMESTAMP",
+  "rates": [
+    {
+      "deploymentAlias": "REPLACE_WITH_DEPLOYMENT_ALIAS",
+      "inputUsdPerMillionTokens": "REPLACE_WITH_CURRENT_RATE",
+      "outputUsdPerMillionTokens": "REPLACE_WITH_CURRENT_RATE",
+      "source": "https://REPLACE_WITH_CURRENT_PRICING_EVIDENCE"
+    }
+  ]
+}

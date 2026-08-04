@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "benchmarkId": "project42-content-maintenance-heldout-1",
+  "synthetic": false,
+  "selection": [
+    {
+      "stage": "evidence-research",
+      "primaryDeploymentAlias": "<qualified-alias>",
+      "fallbackDeploymentAliases": ["<qualified-fallback-alias>"]
+    }
+  ],
+  "runs": [
+    {
+      "stage": "evidence-research",
+      "deploymentAlias": "<candidate-alias>",
+      "providerFamily": "<provider-family>",
+      "modelVersion": "<model-version>",
+      "evaluatedAt": "2026-01-01T00:00:00.000Z",
+      "inputDigest": "<lowercase-sha256>",
+      "outputDigest": "<lowercase-sha256>",
+      "latencyMs": 0,
+      "costUsd": 0,
+      "cases": [
+        {
+          "id": "<benchmark-case-id>",
+          "score": 0,
+          "passed": false
+        }
+      ]
+    }
+  ]
+}

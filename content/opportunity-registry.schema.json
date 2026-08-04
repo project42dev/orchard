@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/project42dev/orchard/content/opportunity-registry.schema.json",
+  "title": "Content opportunity registry",
+  "description": "A LIVE inventory of candidate content, maintained by repeated discovery passes rather than authored once. Discovery proposes; a human merges. Nothing in this schema is specific to any one publisher: the watch list, the coverage source, and the surfaces are all supplied by the deployer.",
+  "type": "object",
+  "required": ["schemaVersion", "registryVersion", "lastReviewed", "watchList", "opportunities"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "registryVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Bumped by every accepted merge. The published copy on a runtime share is checked against this to detect drift."
+    },
+    "lastReviewed": { "type": "string", "format": "date" },
+    "purpose": { "type": "string" },
+    "usageRules": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Deployer-supplied constraints that every pass must honour. A watched service is a discovery input and never a content source; copying its outlines, sequences, exercises, assessments, artwork or branding is prohibited."
+    },
+    "coverageBaseline": {
+      "type": "object",
+      "description": "What existing coverage was measured, how, and when. A gap claim without its measurement is unfalsifiable, so this is required for any opportunity carrying gapEvidence.",
+      "required": ["measuredAgainst", "measuredOn", "method"],
+      "properties": {
+        "measuredAgainst": { "type": "string" },
+        "measuredOn": { "type": "string", "format": "date" },
+        "method": { "type": "string" },
+        "totals": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "watchList": {
+      "type": "array",
+      "description": "Sources surveyed for demand and topic vocabulary. Deployer-supplied.",
+      "items": {
+        "type": "object",
+        "required": ["id", "url", "pattern"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,63}$" },
+          "url": { "type": "string", "format": "uri" },
+          "pattern": { "type": "string", "description": "What this source is watched FOR. Keeps a survey honest about why an entry is on the list." },
+          "lastSurveyed": { "type": "string", "format": "date-time" },
+          "lastStatus": { "type": "integer", "description": "HTTP status of the last survey attempt. 0 means a transport failure." },
+          "fetchNote": { "type": "string", "description": "A durable reason this source resists automated survey, for example a persistent 403 to non-browser clients." }
+        }
+      }
+    },
+    "opportunities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/opportunity" }
+    }
+  },
+  "$defs": {
+    "opportunity": {
+      "type": "object",
+      "required": ["id", "title", "surface", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{2,63}$",
+          "description": "STABLE for the life of the entry. Discovery dedups on this against the WHOLE registry, including rejected and retired entries. An id that changes turns one opportunity into an endless stream of duplicates."
+        },
+        "title": { "type": "string", "minLength": 3 },
+        "surface": {
+          "type": "string",
+          "description": "Which publishing surface this belongs to. Values are deployer-defined."
+        },
+        "level": { "type": "string" },
+        "status": {
+          "enum": ["candidate", "selected", "in-progress", "delivered", "retired", "rejected"],
+          "description": "LIFECYCLE. Discovery may only CREATE entries at 'candidate' and may only annotate others. It must never move an entry a human moved. A 'rejected' entry stays rejected: re-proposing declined work on every pass is the failure that makes these systems useless."
+        },
+        "statusSetBy": {
+          "enum": ["discovery", "human"],
+          "description": "Who last set status. Discovery may only overwrite a status it set itself."
+        },
+        "statusSetOn": { "type": "string", "format": "date-time" },
+        "rejectionReason": {
+          "type": "string",
+          "description": "Required in practice when status is 'rejected', so a later pass can explain to a reader why a plausible-looking gap is not being built."
+        },
+        "gapEvidence": {
+          "type": "string",
+          "description": "The MEASUREMENT that justifies this entry, not an assertion that a gap exists."
+        },
+        "gapMeasurement": {
+          "type": "object",
+          "description": "Machine-checkable form of gapEvidence, so a later pass can RE-MEASURE rather than re-assert. An opportunity whose gap has closed is proposed for delivered or retired.",
+          "properties": {
+            "probe": { "type": "string", "description": "The exact pattern measured. Use word boundaries: a naive substring probe for 'rag' matches 'storage' and 'average'." },
+            "occurrences": { "type": "integer", "minimum": 0 },
+            "measuredOn": { "type": "string", "format": "date-time" }
+          }
+        },
+        "marketSignal": { "type": "string" },
+        "evidenceSources": {
+          "type": "array",
+          "items": { "type": "string", "format": "uri" }
+        },
+        "provenance": {
+          "type": "object",
+          "description": "Where this entry came from and how it has aged.",
+          "properties": {
+            "suggestedBy": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "watchList ids that surfaced this."
+            },
+            "firstSeen": { "type": "string", "format": "date-time" },
+            "lastConfirmed": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Last pass that still found this relevant. A candidate that stops being confirmed is proposed for retirement rather than deleted."
+            },
+            "confirmCount": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "workItem": {
+          "type": "string",
+          "description": "Tracker id once committed. Deployer-defined format."
+        },
+        "note": { "type": "string" },
+        "blockedBy": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

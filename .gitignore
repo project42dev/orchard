@@ -4,3 +4,6 @@ node_modules/
 .env.*
 proposals*.json
 scores*.json
+
+# Operator-local runtime state. Never committed, in any repository.
+delivery/private/

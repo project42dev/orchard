@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "selection": [
+    {
+      "stage": "evidence-research",
+      "primaryDeploymentAlias": "REPLACE_AFTER_MEASURED_REVIEW",
+      "fallbackDeploymentAliases": ["REPLACE_AFTER_MEASURED_REVIEW"]
+    },
+    {
+      "stage": "curriculum-writing",
+      "primaryDeploymentAlias": "REPLACE_AFTER_MEASURED_REVIEW",
+      "fallbackDeploymentAliases": ["REPLACE_AFTER_MEASURED_REVIEW"]
+    },
+    {
+      "stage": "factual-verification",
+      "primaryDeploymentAlias": "REPLACE_AFTER_MEASURED_REVIEW",
+      "fallbackDeploymentAliases": ["REPLACE_AFTER_MEASURED_REVIEW"]
+    },
+    {
+      "stage": "assessment-review",
+      "primaryDeploymentAlias": "REPLACE_AFTER_MEASURED_REVIEW",
+      "fallbackDeploymentAliases": ["REPLACE_AFTER_MEASURED_REVIEW"]
+    },
+    {
+      "stage": "accessibility-review",
+      "primaryDeploymentAlias": "REPLACE_AFTER_MEASURED_REVIEW",
+      "fallbackDeploymentAliases": ["REPLACE_AFTER_MEASURED_REVIEW"]
+    },
+    {
+      "stage": "release-proposal",
+      "primaryDeploymentAlias": "REPLACE_AFTER_MEASURED_REVIEW",
+      "fallbackDeploymentAliases": ["REPLACE_AFTER_MEASURED_REVIEW"]
+    }
+  ]
+}
