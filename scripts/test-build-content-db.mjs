@@ -7,10 +7,11 @@
 // cannot go quiet on content it is structurally unable to see.
 
 import { DatabaseSync } from 'node:sqlite';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildContentDb, resolveSourceId, DEFAULT_SURFACES } from './build-content-db.mjs';
+import { backfill, deriveCurrency } from './backfill-currency-fields.mjs';
 
 let passed = 0;
 const failures = [];
@@ -180,6 +181,62 @@ buildContentDb({ contentRoot: content, dbPath, surfaces: DEFAULT_SURFACES });
   equal('but the human decision about it survives, because it exists nowhere else',
     stillRejected.state, 'rejected');
   db.close();
+}
+
+// --- the currency backfill ---------------------------------------------------
+
+{
+  const sources = [
+    { id: 'fast', urlPrefix: 'https://fast.example/', reviewCadenceDays: 30 },
+    { id: 'slow', urlPrefix: 'https://slow.example/', reviewCadenceDays: 365 },
+  ];
+
+  const d = deriveCurrency({
+    sources: [
+      { url: 'https://slow.example/a', lastVerified: '2026-01-01' },
+      { url: 'https://fast.example/b', lastVerified: '2025-01-01' },
+    ],
+  }, sources);
+  equal('lastVerified takes the OLDEST citation, because an item is only as fresh as its stalest source',
+    d.lastVerified, '2025-01-01');
+  equal('reviewCadenceDays takes the STRICTEST source cadence, or the cadence is decorative',
+    d.reviewCadenceDays, 30);
+
+  const none = deriveCurrency({ sources: [] }, sources);
+  check('an item citing nothing derives nothing rather than guessing',
+    none.lastVerified === null && none.reviewCadenceDays === null);
+
+  const unregistered = deriveCurrency({
+    sources: [{ url: 'https://nowhere.example/x', lastVerified: '2026-01-01' }],
+  }, sources);
+  equal('an unregistered citation yields a date but no cadence', unregistered.reviewCadenceDays, null);
+
+  // The formatting promise: a backfill adds two lines and touches nothing else.
+  const fixture = mkdtempSync(join(tmpdir(), 'orchard-backfill-'));
+  mkdirSync(join(fixture, 'modules'), { recursive: true });
+  mkdirSync(join(fixture, 'resources'), { recursive: true });
+  writeFileSync(join(fixture, 'source-registry.json'), JSON.stringify({
+    sources: [{ id: 'fast', urlPrefix: 'https://fast.example/', reviewCadenceDays: 30 }],
+  }));
+  const before = '{\n  "id": "m",\n  "title": "T",\n  "level": "beginner",\n  "providers": ["a", "b"],\n  "sources": [{ "url": "https://fast.example/x", "lastVerified": "2026-01-01" }]\n}\n';
+  const target = join(fixture, 'modules', 'm.json');
+  writeFileSync(target, before);
+
+  backfill({ contentRoot: fixture, apply: true });
+  const after = readFileSync(target, 'utf8');
+
+  equal('the backfill adds exactly two lines',
+    after.split('\n').length - before.split('\n').length, 2);
+  check('and leaves the author\'s compact array formatting alone',
+    after.includes('"providers": ["a", "b"]'));
+  check('and places them after level', /"level".*\n\s*"reviewCadenceDays"/.test(after));
+  equal('and the result still parses', JSON.parse(after).reviewCadenceDays, 30);
+
+  const secondRun = backfill({ contentRoot: fixture, apply: true });
+  equal('re-running changes nothing, because the fields are already there',
+    secondRun.updated.length, 0);
+
+  rmSync(fixture, { recursive: true, force: true });
 }
 
 // --- report ------------------------------------------------------------------
