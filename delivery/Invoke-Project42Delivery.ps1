@@ -63,11 +63,11 @@ param(
 
     [string] $ProposalRoot = ($env:PROPOSAL_ROOT ?? (Join-Path $PSScriptRoot 'private/proposals')),
 
-    [string] $SchemaRoot = ($env:SCHEMA_ROOT ?? (Join-Path $PSScriptRoot '../../../project42-platform/schemas/content-maintenance')),
+    [string] $SchemaRoot = ($env:SCHEMA_ROOT ?? (Join-Path $PSScriptRoot '../../project42-platform/schemas/content-maintenance')),
 
     [string] $SourceChangeModulePath = ($env:SOURCE_CHANGE_MODULE_PATH ?? (Join-Path $PSScriptRoot 'Project42SourceChange.psm1')),
 
-    [string] $SourceRegistryPath = ($env:SOURCE_REGISTRY_PATH ?? (Join-Path $PSScriptRoot '../../../project42-platform/content/source-registry.json')),
+    [string] $SourceRegistryPath = ($env:SOURCE_REGISTRY_PATH ?? (Join-Path $PSScriptRoot '../../project42-platform/content/source-registry.json')),
 
     [string] $SourceCheckpointPath = ($env:SOURCE_CHECKPOINT_PATH ?? (Join-Path $PSScriptRoot 'private/source-detection.checkpoint.private.json')),
 
