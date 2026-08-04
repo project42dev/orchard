@@ -48,6 +48,48 @@ it. The scorer never filters and never gates. A person decides.
 The authoring and currency halves are being assembled from an existing delivery
 platform.
 
+## The content database
+
+Content lives in files. The database is compiled from them.
+
+```bash
+node scripts/build-content-db.mjs \
+  --content <path-to-your-content-root> \
+  --db      <path-for-content.db>
+```
+
+It uses `node:sqlite`, built into Node 22.5 and later, so there is nothing to
+install. The same file works three ways: a local database for Orchard, a
+Cloudflare D1 database at the edge, and a plain file for anyone self-hosting.
+
+**Two halves, and the split is the whole design.** Derived tables (`item`,
+`citation`, `source`, `candidate`) are dropped and rebuilt every time, so losing
+the database costs nothing. Two tables are authoritative and survive every
+rebuild: `work_item`, which carries what a human decided, and `rendering`, which
+records what was actually produced. Neither can be reproduced from a checkout.
+
+The test for which half a table belongs in: **if a git checkout can reproduce
+it, it is derived. If it records a decision or an event, it is authoritative.**
+
+A build **proposes** work and never resets it. `rejected` is terminal.
+
+### The questions it exists to answer
+
+| View | Question |
+|---|---|
+| `v_queue` | What is open, as one queue? `needs-creating` and `needs-updating` together, not two lists joined at read time. |
+| `v_affected_by_source` | This source just changed. What has to be reviewed? |
+| `v_stale` | What is past its own declared review cadence? |
+| `v_stale_citation` | Same question, estate-wide, driven by citation dates and the source registry. |
+| `v_unmeasurable` | **What can the staleness views not see?** |
+| `v_render_manifest` | This avatar was withdrawn. What has to be re-rendered? |
+
+`v_unmeasurable` exists because the first working build reported zero stale
+items and looked healthy. It was measuring 84 of 150, because 66 items declared
+neither field and dropped silently out of the count. **A low stale count is only
+good news if everything was eligible to be counted**, so the build prints the
+blind spot on every run and `needs-updating` reads both staleness signals.
+
 ## Design rules that are not negotiable
 
 1. **Fail loudly.** A missing model, an unmapped job, or an unfilled required
