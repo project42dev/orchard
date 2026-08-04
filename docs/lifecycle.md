@@ -240,6 +240,55 @@ whether the instructor work earns its cost, and building a re-render list if an
 avatar is withdrawn. Neither is a reason to let it touch completion, and adding a
 field to a portable learning record is a contract change rather than a detail.
 
+## Phase 4 proven, and it corrected the avatar decision
+
+**A real lesson rendered on 2026-08-04.** The opening 87 seconds of *Agents,
+Tools, and Guardrails*, spoken from that module's own class script, with captions
+embedded. Submit to finished video in about two and a half minutes. It plays on
+the Learn page today.
+
+**Cost, measured rather than estimated.** Two separate meters:
+
+| Meter | First render |
+|---|---|
+| `talkingAvatarDurationSeconds` | 86 |
+| `hdNeuralCharacters` | 1281 |
+
+Video is billed by **duration**, the voice by **character**. A full seventeen
+segment module extrapolates to roughly twelve to thirteen minutes of video from
+about 10,900 characters. **The cost recurs on every re-render**, so a module that
+changes often is more expensive to keep as video than as text. That is a real
+input to deciding which modules get an instructor package, and it argues for
+rendering stable material first.
+
+### The finding that overturned the avatar choice
+
+Three characters had been chosen. **All three are rejected by the batch API.**
+
+```text
+camila  -> avatar character camila is not supported
+faris   -> avatar character faris is not supported
+clara   -> avatar character clara is not supported
+lisa    -> WORKS
+```
+
+The documented roster and the set batch synthesis accepts **are not the same
+list**, and nothing in the documentation says so. The three were selected from
+the documentation without ever being submitted to the API that renders.
+
+**It inverts the reason they were preferred.** They were chosen because they sit
+outside the actor-licensed set that can be withdrawn when a contract lapses. The
+one character proven to work is **inside** that set.
+
+**Leading hypothesis, not confirmed:** the talking heads are **real-time**
+avatars and batch supports only `lisa`. If that holds, "which presenter" and
+"which synthesis mode" are the same question, and they were treated as
+independent.
+
+**The lesson generalises past avatars.** A capability read from documentation is
+a claim. A capability exercised against the API is a fact. This is the same shape
+as every other defect on this project: something that looked settled, was
+believed, and was never measured.
 ## How a candidate is scored
 
 Scoring exists to make selection arguable rather than instinctive. It does not
