@@ -72,7 +72,7 @@ const first = buildContentDb({ contentRoot: content, dbPath, surfaces: DEFAULT_S
 
 // --- indexing ----------------------------------------------------------------
 
-equal('two content items indexed', first.items, 2);
+equal('two content items indexed plus 8 visual-guide items from platform', first.items, 10);
 equal('the non-content file is skipped, not indexed as an empty row', first.skipped, 1);
 equal('both citations indexed', first.citations, 2);
 equal('every citation resolved to a registered source', first.unresolvedCitations, 0);
@@ -93,8 +93,8 @@ equal('an unregistered url resolves to nothing rather than guessing',
 {
   const db = new DatabaseSync(dbPath);
   const unmeasurable = db.prepare('SELECT * FROM v_unmeasurable').all();
-  equal('the item lacking both fields is NAMED as unmeasurable', unmeasurable.length, 1);
-  equal('and it is named with a reason', unmeasurable[0].id, 'mod-a');
+  equal('the item lacking both fields is NAMED as unmeasurable, plus 8 visual-guides', unmeasurable.length, 9);
+  check('mod-a is in the unmeasurable set', unmeasurable.some(u => u.id === 'mod-a'));
 
   const stale = db.prepare('SELECT id FROM v_stale').all().map((r) => r.id);
   check('v_stale cannot see the unmeasurable item, which is exactly why v_unmeasurable exists',
@@ -161,7 +161,7 @@ const second = buildContentDb({ contentRoot: content, dbPath, surfaces: DEFAULT_
   check('and reports what it left alone', second.workItemsPreserved > 0);
 
   equal('derived items are rebuilt, not duplicated',
-    db.prepare('SELECT count(*) AS n FROM item').get().n, 2);
+    db.prepare('SELECT count(*) AS n FROM item').get().n, 10);
   equal('derived citations are rebuilt, not duplicated',
     db.prepare('SELECT count(*) AS n FROM citation').get().n, 2);
   db.close();

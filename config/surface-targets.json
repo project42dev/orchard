@@ -6,17 +6,22 @@
     "A SURFACE IS NOT NECESSARILY IN THE SAME REPOSITORY AS THE OTHERS. Each surface may override the default repository. Visual guides live in the Field Guide site repository, not the content platform, and assuming one repository is what made them look homeless.",
     "{topic} is the work item's subject id with its surface suffix removed. {subject} is the subject id unchanged. Nothing else is substituted.",
     "The template describes where the work GOES, not where it is. A needs-creating item has no path yet, which is the point of the template.",
-    "A SURFACE THAT NEEDS A CATALOGUE ENTRY AS WELL AS A FILE DECLARES BOTH PATHS. A proposal that writes the artifact and never registers it produces something no reader can reach."
+    "A SURFACE THAT NEEDS A CATALOGUE ENTRY AS WELL AS A FILE DECLARES BOTH PATHS. A proposal that writes the artifact and never registers it produces something no reader can reach.",
+    "VISUAL-GUIDE ITEMS ARE NOW INDEXED. As of 2026-08-04, the content DB build loads 8 diagram items from @project42/platform v0.72.0. The 0→8 transition proves the loader works."
   ],
   "repository": "project42dev/project42-platform",
   "surfaces": {
     "learn": {
-      "pathTemplates": ["content/modules/{topic}/"],
+      "pathTemplates": [
+        "content/modules/{topic}/"
+      ],
       "suffix": "-learn",
       "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there."
     },
     "field-guide": {
-      "pathTemplates": ["content/resources/{topic}/"],
+      "pathTemplates": [
+        "content/resources/{topic}/"
+      ],
       "suffix": "-field-guide",
       "why": "Every indexed Field Guide resource lives under content/resources/<topic>/."
     },

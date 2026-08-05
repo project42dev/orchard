@@ -33,6 +33,7 @@ const SCHEMA_VERSION = '1.1';
 export const DEFAULT_SURFACES = [
   { dir: 'modules', surface: 'learn' },
   { dir: 'resources', surface: 'field-guide' },
+  { dir: 'visual-guides', surface: 'visual-guide' },  // loaded from platform package
 ];
 
 function parseArgs(argv) {
@@ -150,178 +151,256 @@ function readItem(path, surface, contentRoot) {
   };
 }
 
+// Load visual-guide items from the @project42/platform package.
+// Returns an array of items in the same format as readItem.
+function loadVisualGuideItems(contentRoot) {
+  const items = [];
+  try {
+    // Find the platform package in node_modules - look from the project root,
+    // not the content root (which might be a test fixture)
+    const projectRoot = resolve(HERE, '..');
+    const platformPath = join(projectRoot, 'node_modules', '@project42', 'platform');
+    const cataloguePath = join(platformPath, 'content', 'diagrams', 'catalogue.json');
+
+    if (!existsSync(cataloguePath)) {
+      // Silent when the package isn't installed (e.g., in a test fixture)
+      return items;
+    }
+
+    const catalogue = readJson(cataloguePath);
+    const diagrams = catalogue.diagrams ?? [];
+
+    for (const diagram of diagrams) {
+      if (!diagram.id || !diagram.title) continue;
+
+      const sourcePath = join(platformPath, 'content', 'diagrams', diagram.source);
+      const raw = existsSync(sourcePath) ? readFileSync(sourcePath, 'utf8') : '';
+
+      items.push({
+        id: `${diagram.id}-visual-guide`,
+        surface: 'visual-guide',
+        path: `@platform/diagrams/${diagram.source}`,
+        title: diagram.title,
+        summary: diagram.summary ?? null,
+        level: null,  // diagrams don't have skill levels
+        estimatedMinutes: null,
+        owner: null,
+        reviewCadenceDays: null,
+        lastVerified: null,
+        contentSha256: sha256(raw),
+        tags: diagram.category ? [diagram.category] : [],
+        providers: [],
+        sources: [],
+      });
+    }
+  } catch (error) {
+    // Silent failure - visual guides are optional if the platform package isn't available
+  }
+  
+  return items;
+}
+
 export function buildContentDb({ contentRoot, dbPath, surfaces = DEFAULT_SURFACES, now = new Date().toISOString() }) {
   mkdirSync(dirname(resolve(dbPath)), { recursive: true });
   const db = new DatabaseSync(dbPath);
-  db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
+      db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
 
-  const sources = loadSources(join(contentRoot, 'source-registry.json'));
-  const candidates = loadCandidates(join(contentRoot, 'opportunity-registry.json'));
+      const sources = loadSources(join(contentRoot, 'source-registry.json'));
+      const candidates = loadCandidates(join(contentRoot, 'opportunity-registry.json'));
 
-  const insertSource = db.prepare(
-    'INSERT INTO source (id, url_prefix, publisher, trust_tier, review_cadence_days, owner) VALUES (?, ?, ?, ?, ?, ?)',
-  );
-  for (const s of sources) {
-    insertSource.run(s.id, s.urlPrefix, s.publisher, s.trustTier, s.reviewCadenceDays, s.owner);
-  }
+      const insertSource = db.prepare(
+        'INSERT INTO source (id, url_prefix, publisher, trust_tier, review_cadence_days, owner) VALUES (?, ?, ?, ?, ?, ?)',
+      );
+      for (const s of sources) {
+        insertSource.run(s.id, s.urlPrefix, s.publisher, s.trustTier, s.reviewCadenceDays, s.owner);
+      }
 
-  const insertItem = db.prepare(
-    `INSERT INTO item (id, surface, path, title, summary, level, estimated_minutes,
+      const insertItem = db.prepare(
+        `INSERT INTO item (id, surface, path, title, summary, level, estimated_minutes,
                        owner, review_cadence_days, last_verified, content_sha256, indexed_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  const insertCitation = db.prepare(
-    'INSERT INTO citation (item_id, url, title, publisher, last_verified, source_id) VALUES (?, ?, ?, ?, ?, ?)',
-  );
-  const insertTag = db.prepare('INSERT INTO item_tag (item_id, tag) VALUES (?, ?)');
-  const insertProvider = db.prepare('INSERT INTO item_provider (item_id, provider) VALUES (?, ?)');
-
-  const stats = { items: 0, citations: 0, skipped: 0, unresolvedCitations: 0, duplicateIds: [] };
-  const seenIds = new Set();
-
-  for (const { dir, surface } of surfaces) {
-    for (const file of walkJson(join(contentRoot, dir))) {
-      const item = readItem(file, surface, contentRoot);
-      if (!item) { stats.skipped += 1; continue; }
-      // Two content files claiming the same id is a real defect and silently
-      // keeping the last one would hide it.
-      if (seenIds.has(item.id)) { stats.duplicateIds.push(item.id); continue; }
-      seenIds.add(item.id);
-
-      insertItem.run(
-        item.id, item.surface, item.path, item.title, item.summary, item.level,
-        item.estimatedMinutes, item.owner, item.reviewCadenceDays, item.lastVerified,
-        item.contentSha256, now,
       );
-      stats.items += 1;
+      const insertCitation = db.prepare(
+        'INSERT INTO citation (item_id, url, title, publisher, last_verified, source_id) VALUES (?, ?, ?, ?, ?, ?)',
+      );
+      const insertTag = db.prepare('INSERT INTO item_tag (item_id, tag) VALUES (?, ?)');
+      const insertProvider = db.prepare('INSERT INTO item_provider (item_id, provider) VALUES (?, ?)');
 
-      for (const tag of item.tags) insertTag.run(item.id, tag);
-      for (const p of item.providers) insertProvider.run(item.id, p);
-      for (const src of item.sources) {
-        const sourceId = resolveSourceId(src?.url, sources);
-        if (!sourceId) stats.unresolvedCitations += 1;
-        insertCitation.run(
-          item.id, src?.url ?? '', src?.title ?? null, src?.publisher ?? null,
-          src?.lastVerified ?? null, sourceId,
-        );
-        stats.citations += 1;
+      const stats = { items: 0, citations: 0, skipped: 0, unresolvedCitations: 0, duplicateIds: [] };
+      const seenIds = new Set();
+
+      for (const { dir, surface } of surfaces) {
+        // Visual-guide items come from the platform package, not the content root
+        if (surface === 'visual-guide') {
+          const visualGuideItems = loadVisualGuideItems(contentRoot);
+          for (const item of visualGuideItems) {
+            if (seenIds.has(item.id)) { stats.duplicateIds.push(item.id); continue; }
+            seenIds.add(item.id);
+
+            insertItem.run(
+              item.id, item.surface, item.path, item.title, item.summary, item.level,
+              item.estimatedMinutes, item.owner, item.reviewCadenceDays, item.lastVerified,
+              item.contentSha256, now,
+            );
+            stats.items += 1;
+
+            for (const tag of item.tags) insertTag.run(item.id, tag);
+            for (const p of item.providers) insertProvider.run(item.id, p);
+            for (const src of item.sources) {
+              const sourceId = resolveSourceId(src?.url, sources);
+              if (!sourceId) stats.unresolvedCitations += 1;
+              insertCitation.run(
+                item.id, src?.url ?? '', src?.title ?? null, src?.publisher ?? null,
+                src?.lastVerified ?? null, sourceId,
+              );
+              stats.citations += 1;
+            }
+          }
+          continue;
+        }
+
+        for (const file of walkJson(join(contentRoot, dir))) {
+          const item = readItem(file, surface, contentRoot);
+          if (!item) { stats.skipped += 1; continue; }
+          // Two content files claiming the same id is a real defect and silently
+          // keeping the last one would hide it.
+          if (seenIds.has(item.id)) { stats.duplicateIds.push(item.id); continue; }
+          seenIds.add(item.id);
+
+          insertItem.run(
+            item.id, item.surface, item.path, item.title, item.summary, item.level,
+            item.estimatedMinutes, item.owner, item.reviewCadenceDays, item.lastVerified,
+            item.contentSha256, now,
+          );
+          stats.items += 1;
+
+          for (const tag of item.tags) insertTag.run(item.id, tag);
+          for (const p of item.providers) insertProvider.run(item.id, p);
+          for (const src of item.sources) {
+            const sourceId = resolveSourceId(src?.url, sources);
+            if (!sourceId) stats.unresolvedCitations += 1;
+            insertCitation.run(
+              item.id, src?.url ?? '', src?.title ?? null, src?.publisher ?? null,
+              src?.lastVerified ?? null, sourceId,
+            );
+            stats.citations += 1;
+          }
+        }
       }
-    }
-  }
 
-  const insertCandidate = db.prepare(
-    `INSERT INTO candidate (id, topic_id, topic_title, surface, status, level,
+      const insertCandidate = db.prepare(
+        `INSERT INTO candidate (id, topic_id, topic_title, surface, status, level,
                             supply_occurrences, demand_sources, score, attention, gap_label)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  for (const c of candidates) {
-    insertCandidate.run(
-      c.id, c.topicId, c.topicTitle, c.surface, c.status, c.level,
-      c.supplyOccurrences, c.demandSources, null, null, null,
-    );
-  }
+      );
+      for (const c of candidates) {
+        insertCandidate.run(
+          c.id, c.topicId, c.topicTitle, c.surface, c.status, c.level,
+          c.supplyOccurrences, c.demandSources, null, null, null,
+        );
+      }
 
-  const queue = syncWorkQueue(db, now);
+      const queue = syncWorkQueue(db, now);
 
-  // Report what the staleness views CANNOT see. A count of zero stale items is
-  // only good news if everything was eligible to be counted.
-  stats.unmeasurable = db.prepare(
-    'SELECT surface, reason, count(*) AS n FROM v_unmeasurable GROUP BY surface, reason',
-  ).all();
-  stats.stale = db.prepare('SELECT count(*) AS n FROM v_stale').get().n;
-  stats.staleCitations = db.prepare(
-    'SELECT count(DISTINCT item_id) AS n FROM v_stale_citation',
-  ).get().n;
+      // Report what the staleness views CANNOT see. A count of zero stale items is
+      // only good news if everything was eligible to be counted.
+      stats.unmeasurable = db.prepare(
+        'SELECT surface, reason, count(*) AS n FROM v_unmeasurable GROUP BY surface, reason',
+      ).all();
+      stats.stale = db.prepare('SELECT count(*) AS n FROM v_stale').get().n;
+      stats.staleCitations = db.prepare(
+        'SELECT count(DISTINCT item_id) AS n FROM v_stale_citation',
+      ).get().n;
 
-  db.prepare('INSERT INTO schema_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-    .run('schemaVersion', SCHEMA_VERSION);
-  db.prepare('INSERT INTO schema_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-    .run('builtAt', now);
+      db.prepare('INSERT INTO schema_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+        .run('schemaVersion', SCHEMA_VERSION);
+      db.prepare('INSERT INTO schema_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+        .run('builtAt', now);
 
-  db.close();
-  return { ...stats, candidates: candidates.length, sources: sources.length, ...queue };
-}
+      db.close();
+      return { ...stats, candidates: candidates.length, sources: sources.length, ...queue };
+    }
 
-// Propose work, never overwrite a decision.
-//
-// A candidate that is not retired or rejected becomes a needs-creating item.
-// An item past its review cadence becomes a needs-updating item. Both are
-// inserted only when absent. An existing row keeps its state, its owner, and
-// its note, whatever the build thinks.
-export function syncWorkQueue(db, now) {
-  const exists = db.prepare('SELECT state FROM work_item WHERE kind = ? AND subject_id = ?');
-  const insert = db.prepare(
-    `INSERT INTO work_item (id, kind, subject_id, surface, title, state, priority, first_seen, updated_at)
+    // Propose work, never overwrite a decision.
+    //
+    // A candidate that is not retired or rejected becomes a needs-creating item.
+    // An item past its review cadence becomes a needs-updating item. Both are
+    // inserted only when absent. An existing row keeps its state, its owner, and
+    // its note, whatever the build thinks.
+    export function syncWorkQueue(db, now) {
+      const exists = db.prepare('SELECT state FROM work_item WHERE kind = ? AND subject_id = ?');
+      const insert = db.prepare(
+        `INSERT INTO work_item (id, kind, subject_id, surface, title, state, priority, first_seen, updated_at)
      VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
-  );
+      );
 
-  let created = 0;
-  let preserved = 0;
+      let created = 0;
+      let preserved = 0;
 
-  const openCandidates = db.prepare(
-    `SELECT id, surface, topic_title FROM candidate
+      const openCandidates = db.prepare(
+        `SELECT id, surface, topic_title FROM candidate
      WHERE status IS NULL OR status NOT IN ('retired', 'rejected', 'published')`,
-  ).all();
-  for (const c of openCandidates) {
-    if (exists.get('needs-creating', c.id)) { preserved += 1; continue; }
-    insert.run(`create:${c.id}`, 'needs-creating', c.id, c.surface ?? 'unknown',
-      c.topic_title ?? c.id, null, now, now);
-    created += 1;
-  }
+      ).all();
+      for (const c of openCandidates) {
+        if (exists.get('needs-creating', c.id)) { preserved += 1; continue; }
+        insert.run(`create:${c.id}`, 'needs-creating', c.id, c.surface ?? 'unknown',
+          c.topic_title ?? c.id, null, now, now);
+        created += 1;
+      }
 
-  // Two staleness signals, deliberately. v_stale uses the item's own declared
-  // cadence and goes silent on any surface that omits the field. v_stale_citation
-  // works estate-wide because every citation carries a date and the cadence comes
-  // from the source registry. Using only the first would report a healthy empty
-  // queue for a surface it simply cannot see.
-  const stale = db.prepare(
-    `SELECT id, surface, title FROM v_stale
+      // Two staleness signals, deliberately. v_stale uses the item's own declared
+      // cadence and goes silent on any surface that omits the field. v_stale_citation
+      // works estate-wide because every citation carries a date and the cadence comes
+      // from the source registry. Using only the first would report a healthy empty
+      // queue for a surface it simply cannot see.
+      const stale = db.prepare(
+        `SELECT id, surface, title FROM v_stale
      UNION
      SELECT DISTINCT item_id AS id, surface, title FROM v_stale_citation`,
-  ).all();
-  for (const s of stale) {
-    if (exists.get('needs-updating', s.id)) { preserved += 1; continue; }
-    insert.run(`update:${s.id}`, 'needs-updating', s.id, s.surface,
-      s.title ?? s.id, null, now, now);
-    created += 1;
-  }
+      ).all();
+      for (const s of stale) {
+        if (exists.get('needs-updating', s.id)) { preserved += 1; continue; }
+        insert.run(`update:${s.id}`, 'needs-updating', s.id, s.surface,
+          s.title ?? s.id, null, now, now);
+        created += 1;
+      }
 
-  return { workItemsCreated: created, workItemsPreserved: preserved };
-}
-
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const contentRoot = args.content;
-  const dbPath = args.db;
-  if (!contentRoot || !dbPath) {
-    console.error('usage: build-content-db.mjs --content <content-root> --db <output.db>');
-    process.exit(2);
-  }
-
-  const r = buildContentDb({ contentRoot: resolve(contentRoot), dbPath: resolve(dbPath) });
-
-  console.log(`content root: ${resolve(contentRoot)}`);
-  console.log(`database:     ${resolve(dbPath)}`);
-  console.log(`  items       ${r.items} indexed, ${r.skipped} non-content file(s) skipped`);
-  console.log(`  citations   ${r.citations}, ${r.unresolvedCitations} not matching any registered source`);
-  console.log(`  sources     ${r.sources}`);
-  console.log(`  candidates  ${r.candidates}`);
-  console.log(`  queue       ${r.workItemsCreated} new, ${r.workItemsPreserved} existing left untouched`);
-  console.log(`  staleness   ${r.stale} item(s) past their own cadence, ${r.staleCitations} item(s) with a stale citation`);
-
-  if (r.unmeasurable.length) {
-    const total = r.unmeasurable.reduce((n, u) => n + u.n, 0);
-    console.log(`\nSTALENESS IS BLIND TO ${total} OF ${r.items} ITEM(S). A low stale count above does not cover these:`);
-    for (const u of r.unmeasurable) {
-      console.log(`  ${u.surface}: ${u.n} item(s), ${u.reason}`);
+      return { workItemsCreated: created, workItemsPreserved: preserved };
     }
-    console.log('  Citation dates still cover them, which is why needs-updating also reads v_stale_citation.');
-  }
 
-  if (r.duplicateIds.length) {
-    console.error(`\nDUPLICATE ids, only the first of each was indexed: ${r.duplicateIds.join(', ')}`);
-    process.exit(1);
-  }
-}
+    function main() {
+      const args = parseArgs(process.argv.slice(2));
+      const contentRoot = args.content;
+      const dbPath = args.db;
+      if (!contentRoot || !dbPath) {
+        console.error('usage: build-content-db.mjs --content <content-root> --db <output.db>');
+        process.exit(2);
+      }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+      const r = buildContentDb({ contentRoot: resolve(contentRoot), dbPath: resolve(dbPath) });
+
+      console.log(`content root: ${resolve(contentRoot)}`);
+      console.log(`database:     ${resolve(dbPath)}`);
+      console.log(`  items       ${r.items} indexed, ${r.skipped} non-content file(s) skipped`);
+      console.log(`  citations   ${r.citations}, ${r.unresolvedCitations} not matching any registered source`);
+      console.log(`  sources     ${r.sources}`);
+      console.log(`  candidates  ${r.candidates}`);
+      console.log(`  queue       ${r.workItemsCreated} new, ${r.workItemsPreserved} existing left untouched`);
+      console.log(`  staleness   ${r.stale} item(s) past their own cadence, ${r.staleCitations} item(s) with a stale citation`);
+
+      if (r.unmeasurable.length) {
+        const total = r.unmeasurable.reduce((n, u) => n + u.n, 0);
+        console.log(`\nSTALENESS IS BLIND TO ${total} OF ${r.items} ITEM(S). A low stale count above does not cover these:`);
+        for (const u of r.unmeasurable) {
+          console.log(`  ${u.surface}: ${u.n} item(s), ${u.reason}`);
+        }
+        console.log('  Citation dates still cover them, which is why needs-updating also reads v_stale_citation.');
+      }
+
+      if (r.duplicateIds.length) {
+        console.error(`\nDUPLICATE ids, only the first of each was indexed: ${r.duplicateIds.join(', ')}`);
+        process.exit(1);
+      }
+    }
+
+    if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
