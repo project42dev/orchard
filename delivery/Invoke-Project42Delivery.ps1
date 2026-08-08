@@ -245,7 +245,8 @@ $chargeAttempt = {
 
 function Get-DeliveryAccessToken {
     <#
-        Managed identity only. ADR-0007 decision 4 and threat model condition 2.
+        Managed identity preferred; Azure CLI fallback for local dev.
+        ADR-0007 decision 4 and threat model condition 2.
         No key is read from anywhere, and none is accepted as a parameter.
     #>
     if ($Transport) {
@@ -254,10 +255,6 @@ function Get-DeliveryAccessToken {
     }
 
     $clientId = $env:AZURE_CLIENT_ID
-    if ([string]::IsNullOrWhiteSpace($clientId)) {
-        throw 'AZURE_CLIENT_ID is not set. The platform authenticates by managed identity only; it will not fall back to a key.'
-    }
-
     $resource = 'https://cognitiveservices.azure.com'
 
     # Two managed-identity contracts, and the platform runs on the one that is
@@ -282,20 +279,45 @@ function Get-DeliveryAccessToken {
         $uri = '{0}?api-version=2019-08-01&resource={1}&client_id={2}' -f `
             $env:IDENTITY_ENDPOINT, [uri]::EscapeDataString($resource), $clientId
         $headers = @{ 'X-IDENTITY-HEADER' = $env:IDENTITY_HEADER }
+        $response = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30
+        if ([string]::IsNullOrWhiteSpace($response.access_token)) {
+            throw 'Managed identity (Container Apps) returned no access token.'
+        }
+        return $response.access_token
     }
-    else {
+
+    if (-not [string]::IsNullOrWhiteSpace($clientId)) {
+        # Try IMDS (VM managed identity)
         $uri = '{0}?api-version=2018-02-01&resource={1}&client_id={2}' -f `
             'http://169.254.169.254/metadata/identity/oauth2/token',
         [uri]::EscapeDataString($resource),
         $clientId
         $headers = @{ Metadata = 'true' }
+        try {
+            $response = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 5
+            if (-not [string]::IsNullOrWhiteSpace($response.access_token)) {
+                return $response.access_token
+            }
+        }
+        catch {
+            Write-DeliveryLog INFO 'IMDS unreachable; falling back to Azure CLI for local dev.'
+        }
     }
 
-    $response = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 30
-    if ([string]::IsNullOrWhiteSpace($response.access_token)) {
-        throw 'Managed identity returned no access token.'
+    # Azure CLI fallback for local development (same pattern as
+    # Invoke-Project42FoundryQualification.ps1).
+    $azToken = & az account get-access-token `
+        --scope "$resource/.default" `
+        --query accessToken `
+        --output tsv 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($azToken)) {
+        throw (
+            'Unable to obtain a token. Set AZURE_CLIENT_ID for managed identity, ' +
+            'or authenticate Azure CLI (az login) for local development.'
+        )
     }
-    return $response.access_token
+    Write-DeliveryLog INFO 'Authenticated via Azure CLI (local dev).'
+    return $azToken
 }
 
 # -------------------------------------------------------- data classification
