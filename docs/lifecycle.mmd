@@ -1,0 +1,67 @@
+flowchart TD
+    subgraph PHASE1["Phase 1, discovery (built)"]
+        A1["Operator runs discovery"] --> A2["Survey the watch list<br/>22 of 27 sources reachable"]
+        A2 --> A3["Measure our corpus per surface<br/>Learn / Field Guide / visual guide"]
+        A3 --> A4{"Demand present<br/>AND supply at zero?"}
+        A4 -->|no| A5["Not a candidate<br/>nothing recorded"]
+        A4 -->|yes| A6["Proposal emitted"]
+        A6 --> A7["Merge into discovery list"]
+        A7 --> A8["Candidate<br/>carries evidence + provenance"]
+    end
+
+    A8 --> B1["Score the candidate"]
+
+    subgraph PHASE2["Phase 2, selection and the content database (built)"]
+        B1 --> B2{"Owner decision"}
+        B2 -->|reject| B3["Rejected<br/>never re-proposed"]
+        B2 -->|defer| B4["Stays a candidate<br/>re-measured next run"]
+        B2 -->|select| B5["Promote"]
+        B5 --> B6["work_item created<br/>kind: needs-creating"]
+        B5 --> B7["Story created in the tracker<br/>linked to the work_item id"]
+    end
+
+    B6 --> C1["generate-briefs.mjs pulls from the queue<br/>brief id carries the subject id<br/>work_item state: claimed"]
+
+    subgraph PHASE3["Phase 3, creation and publication"]
+        C1 --> C2["Draft, verify, adversary, arbiter"]
+        C2 --> C2a["Proposal written<br/>named after the brief"]
+        C2a --> C2b["ingest-proposals.mjs<br/>reads the run record"]
+        C2b --> C3{"Ensemble agrees?"}
+        C3 -->|no| C4["work_item state: blocked<br/>findings recorded"]
+        C4 --> C2
+        C3 -->|yes| C5["work_item state: in-progress<br/>proposal inert, pending decision"]
+        C5 --> C6{"Human approves?"}
+        C6 -->|no| C4
+        C6 -->|yes| C7["Content committed and published"]
+        C7 --> C7a["record-publication.mjs<br/>run, brief, proposal, accepter"]
+        C7a --> C8["work_item state: done<br/>item appears in the index"]
+        C7a --> C9["Story closed"]
+    end
+
+    C8 --> D1{"Instructor-led<br/>rendering wanted?"}
+
+    subgraph PHASE4["Phase 4, virtual instructor"]
+        D1 -->|no| D2["Written content only"]
+        D1 -->|yes| D3["Author script and scenes"]
+        D3 --> D4["Render narration, captions,<br/>transcript, avatar video"]
+        D4 --> D5["Build immutable package<br/>+ integrity manifest"]
+        D5 --> D6["rendering row written<br/>avatar and voice recorded"]
+        D6 --> D7["Player serves the package<br/>NO inference at learn time"]
+    end
+
+    C8 --> E1["Currency engine watches<br/>cited sources"]
+    D6 --> E1
+
+    subgraph PHASE5["Phase 5, currency and retirement"]
+        E1 --> E2{"A cited source changed?"}
+        E2 -->|no| E3["No action<br/>no model call made"]
+        E2 -->|yes| E4["v_affected_by_source<br/>names every item at risk"]
+        E4 --> E5{"Any claim affected?"}
+        E5 -->|no| E6["No-change finding recorded"]
+        E5 -->|yes| E7["work_item created<br/>kind: needs-updating"]
+        E7 --> E8["NEW story, Related to the original"]
+        E8 --> C1
+        E7 --> E9{"Still worth keeping?"}
+        E9 -->|no| E10["Deprecated<br/>reason recorded"]
+        E10 --> E11["Unpublished, redirect set,<br/>record retained"]
+    end

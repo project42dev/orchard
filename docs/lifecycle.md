@@ -23,6 +23,15 @@ about it.
 
 ## The whole cycle
 
+![Content lifecycle diagram](lifecycle.svg)
+
+> The Mermaid source is in [`lifecycle.mmd`](lifecycle.mmd). The SVG above is
+> generated from it — GitHub does not render Mermaid in markdown files, so the
+> rendered image is committed alongside the source.
+
+<details>
+<summary>Mermaid source (click to expand)</summary>
+
 ```mermaid
 flowchart TD
     subgraph PHASE1["Phase 1, discovery (built)"]
@@ -92,6 +101,8 @@ flowchart TD
         E10 --> E11["Unpublished, redirect set,<br/>record retained"]
     end
 ```
+
+</details>
 
 ## The authoring ensemble: six roles are required, four exist
 
