@@ -37,10 +37,12 @@ $script:Project42ProposalStages = @(
 # qualification stage taxonomy were designed separately and do not map one to
 # one, so this mapping is stated in one place and can be overridden per brief.
 $script:Project42DeliveryRoleStage = @{
-    drafter = 'curriculum-writing'
-    verifier = 'factual-verification'
-    adversary = 'assessment-review'
-    arbiter = 'release-proposal'
+    researcher = 'evidence-research'
+    drafter    = 'curriculum-writing'
+    verifier   = 'factual-verification'
+    adversary  = 'assessment-review'
+    arbiter    = 'release-proposal'
+    finalizer  = 'release-proposal'
 }
 
 function Assert-Project42ExecutionCondition {
@@ -98,10 +100,10 @@ function ConvertFrom-Project42ExactJson {
 
     Assert-Project42ExecutionCondition `
         -Condition (
-            $Value.TrimStart().StartsWith('{') -and
-            $Value.TrimEnd().EndsWith('}') -and
-            -not $Value.Contains('```')
-        ) `
+        $Value.TrimStart().StartsWith('{') -and
+        $Value.TrimEnd().EndsWith('}') -and
+        -not $Value.Contains('```')
+    ) `
         -Message "$Contract response for $CaseId is not one unwrapped JSON object."
     try {
         $result = $Value | ConvertFrom-Json -Depth 30 -DateKind String
@@ -120,27 +122,27 @@ function ConvertFrom-Project42ExactJson {
         ) | Sort-Object
         Assert-Project42ExecutionCondition `
             -Condition (
-                @(Compare-Object $propertyNames $expected).Count -eq 0
-            ) `
+            @(Compare-Object $propertyNames $expected).Count -eq 0
+        ) `
             -Message "Candidate response for $CaseId does not match the exact contract."
         Assert-Project42ExecutionCondition `
             -Condition ([string] $result.caseId -eq $CaseId) `
             -Message "Candidate response references the wrong case: $CaseId."
         Assert-Project42ExecutionCondition `
             -Condition (
-                @('pass', 'block', 'revise') -contains [string] $result.decision
-            ) `
+            @('pass', 'block', 'revise') -contains [string] $result.decision
+        ) `
             -Message "Candidate response for $CaseId has an invalid decision."
         Assert-Project42ExecutionCondition `
             -Condition (
-                @($result.findings).Count -gt 0 -and
-                @(
-                    $result.findings |
-                        Where-Object {
-                            [string]::IsNullOrWhiteSpace([string] $_)
-                        }
-                ).Count -eq 0
-            ) `
+            @($result.findings).Count -gt 0 -and
+            @(
+                $result.findings |
+                Where-Object {
+                    [string]::IsNullOrWhiteSpace([string] $_)
+                }
+            ).Count -eq 0
+        ) `
             -Message "Candidate response for $CaseId requires findings."
         Assert-Project42ExecutionCondition `
             -Condition ($result.humanApprovalRequired -is [bool]) `
@@ -153,17 +155,17 @@ function ConvertFrom-Project42ExactJson {
         $expected = @('caseId', 'passed', 'reason', 'score') | Sort-Object
         Assert-Project42ExecutionCondition `
             -Condition (
-                @(Compare-Object $propertyNames $expected).Count -eq 0
-            ) `
+            @(Compare-Object $propertyNames $expected).Count -eq 0
+        ) `
             -Message "Judge response for $CaseId does not match the exact contract."
         Assert-Project42ExecutionCondition `
             -Condition ([string] $result.caseId -eq $CaseId) `
             -Message "Judge response references the wrong case: $CaseId."
         Assert-Project42ExecutionCondition `
             -Condition (
-                [double] $result.score -ge 0 -and
-                [double] $result.score -le 1
-            ) `
+            [double] $result.score -ge 0 -and
+            [double] $result.score -le 1
+        ) `
             -Message "Judge response for $CaseId has a score outside zero to one."
         Assert-Project42ExecutionCondition `
             -Condition ($result.passed -is [bool]) `
@@ -369,10 +371,10 @@ function New-Project42UntrustedBlock {
     $digest = Get-Project42ExecutionDigest -Value $safeText
 
     foreach ($field in @(
-        [pscustomobject]@{ label = 'source id'; value = $safeSourceId },
-        [pscustomobject]@{ label = 'canonical URL'; value = $safeCanonicalUrl },
-        [pscustomobject]@{ label = 'retrieved text'; value = $safeText }
-    )) {
+            [pscustomobject]@{ label = 'source id'; value = $safeSourceId },
+            [pscustomobject]@{ label = 'canonical URL'; value = $safeCanonicalUrl },
+            [pscustomobject]@{ label = 'retrieved text'; value = $safeText }
+        )) {
         if (
             $field.value.Contains($Nonce, [StringComparison]::OrdinalIgnoreCase)
         ) {
@@ -417,13 +419,13 @@ $close
 "@
 
     return [pscustomobject][ordered]@{
-        sourceId = $safeSourceId
-        canonicalUrl = $safeCanonicalUrl
-        retrievedAt = $retrieved
+        sourceId      = $safeSourceId
+        canonicalUrl  = $safeCanonicalUrl
+        retrievedAt   = $retrieved
         contentDigest = $digest
-        nonce = $Nonce
-        provenance = 'untrusted'
-        block = $block
+        nonce         = $Nonce
+        provenance    = 'untrusted'
+        block         = $block
     }
 }
 
@@ -446,21 +448,21 @@ function Assert-Project42UntrustedBlockSet {
     foreach ($block in $Blocks) {
         Assert-Project42ExecutionCondition `
             -Condition (
-                $null -ne $block -and
-                $null -ne $block.PSObject.Properties['block'] -and
-                $null -ne $block.PSObject.Properties['nonce'] -and
-                $null -ne $block.PSObject.Properties['contentDigest']
-            ) `
+            $null -ne $block -and
+            $null -ne $block.PSObject.Properties['block'] -and
+            $null -ne $block.PSObject.Properties['nonce'] -and
+            $null -ne $block.PSObject.Properties['contentDigest']
+        ) `
             -Message (
-                'Retrieved text must be wrapped by New-Project42UntrustedBlock ' +
-                'before it reaches a prompt.'
-            )
+            'Retrieved text must be wrapped by New-Project42UntrustedBlock ' +
+            'before it reaches a prompt.'
+        )
         Assert-Project42ExecutionCondition `
             -Condition ([string] $block.nonce -eq $Nonce) `
             -Message (
-                'An untrusted block carries a nonce from a different run. ' +
-                'Refusing to send it.'
-            )
+            'An untrusted block carries a nonce from a different run. ' +
+            'Refusing to send it.'
+        )
     }
 }
 
@@ -484,8 +486,8 @@ function Get-Project42FoundryRateTable {
     $asOf = [DateTimeOffset]::MinValue
     Assert-Project42ExecutionCondition `
         -Condition (
-            [DateTimeOffset]::TryParse([string] $Pricing.asOf, [ref] $asOf)
-        ) `
+        [DateTimeOffset]::TryParse([string] $Pricing.asOf, [ref] $asOf)
+    ) `
         -Message 'Foundry qualification pricing requires an asOf timestamp.'
     Assert-Project42ExecutionCondition `
         -Condition ($asOf -ge [DateTimeOffset]::UtcNow.AddDays(-31)) `
@@ -504,16 +506,16 @@ function Get-Project42FoundryRateTable {
             -Message "Foundry pricing repeats deployment $alias."
         Assert-Project42ExecutionCondition `
             -Condition (
-                [double]::IsFinite($inputRate) -and
-                [double]::IsFinite($outputRate) -and
-                $inputRate -ge 0 -and
-                $outputRate -ge 0
-            ) `
+            [double]::IsFinite($inputRate) -and
+            [double]::IsFinite($outputRate) -and
+            $inputRate -ge 0 -and
+            $outputRate -ge 0
+        ) `
             -Message "Foundry pricing for $alias cannot be negative."
         Assert-Project42ExecutionCondition `
             -Condition (
-                [string] $rate.source -match '^https://'
-            ) `
+            [string] $rate.source -match '^https://'
+        ) `
             -Message "Foundry pricing for $alias requires an HTTPS evidence source."
         $rates[$alias] = $rate
     }
@@ -563,9 +565,9 @@ function New-Project42FoundryExecutionPlan {
     $judgePool = @($Matrix.execution.judgePool)
     $selectedStages = @(
         $Matrix.stages |
-            Where-Object {
-                -not $Stage -or $Stage -contains [string] $_.stage
-            }
+        Where-Object {
+            -not $Stage -or $Stage -contains [string] $_.stage
+        }
     )
     Assert-Project42ExecutionCondition `
         -Condition ($selectedStages.Count -gt 0) `
@@ -577,10 +579,10 @@ function New-Project42FoundryExecutionPlan {
     foreach ($matrixStage in $selectedStages) {
         $stageCandidates = @(
             $matrixStage.candidates |
-                Where-Object {
-                    -not $DeploymentAlias -or
-                    $DeploymentAlias -contains [string] $_.deploymentAlias
-                }
+            Where-Object {
+                -not $DeploymentAlias -or
+                $DeploymentAlias -contains [string] $_.deploymentAlias
+            }
         )
         $candidateOrdinal = 0
         foreach ($candidate in $stageCandidates) {
@@ -588,30 +590,30 @@ function New-Project42FoundryExecutionPlan {
                 -Value $candidate.providerFamily
             $eligibleJudges = @(
                 $judgePool |
-                    Where-Object {
-                        (Get-Project42ProviderKey -Value $_.providerFamily) -ne
-                        $candidateProvider
-                    }
+                Where-Object {
+                    (Get-Project42ProviderKey -Value $_.providerFamily) -ne
+                    $candidateProvider
+                }
             )
             Assert-Project42ExecutionCondition `
                 -Condition (
-                    $eligibleJudges.Count -ge
-                    [int] $Matrix.execution.judgesPerCase
-                ) `
+                $eligibleJudges.Count -ge
+                [int] $Matrix.execution.judgesPerCase
+            ) `
                 -Message (
-                    "$($candidate.deploymentAlias) has too few cross-provider judges."
-                )
+                "$($candidate.deploymentAlias) has too few cross-provider judges."
+            )
             $null = $requiredAliases.Add([string] $candidate.deploymentAlias)
             $caseOrdinal = 0
             $candidateCases = @(
                 $Benchmark.cases |
-                    Where-Object {
-                        @($_.appliesTo) -contains [string] $matrixStage.stage -and
-                        (
-                            -not $CaseId -or
-                            $CaseId -contains [string] $_.id
-                        )
-                    }
+                Where-Object {
+                    @($_.appliesTo) -contains [string] $matrixStage.stage -and
+                    (
+                        -not $CaseId -or
+                        $CaseId -contains [string] $_.id
+                    )
+                }
             )
             foreach ($benchmarkCase in $candidateCases) {
                 $judgeOffset = (
@@ -624,38 +626,38 @@ function New-Project42FoundryExecutionPlan {
                         $judgeIndex += 1
                     ) {
                         $eligibleJudges[
-                            ($judgeOffset + $judgeIndex) % $eligibleJudges.Count
+                        ($judgeOffset + $judgeIndex) % $eligibleJudges.Count
                         ]
                     }
                 )
                 Assert-Project42ExecutionCondition `
                     -Condition (
-                        @(
-                            $judges |
-                                ForEach-Object {
-                                    Get-Project42ProviderKey `
-                                        -Value $_.providerFamily
-                                } |
-                                Select-Object -Unique
-                        ).Count -eq $judges.Count
-                    ) `
+                    @(
+                        $judges |
+                        ForEach-Object {
+                            Get-Project42ProviderKey `
+                                -Value $_.providerFamily
+                        } |
+                        Select-Object -Unique
+                    ).Count -eq $judges.Count
+                ) `
                     -Message (
-                        "$($candidate.deploymentAlias) judge providers are not independent."
-                    )
+                    "$($candidate.deploymentAlias) judge providers are not independent."
+                )
                 foreach ($judge in $judges) {
                     $null = $requiredAliases.Add(
                         [string] $judge.deploymentAlias
                     )
                 }
                 $planItems.Add([pscustomobject][ordered]@{
-                    stage = [string] $matrixStage.stage
-                    deploymentAlias = [string] $candidate.deploymentAlias
-                    providerFamily = [string] $candidate.providerFamily
-                    modelVersion = [string] $candidate.modelVersion
-                    threshold = [double] $matrixStage.threshold
-                    case = $benchmarkCase
-                    judges = @($judges)
-                })
+                        stage           = [string] $matrixStage.stage
+                        deploymentAlias = [string] $candidate.deploymentAlias
+                        providerFamily  = [string] $candidate.providerFamily
+                        modelVersion    = [string] $candidate.modelVersion
+                        threshold       = [double] $matrixStage.threshold
+                        case            = $benchmarkCase
+                        judges          = @($judges)
+                    })
                 $caseOrdinal += 1
             }
             $candidateOrdinal += 1
@@ -675,27 +677,27 @@ function New-Project42FoundryExecutionPlan {
     Assert-Project42ExecutionCondition `
         -Condition ($requestCount -le [int] $Matrix.execution.maximumRequests) `
         -Message (
-            "The execution plan requires $requestCount requests, which exceeds " +
-            "the $($Matrix.execution.maximumRequests) request ceiling."
-        )
+        "The execution plan requires $requestCount requests, which exceeds " +
+        "the $($Matrix.execution.maximumRequests) request ceiling."
+    )
 
     return [pscustomobject][ordered]@{
-        schemaVersion = '1.0'
-        matrixId = [string] $Matrix.id
-        benchmarkId = [string] $Benchmark.id
-        itemCount = $planItems.Count
-        requestCount = $requestCount
-        minimumJudgeScore = [double] $Matrix.execution.minimumJudgeScore
-        maximumCompletionTokens = [int] $Matrix.execution.maximumCompletionTokens
+        schemaVersion                    = '1.0'
+        matrixId                         = [string] $Matrix.id
+        benchmarkId                      = [string] $Benchmark.id
+        itemCount                        = $planItems.Count
+        requestCount                     = $requestCount
+        minimumJudgeScore                = [double] $Matrix.execution.minimumJudgeScore
+        maximumCompletionTokens          = [int] $Matrix.execution.maximumCompletionTokens
         minimumDeploymentIntervalSeconds = (
             [int] $Matrix.execution.minimumDeploymentIntervalSeconds
         )
-        requestTimeoutSeconds = [int] $Matrix.execution.requestTimeoutSeconds
-        maximumRetries = [int] $Matrix.execution.maximumRetries
-        maximumRequests = [int] $Matrix.execution.maximumRequests
-        maximumEstimatedCostUsd = [double] $Matrix.execution.maximumEstimatedCostUsd
-        items = @($planItems)
-        rates = $rates
+        requestTimeoutSeconds            = [int] $Matrix.execution.requestTimeoutSeconds
+        maximumRetries                   = [int] $Matrix.execution.maximumRetries
+        maximumRequests                  = [int] $Matrix.execution.maximumRequests
+        maximumEstimatedCostUsd          = [double] $Matrix.execution.maximumEstimatedCostUsd
+        items                            = @($planItems)
+        rates                            = $rates
     }
 }
 
@@ -721,12 +723,12 @@ Do not return hidden reasoning or markdown.
 "@
     $user = [pscustomobject][ordered]@{
         caseId = [string] $PlanItem.case.id
-        task = [string] $PlanItem.case.prompt
+        task   = [string] $PlanItem.case.prompt
         packet = @($PlanItem.case.fixture.packet)
     } | ConvertTo-Json -Depth 20 -Compress
     return [pscustomobject]@{
         system = $system.Trim()
-        user = $user
+        user   = $user
     }
 }
 
@@ -754,15 +756,15 @@ Return exactly one JSON object with these fields and no others:
 Do not return hidden reasoning or markdown.
 "@
     $user = [pscustomobject][ordered]@{
-        caseId = [string] $PlanItem.case.id
+        caseId           = [string] $PlanItem.case.id
         expectedBehavior = [string] $PlanItem.case.expectedBehavior
-        rubric = @($PlanItem.case.rubric)
-        mustPass = [bool] $PlanItem.case.mustPass
-        candidateOutput = $CandidateOutput
+        rubric           = @($PlanItem.case.rubric)
+        mustPass         = [bool] $PlanItem.case.mustPass
+        candidateOutput  = $CandidateOutput
     } | ConvertTo-Json -Depth 20 -Compress
     return [pscustomobject]@{
         system = $system.Trim()
-        user = $user
+        user   = $user
     }
 }
 
@@ -820,7 +822,7 @@ function Invoke-Project42FoundryRequest {
     )
 
     $requestBody = [pscustomobject][ordered]@{
-        model = $DeploymentAlias
+        model    = $DeploymentAlias
         messages = @(
             [pscustomobject]@{ role = 'system'; content = $Prompt.system }
             [pscustomobject]@{ role = 'user'; content = $Prompt.user }
@@ -831,9 +833,9 @@ function Invoke-Project42FoundryRequest {
     # reject any temperature but their own default.
     if ($null -ne $Temperature) {
         $requestBody |
-            Add-Member `
-                -NotePropertyName 'temperature' `
-                -NotePropertyValue ([double] $Temperature)
+        Add-Member `
+            -NotePropertyName 'temperature' `
+            -NotePropertyValue ([double] $Temperature)
     }
     $tokenLimitProperty = if (
         @('openai', 'xai', 'deepseek') -contains
@@ -845,9 +847,9 @@ function Invoke-Project42FoundryRequest {
         'max_tokens'
     }
     $requestBody |
-        Add-Member `
-            -NotePropertyName $tokenLimitProperty `
-            -NotePropertyValue $MaximumCompletionTokens
+    Add-Member `
+        -NotePropertyName $tokenLimitProperty `
+        -NotePropertyValue $MaximumCompletionTokens
     if ($Transport) {
         # The fixture path is metered exactly like the wire path. A test double
         # that did not advance the caller's meter would make the fixture prove
@@ -871,17 +873,17 @@ function Invoke-Project42FoundryRequest {
                 -Uri $uri `
                 -Method Post `
                 -Headers @{
-                    Authorization = "Bearer $AccessToken"
-                    'Content-Type' = 'application/json'
-                } `
+                Authorization  = "Bearer $AccessToken"
+                'Content-Type' = 'application/json'
+            } `
                 -Body ($requestBody | ConvertTo-Json -Depth 20 -Compress) `
                 -TimeoutSec $TimeoutSeconds
             $started.Stop()
             return [pscustomobject]@{
-                content = [string] $response.choices[0].message.content
-                promptTokens = [int] $response.usage.prompt_tokens
+                content          = [string] $response.choices[0].message.content
+                promptTokens     = [int] $response.usage.prompt_tokens
                 completionTokens = [int] $response.usage.completion_tokens
-                latencyMs = [long] $started.ElapsedMilliseconds
+                latencyMs        = [long] $started.ElapsedMilliseconds
             }
         }
         catch {
@@ -957,11 +959,11 @@ function Get-Project42RequestCost {
     return [Math]::Round(
         (
             ($PromptTokens / 1000000) *
-                [double] $Rate.inputUsdPerMillionTokens
+            [double] $Rate.inputUsdPerMillionTokens
         ) +
         (
             ($CompletionTokens / 1000000) *
-                [double] $Rate.outputUsdPerMillionTokens
+            [double] $Rate.outputUsdPerMillionTokens
         ),
         8
     )
@@ -1000,11 +1002,11 @@ function Get-Project42EffectiveRate {
     if ($RateTable.ContainsKey($DeploymentAlias)) {
         $rate = $RateTable[$DeploymentAlias]
         return [pscustomobject][ordered]@{
-            deploymentAlias = $DeploymentAlias
-            inputUsdPerMillionTokens = [double] $rate.inputUsdPerMillionTokens
+            deploymentAlias           = $DeploymentAlias
+            inputUsdPerMillionTokens  = [double] $rate.inputUsdPerMillionTokens
             outputUsdPerMillionTokens = [double] $rate.outputUsdPerMillionTokens
-            source = [string] $rate.source
-            priced = $true
+            source                    = [string] $rate.source
+            priced                    = $true
         }
     }
 
@@ -1013,22 +1015,22 @@ function Get-Project42EffectiveRate {
         $outputRate = [double] $WorstCaseRate.outputUsdPerMillionTokens
         Assert-Project42ExecutionCondition `
             -Condition (
-                [double]::IsFinite($inputRate) -and
-                [double]::IsFinite($outputRate) -and
-                $inputRate -gt 0 -and
-                $outputRate -gt 0
-            ) `
+            [double]::IsFinite($inputRate) -and
+            [double]::IsFinite($outputRate) -and
+            $inputRate -gt 0 -and
+            $outputRate -gt 0
+        ) `
             -Message (
-                'A worst-case rate must be finite and greater than zero, ' +
-                'otherwise it reintroduces the fail-open hole it exists to ' +
-                'close.'
-            )
+            'A worst-case rate must be finite and greater than zero, ' +
+            'otherwise it reintroduces the fail-open hole it exists to ' +
+            'close.'
+        )
         return [pscustomobject][ordered]@{
-            deploymentAlias = $DeploymentAlias
-            inputUsdPerMillionTokens = $inputRate
+            deploymentAlias           = $DeploymentAlias
+            inputUsdPerMillionTokens  = $inputRate
             outputUsdPerMillionTokens = $outputRate
-            source = 'configured-worst-case'
-            priced = $false
+            source                    = 'configured-worst-case'
+            priced                    = $false
         }
     }
 
@@ -1120,16 +1122,16 @@ function Get-Project42RoleVerdict {
     $verdictMatches = [regex]::Matches($Content, $pattern, 'IgnoreCase')
     if ($verdictMatches.Count -eq 0) {
         return [pscustomobject][ordered]@{
-            role = $Role
+            role    = $Role
             verdict = $failClosed
-            parsed = $false
+            parsed  = $false
         }
     }
     $lastMatch = $verdictMatches[$verdictMatches.Count - 1]
     return [pscustomobject][ordered]@{
-        role = $Role
+        role    = $Role
         verdict = $lastMatch.Groups[1].Value.ToUpperInvariant()
-        parsed = $true
+        parsed  = $true
     }
 }
 
@@ -1183,9 +1185,9 @@ function Invoke-Project42FoundryQualificationExecution {
 
     Assert-Project42ExecutionCondition `
         -Condition (
-            $Endpoint.Scheme -eq 'https' -and
-            $Endpoint.Host -match '\.services\.ai\.azure\.com$'
-        ) `
+        $Endpoint.Scheme -eq 'https' -and
+        $Endpoint.Host -match '\.services\.ai\.azure\.com$'
+    ) `
         -Message 'The Foundry endpoint must be an HTTPS services.ai.azure.com host.'
     Assert-Project42ExecutionCondition `
         -Condition (-not [string]::IsNullOrWhiteSpace($AccessToken)) `
@@ -1194,29 +1196,29 @@ function Invoke-Project42FoundryQualificationExecution {
     $checkpointDirectory = Split-Path -Parent $CheckpointPath
     Assert-Project42ExecutionCondition `
         -Condition (
-            $checkpointDirectory -and
-            (Test-Path -LiteralPath $checkpointDirectory -PathType Container)
-        ) `
+        $checkpointDirectory -and
+        (Test-Path -LiteralPath $checkpointDirectory -PathType Container)
+    ) `
         -Message 'The private checkpoint directory must already exist.'
 
     if (Test-Path -LiteralPath $CheckpointPath -PathType Leaf) {
         $checkpoint = Read-Project42Json -Path $CheckpointPath
         Assert-Project42ExecutionCondition `
             -Condition (
-                $checkpoint.schemaVersion -eq '1.0' -and
-                $checkpoint.matrixId -eq $Plan.matrixId -and
-                $checkpoint.benchmarkId -eq $Plan.benchmarkId
-            ) `
+            $checkpoint.schemaVersion -eq '1.0' -and
+            $checkpoint.matrixId -eq $Plan.matrixId -and
+            $checkpoint.benchmarkId -eq $Plan.benchmarkId
+        ) `
             -Message 'The checkpoint does not match this execution plan.'
     }
     else {
         $checkpoint = [pscustomobject][ordered]@{
-            schemaVersion = '1.0'
-            matrixId = [string] $Plan.matrixId
-            benchmarkId = [string] $Plan.benchmarkId
-            requestCount = 0
+            schemaVersion    = '1.0'
+            matrixId         = [string] $Plan.matrixId
+            benchmarkId      = [string] $Plan.benchmarkId
+            requestCount     = 0
             estimatedCostUsd = 0.0
-            completed = @()
+            completed        = @()
         }
     }
 
@@ -1245,8 +1247,8 @@ function Invoke-Project42FoundryQualificationExecution {
             -LastRequestAt $lastRequestAt `
             -DeploymentAlias $item.deploymentAlias `
             -MinimumIntervalSeconds (
-                [int] $Plan.minimumDeploymentIntervalSeconds
-            )
+            [int] $Plan.minimumDeploymentIntervalSeconds
+        )
         $candidateRequestSucceeded = $true
         try {
             $candidateResponse = Invoke-Project42FoundryRequest `
@@ -1266,10 +1268,10 @@ function Invoke-Project42FoundryQualificationExecution {
             }
             $candidateRequestSucceeded = $false
             $candidateResponse = [pscustomobject]@{
-                content = "request-rejected-http-$($Matches[1])"
-                promptTokens = 0
+                content          = "request-rejected-http-$($Matches[1])"
+                promptTokens     = 0
                 completionTokens = 0
-                latencyMs = 0
+                latencyMs        = 0
             }
         }
         $candidateContractValid = $true
@@ -1305,8 +1307,8 @@ function Invoke-Project42FoundryQualificationExecution {
                 -LastRequestAt $lastRequestAt `
                 -DeploymentAlias $judge.deploymentAlias `
                 -MinimumIntervalSeconds (
-                    [int] $Plan.minimumDeploymentIntervalSeconds
-                )
+                [int] $Plan.minimumDeploymentIntervalSeconds
+            )
             $judgeRequestSucceeded = $true
             try {
                 $judgeResponse = Invoke-Project42FoundryRequest `
@@ -1318,8 +1320,8 @@ function Invoke-Project42FoundryQualificationExecution {
                     -TimeoutSeconds ([int] $Plan.requestTimeoutSeconds) `
                     -MaximumRetries ([int] $Plan.maximumRetries) `
                     -MaximumCompletionTokens (
-                        [int] $Plan.maximumCompletionTokens
-                    ) `
+                    [int] $Plan.maximumCompletionTokens
+                ) `
                     -Transport $Transport
             }
             catch {
@@ -1328,10 +1330,10 @@ function Invoke-Project42FoundryQualificationExecution {
                 }
                 $judgeRequestSucceeded = $false
                 $judgeResponse = [pscustomobject]@{
-                    content = "request-rejected-http-$($Matches[1])"
-                    promptTokens = 0
+                    content          = "request-rejected-http-$($Matches[1])"
+                    promptTokens     = 0
                     completionTokens = 0
-                    latencyMs = 0
+                    latencyMs        = 0
                 }
             }
             $judgeContractValid = $true
@@ -1354,33 +1356,33 @@ function Invoke-Project42FoundryQualificationExecution {
             $totalCost += [double] $judgeCost
             $outputMaterial.Add([string] $judgeResponse.content)
             $judgeResults.Add([pscustomobject][ordered]@{
-                deploymentAlias = [string] $judge.deploymentAlias
-                providerFamily = [string] $judge.providerFamily
-                requestSucceeded = [bool] $judgeRequestSucceeded
-                contractValid = [bool] $judgeContractValid
-                score = if ($judgeContractValid) {
-                    [double] $judgeParsed.score
-                }
-                else {
-                    0.0
-                }
-                passed = if ($judgeContractValid) {
-                    [bool] $judgeParsed.passed
-                }
-                else {
-                    $false
-                }
-                outputDigest = Get-Project42ExecutionDigest `
-                    -Value $judgeResponse.content
-                latencyMs = [long] $judgeResponse.latencyMs
-                costUsd = [double] $judgeCost
-            })
+                    deploymentAlias  = [string] $judge.deploymentAlias
+                    providerFamily   = [string] $judge.providerFamily
+                    requestSucceeded = [bool] $judgeRequestSucceeded
+                    contractValid    = [bool] $judgeContractValid
+                    score            = if ($judgeContractValid) {
+                        [double] $judgeParsed.score
+                    }
+                    else {
+                        0.0
+                    }
+                    passed           = if ($judgeContractValid) {
+                        [bool] $judgeParsed.passed
+                    }
+                    else {
+                        $false
+                    }
+                    outputDigest     = Get-Project42ExecutionDigest `
+                        -Value $judgeResponse.content
+                    latencyMs        = [long] $judgeResponse.latencyMs
+                    costUsd          = [double] $judgeCost
+                })
         }
 
         $score = [Math]::Round(
             (
                 @($judgeResults | ForEach-Object { [double] $_.score }) |
-                    Measure-Object -Average
+                Measure-Object -Average
             ).Average,
             6
         )
@@ -1390,38 +1392,38 @@ function Invoke-Project42FoundryQualificationExecution {
             $score -ge [double] $item.threshold -and
             @(
                 $judgeResults |
-                    Where-Object {
-                        -not $_.passed -or
-                        [double] $_.score -lt [double] $Plan.minimumJudgeScore
-                    }
+                Where-Object {
+                    -not $_.passed -or
+                    [double] $_.score -lt [double] $Plan.minimumJudgeScore
+                }
             ).Count -eq 0
         )
         $newEntry = [pscustomobject][ordered]@{
-            stage = [string] $item.stage
-            deploymentAlias = [string] $item.deploymentAlias
-            providerFamily = [string] $item.providerFamily
-            modelVersion = [string] $item.modelVersion
-            caseId = [string] $item.case.id
-            evaluatedAt = [DateTimeOffset]::UtcNow.ToString(
+            stage                     = [string] $item.stage
+            deploymentAlias           = [string] $item.deploymentAlias
+            providerFamily            = [string] $item.providerFamily
+            modelVersion              = [string] $item.modelVersion
+            caseId                    = [string] $item.case.id
+            evaluatedAt               = [DateTimeOffset]::UtcNow.ToString(
                 'yyyy-MM-ddTHH:mm:ss.fffZ'
             )
-            inputDigest = Get-Project42ExecutionDigest `
+            inputDigest               = Get-Project42ExecutionDigest `
                 -Value ($inputMaterial -join "`n")
-            outputDigest = Get-Project42ExecutionDigest `
+            outputDigest              = Get-Project42ExecutionDigest `
                 -Value ($outputMaterial -join "`n")
             candidateRequestSucceeded = [bool] $candidateRequestSucceeded
-            candidateContractValid = [bool] $candidateContractValid
-            decision = if ($candidateContractValid) {
+            candidateContractValid    = [bool] $candidateContractValid
+            decision                  = if ($candidateContractValid) {
                 [string] $candidateParsed.decision
             }
             else {
                 'invalid'
             }
-            score = [double] $score
-            passed = [bool] $passed
-            latencyMs = [long] $totalLatency
-            costUsd = [Math]::Round($totalCost, 8)
-            judgeResults = @($judgeResults)
+            score                     = [double] $score
+            passed                    = [bool] $passed
+            latencyMs                 = [long] $totalLatency
+            costUsd                   = [Math]::Round($totalCost, 8)
+            judgeResults              = @($judgeResults)
         }
         $completed.Add($newEntry)
         $null = $completedKeys.Add($key)
@@ -1434,19 +1436,19 @@ function Invoke-Project42FoundryQualificationExecution {
         )
         Assert-Project42ExecutionCondition `
             -Condition (
-                [int] $checkpoint.requestCount -le [int] $Plan.maximumRequests
-            ) `
+            [int] $checkpoint.requestCount -le [int] $Plan.maximumRequests
+        ) `
             -Message 'The Foundry request ceiling was exceeded.'
         Assert-Project42ExecutionCondition `
             -Condition (
-                [double] $checkpoint.estimatedCostUsd -le
-                [double] $Plan.maximumEstimatedCostUsd
-            ) `
+            [double] $checkpoint.estimatedCostUsd -le
+            [double] $Plan.maximumEstimatedCostUsd
+        ) `
             -Message 'The Foundry estimated-cost ceiling was exceeded.'
         $checkpoint.completed = @($completed)
         $checkpoint |
-            ConvertTo-Json -Depth 50 |
-            Set-Content -LiteralPath $CheckpointPath -Encoding utf8NoBOM
+        ConvertTo-Json -Depth 50 |
+        Set-Content -LiteralPath $CheckpointPath -Encoding utf8NoBOM
     }
 
     return $checkpoint
@@ -1467,10 +1469,10 @@ function ConvertTo-Project42FoundryMeasuredResultSet {
 
     Assert-Project42ExecutionCondition `
         -Condition (
-            $Checkpoint.schemaVersion -eq '1.0' -and
-            $Checkpoint.matrixId -eq $Plan.matrixId -and
-            $Checkpoint.benchmarkId -eq $Plan.benchmarkId
-        ) `
+        $Checkpoint.schemaVersion -eq '1.0' -and
+        $Checkpoint.matrixId -eq $Plan.matrixId -and
+        $Checkpoint.benchmarkId -eq $Plan.benchmarkId
+    ) `
         -Message 'The checkpoint does not match this execution plan.'
 
     $expectedByKey = @{}
@@ -1501,82 +1503,82 @@ function ConvertTo-Project42FoundryMeasuredResultSet {
     $runs = [System.Collections.Generic.List[object]]::new()
     $groups = @(
         $Plan.items |
-            Group-Object -Property {
-                "$($_.stage)|$($_.deploymentAlias)"
-            } |
-            Sort-Object Name
+        Group-Object -Property {
+            "$($_.stage)|$($_.deploymentAlias)"
+        } |
+        Sort-Object Name
     )
     foreach ($group in $groups) {
         $items = @($group.Group | Sort-Object { [string] $_.case.id })
         $entries = @(
             $items |
-                ForEach-Object {
-                    $completedByKey[
-                        "$($_.stage)|$($_.deploymentAlias)|$($_.case.id)"
-                    ]
-                }
+            ForEach-Object {
+                $completedByKey[
+                "$($_.stage)|$($_.deploymentAlias)|$($_.case.id)"
+                ]
+            }
         )
         foreach ($entry in $entries) {
             Assert-Project42ExecutionCondition `
                 -Condition (
-                    [string] $entry.inputDigest -match '^[a-f0-9]{64}$' -and
-                    [string] $entry.outputDigest -match '^[a-f0-9]{64}$'
-                ) `
+                [string] $entry.inputDigest -match '^[a-f0-9]{64}$' -and
+                [string] $entry.outputDigest -match '^[a-f0-9]{64}$'
+            ) `
                 -Message 'Measured case evidence requires SHA-256 digests.'
         }
         $inputDigest = Get-Project42ExecutionDigest `
             -Value (
-                @($entries | ForEach-Object { [string] $_.inputDigest }) -join "`n"
-            )
+            @($entries | ForEach-Object { [string] $_.inputDigest }) -join "`n"
+        )
         $outputDigest = Get-Project42ExecutionDigest `
             -Value (
-                @($entries | ForEach-Object { [string] $_.outputDigest }) -join "`n"
-            )
+            @($entries | ForEach-Object { [string] $_.outputDigest }) -join "`n"
+        )
         $latestEvaluation = @(
             $entries |
-                ForEach-Object {
-                    [DateTimeOffset]::Parse([string] $_.evaluatedAt)
-                } |
-                Sort-Object -Descending
+            ForEach-Object {
+                [DateTimeOffset]::Parse([string] $_.evaluatedAt)
+            } |
+            Sort-Object -Descending
         )[0].ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
         $runs.Add([pscustomobject][ordered]@{
-            stage = [string] $items[0].stage
-            deploymentAlias = [string] $items[0].deploymentAlias
-            providerFamily = [string] $items[0].providerFamily
-            modelVersion = [string] $items[0].modelVersion
-            evaluatedAt = $latestEvaluation
-            inputDigest = $inputDigest
-            outputDigest = $outputDigest
-            latencyMs = [long] (
-                $entries |
-                    Measure-Object -Property latencyMs -Sum
-            ).Sum
-            costUsd = [Math]::Round(
-                [double] (
+                stage           = [string] $items[0].stage
+                deploymentAlias = [string] $items[0].deploymentAlias
+                providerFamily  = [string] $items[0].providerFamily
+                modelVersion    = [string] $items[0].modelVersion
+                evaluatedAt     = $latestEvaluation
+                inputDigest     = $inputDigest
+                outputDigest    = $outputDigest
+                latencyMs       = [long] (
                     $entries |
+                    Measure-Object -Property latencyMs -Sum
+                ).Sum
+                costUsd         = [Math]::Round(
+                    [double] (
+                        $entries |
                         Measure-Object -Property costUsd -Sum
-                ).Sum,
-                8
-            )
-            cases = @(
-                $entries |
+                    ).Sum,
+                    8
+                )
+                cases           = @(
+                    $entries |
                     ForEach-Object {
                         [pscustomobject][ordered]@{
-                            id = [string] $_.caseId
-                            score = [double] $_.score
+                            id     = [string] $_.caseId
+                            score  = [double] $_.score
                             passed = [bool] $_.passed
                         }
                     }
-            )
-        })
+                )
+            })
     }
 
     return [pscustomobject][ordered]@{
         schemaVersion = '1.0'
-        benchmarkId = [string] $Plan.benchmarkId
-        synthetic = $false
-        selection = @($Selection)
-        runs = @($runs)
+        benchmarkId   = [string] $Plan.benchmarkId
+        synthetic     = $false
+        selection     = @($Selection)
+        runs          = @($runs)
     }
 }
 
@@ -1601,10 +1603,10 @@ function Assert-Project42SchemaConformance {
     Assert-Project42ExecutionCondition `
         -Condition (Test-Path -LiteralPath $SchemaPath -PathType Leaf) `
         -Message (
-            "SCHEMA: the $DocumentLabel schema is not present at $SchemaPath. " +
-            'Point SchemaRoot at the content-maintenance schema directory in ' +
-            'project42-platform. A document is never emitted unvalidated.'
-        )
+        "SCHEMA: the $DocumentLabel schema is not present at $SchemaPath. " +
+        'Point SchemaRoot at the content-maintenance schema directory in ' +
+        'project42-platform. A document is never emitted unvalidated.'
+    )
     try {
         $null = Test-Json -Json $Json -SchemaFile $SchemaPath -ErrorAction Stop
     }
@@ -1698,23 +1700,23 @@ function New-Project42ContentChangePacket {
             Assert-Project42ExecutionCondition `
                 -Condition ($digest -match '^[a-f0-9]{64}$') `
                 -Message (
-                    "Observed source $sourceId requires SHA-256 digests on " +
-                    'both sides of a change.'
-                )
+                "Observed source $sourceId requires SHA-256 digests on " +
+                'both sides of a change.'
+            )
             Assert-Project42ExecutionCondition `
                 -Condition ($digest -ne ('0' * 64)) `
                 -Message (
-                    "Observed source $sourceId carries a placeholder digest. " +
-                    'A placeholder that satisfies the schema pattern is worse ' +
-                    'than an obviously invalid value (ADR-0014 decision 7).'
-                )
+                "Observed source $sourceId carries a placeholder digest. " +
+                'A placeholder that satisfies the schema pattern is worse ' +
+                'than an obviously invalid value (ADR-0014 decision 7).'
+            )
         }
         Assert-Project42ExecutionCondition `
             -Condition ($previousDigest -ne $currentDigest) `
             -Message (
-                "Observed source $sourceId is marked changed but both digests " +
-                'are identical.'
-            )
+            "Observed source $sourceId is marked changed but both digests " +
+            'are identical.'
+        )
         $boundedDiff = [System.Collections.Generic.List[object]]::new()
         foreach (
             $section in @(
@@ -1725,11 +1727,11 @@ function New-Project42ContentChangePacket {
             )
         ) {
             $boundedDiff.Add([pscustomobject][ordered]@{
-                section = Get-Project42BoundedText `
-                    -Value ([string] $section.section) `
-                    -MaximumLength 200
-                before = Get-Project42BoundedText `
-                    -Value (
+                    section = Get-Project42BoundedText `
+                        -Value ([string] $section.section) `
+                        -MaximumLength 200
+                    before  = Get-Project42BoundedText `
+                        -Value (
                         [string] (
                             Get-Project42OptionalValue `
                                 -InputObject $section `
@@ -1737,9 +1739,9 @@ function New-Project42ContentChangePacket {
                                 -Default ''
                         )
                     ) `
-                    -MaximumLength 2000
-                after = Get-Project42BoundedText `
-                    -Value (
+                        -MaximumLength 2000
+                    after   = Get-Project42BoundedText `
+                        -Value (
                         [string] (
                             Get-Project42OptionalValue `
                                 -InputObject $section `
@@ -1747,20 +1749,20 @@ function New-Project42ContentChangePacket {
                                 -Default ''
                         )
                     ) `
-                    -MaximumLength 2000
-            })
+                        -MaximumLength 2000
+                })
         }
         $observations.Add([pscustomobject][ordered]@{
-            id = Get-Project42StableId -Value "obs-$ordinal-$sourceId"
-            sourceId = $sourceId
-            canonicalUrl = $url
-            retrievedAt = ConvertTo-Project42SchemaTimestamp `
-                -Value ([string] $entry.checkedAt)
-            previousHash = $previousDigest
-            currentHash = $currentDigest
-            changed = $true
-            boundedDiff = @($boundedDiff)
-        })
+                id           = Get-Project42StableId -Value "obs-$ordinal-$sourceId"
+                sourceId     = $sourceId
+                canonicalUrl = $url
+                retrievedAt  = ConvertTo-Project42SchemaTimestamp `
+                    -Value ([string] $entry.checkedAt)
+                previousHash = $previousDigest
+                currentHash  = $currentDigest
+                changed      = $true
+                boundedDiff  = @($boundedDiff)
+            })
     }
 
     if ($observations.Count -eq 0 -and $null -ne $AuthoringBasis) {
@@ -1773,32 +1775,32 @@ function New-Project42ContentChangePacket {
         Assert-Project42ExecutionCondition `
             -Condition ($requestDigest -match '^[a-f0-9]{64}$') `
             -Message (
-                'An authoring packet requires a SHA-256 digest of the request ' +
-                'that produced it, so a reviewer can tell whether the brief has ' +
-                'changed since the proposal was written.'
-            )
+            'An authoring packet requires a SHA-256 digest of the request ' +
+            'that produced it, so a reviewer can tell whether the brief has ' +
+            'changed since the proposal was written.'
+        )
         Assert-Project42ExecutionCondition `
             -Condition ($requestDigest -ne ('0' * 64)) `
             -Message 'An authoring packet carries a placeholder request digest.'
 
         $observations.Add([pscustomobject][ordered]@{
-            id = Get-Project42StableId -Value "obs-authoring-$briefId"
-            sourceId = $briefId
-            # No canonicalUrl, no previousHash, no currentHash. This did not
-            # observe a source; it observed a request.
-            retrievedAt = ConvertTo-Project42SchemaTimestamp `
-                -Value ([string] $AuthoringBasis.requestedAt)
-            changed = $false
-            basis = 'authoring-request'
-            requestDigest = $requestDigest
-            note = Get-Project42BoundedText `
-                -Value (
+                id            = Get-Project42StableId -Value "obs-authoring-$briefId"
+                sourceId      = $briefId
+                # No canonicalUrl, no previousHash, no currentHash. This did not
+                # observe a source; it observed a request.
+                retrievedAt   = ConvertTo-Project42SchemaTimestamp `
+                    -Value ([string] $AuthoringBasis.requestedAt)
+                changed       = $false
+                basis         = 'authoring-request'
+                requestDigest = $requestDigest
+                note          = Get-Project42BoundedText `
+                    -Value (
                     'Authoring request, not a detected source change. The ' +
                     'evidence for this proposal is the brief and the ensemble ' +
                     'verdicts recorded in modelStages, not a source that moved.'
                 ) `
-                -MaximumLength 500
-        })
+                    -MaximumLength 500
+            })
     }
 
     if ($observations.Count -eq 0) {
@@ -1806,15 +1808,15 @@ function New-Project42ContentChangePacket {
     }
 
     $impactDocument = [pscustomobject][ordered]@{
-        learnModuleIds = @(
+        learnModuleIds             = @(
             Get-Project42OptionalValue `
                 -InputObject $Impact -Name 'learnModuleIds' -Default @()
         )
-        fieldGuideResourceIds = @(
+        fieldGuideResourceIds      = @(
             Get-Project42OptionalValue `
                 -InputObject $Impact -Name 'fieldGuideResourceIds' -Default @()
         )
-        assessmentQuestionIds = @(
+        assessmentQuestionIds      = @(
             Get-Project42OptionalValue `
                 -InputObject $Impact -Name 'assessmentQuestionIds' -Default @()
         )
@@ -1834,12 +1836,12 @@ function New-Project42ContentChangePacket {
 
     $packet = [pscustomobject][ordered]@{
         schemaVersion = '1.0'
-        id = Get-Project42StableId -Value $PacketId
-        createdAt = $createdAt
-        observations = @($observations)
-        claims = @($Claims | Where-Object { $null -ne $_ })
-        impact = $impactDocument
-        disposition = $Disposition
+        id            = Get-Project42StableId -Value $PacketId
+        createdAt     = $createdAt
+        observations  = @($observations)
+        claims        = @($Claims | Where-Object { $null -ne $_ })
+        impact        = $impactDocument
+        disposition   = $Disposition
     }
     Assert-Project42SchemaConformance `
         -Json ($packet | ConvertTo-Json -Depth 30) `
@@ -1954,19 +1956,19 @@ function New-Project42ProposalModelStage {
     }
 
     return [pscustomobject][ordered]@{
-        stage = $Stage
-        deploymentAlias = Get-Project42StableId -Value $DeploymentAlias
-        providerFamily = $ProviderFamily
-        modelVersion = $ModelVersion
-        contractVersion = $ContractVersion
-        temperature = $recordedTemperature
-        maxOutputTokens = $MaxOutputTokens
+        stage               = $Stage
+        deploymentAlias     = Get-Project42StableId -Value $DeploymentAlias
+        providerFamily      = $ProviderFamily
+        modelVersion        = $ModelVersion
+        contractVersion     = $ContractVersion
+        temperature         = $recordedTemperature
+        maxOutputTokens     = $MaxOutputTokens
         inputEvidenceDigest = Get-Project42ExecutionDigest -Value $InputEvidence
-        outputDigest = Get-Project42ExecutionDigest -Value $Output
-        latencyMs = [double] $LatencyMs
-        costUsd = $CostUsd
-        status = $Status
-        findings = @($findings)
+        outputDigest        = Get-Project42ExecutionDigest -Value $Output
+        latencyMs           = [double] $LatencyMs
+        costUsd             = $CostUsd
+        status              = $Status
+        findings            = @($findings)
     }
 }
 
@@ -2067,62 +2069,62 @@ function New-Project42MaintenanceProposal {
     foreach ($target in $Targets) {
         Assert-Project42ExecutionCondition `
             -Condition (
-                [string] $target.repository -match
-                '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
-            ) `
+            [string] $target.repository -match
+            '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'
+        ) `
             -Message (
-                'A proposal target repository must be owner/name. A proposal ' +
-                'that does not name where it applies cannot be reviewed.'
-            )
+            'A proposal target repository must be owner/name. A proposal ' +
+            'that does not name where it applies cannot be reviewed.'
+        )
         Assert-Project42ExecutionCondition `
             -Condition (@($target.pathPrefixes).Count -ge 1) `
             -Message 'A proposal target requires at least one path prefix.'
     }
 
     $proposal = [pscustomobject][ordered]@{
-        schemaVersion = '1.0'
-        id = Get-Project42StableId -Value $ProposalId
-        packetId = Get-Project42StableId -Value $PacketId
-        packetDigest = $PacketDigest.ToLowerInvariant()
-        targets = @(
+        schemaVersion       = '1.0'
+        id                  = Get-Project42StableId -Value $ProposalId
+        packetId            = Get-Project42StableId -Value $PacketId
+        packetDigest        = $PacketDigest.ToLowerInvariant()
+        targets             = @(
             $Targets |
-                ForEach-Object {
-                    [pscustomobject][ordered]@{
-                        repository = [string] $_.repository
-                        pathPrefixes = @(
-                            $_.pathPrefixes | ForEach-Object { [string] $_ }
-                        )
-                    }
+            ForEach-Object {
+                [pscustomobject][ordered]@{
+                    repository   = [string] $_.repository
+                    pathPrefixes = @(
+                        $_.pathPrefixes | ForEach-Object { [string] $_ }
+                    )
                 }
+            }
         )
-        modelStages = @($modelStages)
-        deterministicGates = @(
+        modelStages         = @($modelStages)
+        deterministicGates  = @(
             $DeterministicGates |
-                ForEach-Object {
-                    [pscustomobject][ordered]@{
-                        id = Get-Project42StableId -Value ([string] $_.id)
-                        status = [string] $_.status
-                        evidenceRef = Get-Project42BoundedText `
-                            -Value ([string] $_.evidenceRef) `
-                            -MaximumLength 1000
-                    }
+            ForEach-Object {
+                [pscustomobject][ordered]@{
+                    id          = Get-Project42StableId -Value ([string] $_.id)
+                    status      = [string] $_.status
+                    evidenceRef = Get-Project42BoundedText `
+                        -Value ([string] $_.evidenceRef) `
+                        -MaximumLength 1000
                 }
+            }
         )
         unresolvedConflicts = @(
             $UnresolvedConflicts |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-                ForEach-Object {
-                    Get-Project42BoundedText -Value $_ -MaximumLength 2000
-                }
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            ForEach-Object {
+                Get-Project42BoundedText -Value $_ -MaximumLength 2000
+            }
         )
-        rollbackPlan = Get-Project42BoundedText `
+        rollbackPlan        = Get-Project42BoundedText `
             -Value $RollbackPlan `
             -MaximumLength 8000
-        humanDecision = [pscustomobject][ordered]@{
-            status = 'pending'
+        humanDecision       = [pscustomobject][ordered]@{
+            status      = 'pending'
             reviewerRef = $null
-            decidedAt = $null
-            note = (
+            decidedAt   = $null
+            note        = (
                 'Automation proposes and never publishes (ADR-0004, ADR-0007 ' +
                 'decision 6). This document is inert. It records what the ' +
                 'ensemble found and grants no authority to merge, publish, ' +
@@ -2135,14 +2137,14 @@ function New-Project42MaintenanceProposal {
     # tries to emit an approved proposal fails here and in the test suite.
     Assert-Project42ExecutionCondition `
         -Condition (
-            $proposal.humanDecision.status -eq 'pending' -and
-            $null -eq $proposal.humanDecision.reviewerRef -and
-            $null -eq $proposal.humanDecision.decidedAt
-        ) `
+        $proposal.humanDecision.status -eq 'pending' -and
+        $null -eq $proposal.humanDecision.reviewerRef -and
+        $null -eq $proposal.humanDecision.decidedAt
+    ) `
         -Message (
-            'A proposal may only ever be emitted pending human decision. ' +
-            'Automation proposes and never publishes.'
-        )
+        'A proposal may only ever be emitted pending human decision. ' +
+        'Automation proposes and never publishes.'
+    )
     Assert-Project42SchemaConformance `
         -Json ($proposal | ConvertTo-Json -Depth 30) `
         -SchemaPath $SchemaPath `
@@ -2185,9 +2187,9 @@ function Write-Project42DeliveryDocument {
     $directory = Split-Path -Parent $Path
     Assert-Project42ExecutionCondition `
         -Condition (
-            $directory -and
-            (Test-Path -LiteralPath $directory -PathType Container)
-        ) `
+        $directory -and
+        (Test-Path -LiteralPath $directory -PathType Container)
+    ) `
         -Message "The $DocumentLabel output directory does not exist: $directory"
     Set-Content `
         -LiteralPath $Path `
@@ -2195,7 +2197,7 @@ function Write-Project42DeliveryDocument {
         -Encoding utf8NoBOM `
         -NoNewline
     return [pscustomobject][ordered]@{
-        path = $Path
+        path   = $Path
         digest = Get-Project42ExecutionDigest -Value $json
     }
 }
@@ -2242,21 +2244,21 @@ function Read-Project42DeliveryCheckpoint {
     $checkpointDirectory = Split-Path -Parent $CheckpointPath
     Assert-Project42ExecutionCondition `
         -Condition (
-            $checkpointDirectory -and
-            (Test-Path -LiteralPath $checkpointDirectory -PathType Container)
-        ) `
+        $checkpointDirectory -and
+        (Test-Path -LiteralPath $checkpointDirectory -PathType Container)
+    ) `
         -Message 'The private checkpoint directory must already exist.'
 
     if (-not (Test-Path -LiteralPath $CheckpointPath -PathType Leaf)) {
         return [pscustomobject][ordered]@{
             schemaVersion = '1.0'
-            mode = $Mode
-            runKey = $RunKey
-            requestCount = 0
-            spendUsd = 0.0
-            completed = @()
-            roles = @()
-            inFlight = $null
+            mode          = $Mode
+            runKey        = $RunKey
+            requestCount  = 0
+            spendUsd      = 0.0
+            completed     = @()
+            roles         = @()
+            inFlight      = $null
         }
     }
 
@@ -2266,27 +2268,27 @@ function Read-Project42DeliveryCheckpoint {
         -Message 'The delivery checkpoint schema version is unsupported.'
     Assert-Project42ExecutionCondition `
         -Condition (
-            [string] $checkpoint.runKey -eq $RunKey -and
-            [string] $checkpoint.mode -eq $Mode
-        ) `
+        [string] $checkpoint.runKey -eq $RunKey -and
+        [string] $checkpoint.mode -eq $Mode
+    ) `
         -Message (
-            'The delivery checkpoint describes different work than this run. ' +
-            'Resuming would skip items that were never done. Point ' +
-            'CheckpointPath at a new file, or remove the existing one ' +
-            'deliberately.'
-        )
+        'The delivery checkpoint describes different work than this run. ' +
+        'Resuming would skip items that were never done. Point ' +
+        'CheckpointPath at a new file, or remove the existing one ' +
+        'deliberately.'
+    )
 
     # Backfill the collections a checkpoint written before role-level resume
     # existed does not carry, so every caller can read them without guarding.
     foreach ($field in @('completed', 'roles')) {
         if (-not $checkpoint.PSObject.Properties[$field]) {
             $checkpoint |
-                Add-Member -NotePropertyName $field -NotePropertyValue @()
+            Add-Member -NotePropertyName $field -NotePropertyValue @()
         }
     }
     if (-not $checkpoint.PSObject.Properties['inFlight']) {
         $checkpoint |
-            Add-Member -NotePropertyName 'inFlight' -NotePropertyValue $null
+        Add-Member -NotePropertyName 'inFlight' -NotePropertyValue $null
     }
     return $checkpoint
 }
@@ -2337,15 +2339,15 @@ function Save-Project42DeliveryCheckpoint {
     )
 
     $Checkpoint |
-        ConvertTo-Json -Depth 50 |
-        Set-Content -LiteralPath $CheckpointPath -Encoding utf8NoBOM
+    ConvertTo-Json -Depth 50 |
+    Set-Content -LiteralPath $CheckpointPath -Encoding utf8NoBOM
 }
 
 function Get-Project42DeliveryRoleStage {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [ValidateSet('drafter', 'verifier', 'adversary', 'arbiter')]
+        [ValidateSet('researcher', 'drafter', 'verifier', 'adversary', 'arbiter', 'finalizer')]
         [string] $Role
     )
 

@@ -114,7 +114,7 @@ if (
     $WorstCaseOutputUsdPerMillionTokens -gt 0
 ) {
     $worstCaseRate = [pscustomobject]@{
-        inputUsdPerMillionTokens = [double] $WorstCaseInputUsdPerMillionTokens
+        inputUsdPerMillionTokens  = [double] $WorstCaseInputUsdPerMillionTokens
         outputUsdPerMillionTokens = [double] $WorstCaseOutputUsdPerMillionTokens
     }
 }
@@ -286,8 +286,8 @@ function Get-DeliveryAccessToken {
     else {
         $uri = '{0}?api-version=2018-02-01&resource={1}&client_id={2}' -f `
             'http://169.254.169.254/metadata/identity/oauth2/token',
-            [uri]::EscapeDataString($resource),
-            $clientId
+        [uri]::EscapeDataString($resource),
+        $clientId
         $headers = @{ Metadata = 'true' }
     }
 
@@ -341,10 +341,10 @@ function New-UntrustedBlock {
     )
 
     $arguments = @{
-        Nonce = $runNonce
-        SourceId = $Source
+        Nonce        = $runNonce
+        SourceId     = $Source
         CanonicalUrl = $CanonicalUrl
-        Text = $Text
+        Text         = $Text
     }
     if ($RetrievedAt) {
         $arguments.RetrievedAt = $RetrievedAt
@@ -359,7 +359,7 @@ function New-UntrustedBlock {
 
 function Invoke-DeliveryRole {
     param(
-        [Parameter(Mandatory)][ValidateSet('drafter', 'verifier', 'adversary', 'arbiter')][string] $Role,
+        [Parameter(Mandatory)][ValidateSet('drafter', 'verifier', 'adversary', 'arbiter', 'researcher', 'finalizer')][string] $Role,
         [Parameter(Mandatory)][string] $WorkItemId,
         [Parameter(Mandatory)][string] $WorkItemKey,
         [Parameter(Mandatory)][string] $DeploymentAlias,
@@ -426,7 +426,7 @@ function Invoke-DeliveryRole {
                 $UserPrompt
                 @(
                     $UntrustedBlocks |
-                        ForEach-Object { "$($_.sourceId)|$($_.contentDigest)" }
+                    ForEach-Object { "$($_.sourceId)|$($_.contentDigest)" }
                 )
             ) -join "`n"
         )
@@ -478,15 +478,15 @@ function Invoke-DeliveryRole {
     Write-DeliveryLog INFO "role=$Role deployment=$DeploymentAlias tier=$DataTier untrustedBlocks=$($UntrustedBlocks.Count) priced=$($rate.priced)"
 
     $requestArguments = @{
-        Endpoint = $Endpoint
-        AccessToken = $AccessToken
-        DeploymentAlias = $DeploymentAlias
-        ProviderFamily = $ProviderFamily
-        Prompt = $prompt
-        TimeoutSeconds = 300
-        MaximumRetries = 2
+        Endpoint                = $Endpoint
+        AccessToken             = $AccessToken
+        DeploymentAlias         = $DeploymentAlias
+        ProviderFamily          = $ProviderFamily
+        Prompt                  = $prompt
+        TimeoutSeconds          = 300
+        MaximumRetries          = 2
         MaximumCompletionTokens = $MaxCompletionTokens
-        OnAttempt = $chargeAttempt
+        OnAttempt               = $chargeAttempt
     }
     if ($null -ne $Temperature) {
         $requestArguments.Temperature = $Temperature
@@ -517,24 +517,24 @@ function Invoke-DeliveryRole {
     $state.spendUsd += ([decimal] $cost - $projected)
 
     $record = [pscustomobject][ordered]@{
-        key                 = $roleKey
-        workItemId          = $WorkItemId
-        role                = $Role
-        deployment          = $DeploymentAlias
-        providerFamily      = $ProviderFamily
-        dataTier            = $DataTier
-        temperature         = $Temperature
-        maxTokens           = $MaxCompletionTokens
-        pricedDeployment    = [bool] $rate.priced
-        inputDigest         = $inputDigest
-        content             = [string] $result.content
-        promptTokens        = [int] $result.promptTokens
-        completionTokens    = [int] $result.completionTokens
-        latencyMs           = [long] $result.latencyMs
-        costUsd             = [double] $cost
-        attempts            = [int] $pendingCharge.attempts
-        reservedUsd         = [double] $pendingCharge.reservedUsd
-        completedUtc        = [datetime]::UtcNow.ToString('o')
+        key              = $roleKey
+        workItemId       = $WorkItemId
+        role             = $Role
+        deployment       = $DeploymentAlias
+        providerFamily   = $ProviderFamily
+        dataTier         = $DataTier
+        temperature      = $Temperature
+        maxTokens        = $MaxCompletionTokens
+        pricedDeployment = [bool] $rate.priced
+        inputDigest      = $inputDigest
+        content          = [string] $result.content
+        promptTokens     = [int] $result.promptTokens
+        completionTokens = [int] $result.completionTokens
+        latencyMs        = [long] $result.latencyMs
+        costUsd          = [double] $cost
+        attempts         = [int] $pendingCharge.attempts
+        reservedUsd      = [double] $pendingCharge.reservedUsd
+        completedUtc     = [datetime]::UtcNow.ToString('o')
     }
     $roleCache[$roleKey] = $record
 
@@ -572,21 +572,21 @@ function New-DeliveryRoleResult {
     )
 
     $step = [ordered]@{
-        role                = [string] $Record.role
-        deployment          = [string] $Record.deployment
-        providerFamily      = [string] $Record.providerFamily
-        dataTier            = [int] $Record.dataTier
-        untrustedProvenance = ($UntrustedBlocks.Count -gt 0)
-        untrustedDigests    = @($UntrustedBlocks | ForEach-Object { $_.contentDigest })
-        pricedDeployment    = [bool] $Record.pricedDeployment
-        promptTokens        = [int] $Record.promptTokens
-        completionTokens    = [int] $Record.completionTokens
-        latencyMs           = [long] $Record.latencyMs
-        estimatedUsd        = [double] $Record.costUsd
+        role                 = [string] $Record.role
+        deployment           = [string] $Record.deployment
+        providerFamily       = [string] $Record.providerFamily
+        dataTier             = [int] $Record.dataTier
+        untrustedProvenance  = ($UntrustedBlocks.Count -gt 0)
+        untrustedDigests     = @($UntrustedBlocks | ForEach-Object { $_.contentDigest })
+        pricedDeployment     = [bool] $Record.pricedDeployment
+        promptTokens         = [int] $Record.promptTokens
+        completionTokens     = [int] $Record.completionTokens
+        latencyMs            = [long] $Record.latencyMs
+        estimatedUsd         = [double] $Record.costUsd
         reusedFromCheckpoint = $Reused
-        inputDigest         = [string] $Record.inputDigest
-        contentDigest       = Get-Project42ExecutionDigest -Value ([string] $Record.content)
-        completedUtc        = [string] $Record.completedUtc
+        inputDigest          = [string] $Record.inputDigest
+        contentDigest        = Get-Project42ExecutionDigest -Value ([string] $Record.content)
+        completedUtc         = [string] $Record.completedUtc
     }
     $state.steps.Add([pscustomobject]$step)
 
@@ -599,10 +599,10 @@ function New-DeliveryRoleResult {
         temperature   = $Record.temperature
         maxTokens     = [int] $Record.maxTokens
         result        = [pscustomobject]@{
-            content = [string] $Record.content
-            promptTokens = [int] $Record.promptTokens
+            content          = [string] $Record.content
+            promptTokens     = [int] $Record.promptTokens
             completionTokens = [int] $Record.completionTokens
-            latencyMs = [long] $Record.latencyMs
+            latencyMs        = [long] $Record.latencyMs
         }
         cost          = [double] $Record.costUsd
         reused        = $Reused
@@ -678,7 +678,7 @@ function Get-DeliverySourceChangeSet {
     }
 
     $arguments = @{
-        RegistryPath = $SourceRegistryPath
+        RegistryPath   = $SourceRegistryPath
         CheckpointPath = $SourceCheckpointPath
     }
     if ($ForceSourceRefresh) {
@@ -750,12 +750,12 @@ function Get-DeliveryWorkItemSet {
     if ($Mode -eq 'harness') {
         foreach ($brief in $Briefs) {
             $items.Add([pscustomobject]@{
-                id = [string] $brief.id
-                brief = $brief
-                changeSet = @(
-                    Get-Project42OptionalValue -InputObject $brief -Name 'sourceChanges' -Default @()
-                )
-            })
+                    id        = [string] $brief.id
+                    brief     = $brief
+                    changeSet = @(
+                        Get-Project42OptionalValue -InputObject $brief -Name 'sourceChanges' -Default @()
+                    )
+                })
         }
         return @($items)
     }
@@ -781,10 +781,10 @@ function Get-DeliveryWorkItemSet {
     # ADR-0015 decision 8: no model call is made unless a digest changed.
     foreach ($entry in $changed) {
         $items.Add([pscustomobject]@{
-            id = "$($template.id)-$($entry.sourceId)"
-            brief = $template
-            changeSet = @($entry)
-        })
+                id        = "$($template.id)-$($entry.sourceId)"
+                brief     = $template
+                changeSet = @($entry)
+            })
     }
     return @($items)
 }
@@ -807,11 +807,22 @@ function Get-DeliveryWorkItemKey {
 
     $changed = @(
         $WorkItem.changeSet |
-            Where-Object { [string] $_.state -eq 'changed' } |
-            ForEach-Object {
+        Where-Object {
+            (Get-Project42OptionalValue -InputObject $_ -Name 'evidencePacket' -Default '') -or
+            [string] $_.state -eq 'changed'
+        } |
+        ForEach-Object {
+            $evidencePacketPath = [string] (
+                Get-Project42OptionalValue -InputObject $_ -Name 'evidencePacket' -Default ''
+            )
+            if ($evidencePacketPath) {
+                "$evidencePacketPath"
+            }
+            else {
                 "$([string] $_.sourceId)|$([string] $_.previousDigest)|$([string] $_.currentDigest)"
-            } |
-            Sort-Object
+            }
+        } |
+        Sort-Object
     )
     $changeDigest = Get-Project42ExecutionDigest -Value ($changed -join "`n")
     return "$([string] $WorkItem.id)|$changeDigest"
@@ -845,7 +856,7 @@ function Save-DeliveryProgress {
     }
     else {
         [pscustomobject][ordered]@{
-            workItemId = $InFlightWorkItemId
+            workItemId  = $InFlightWorkItemId
             observedUtc = [datetime]::UtcNow.ToString('o')
         }
     }
@@ -896,15 +907,54 @@ function Confirm-DeliverySourceChange {
 function Get-DeliveryUntrustedBlockSet {
     <#
         Every piece of retrieved text that will reach a prompt, wrapped. Text
-        can arrive on a change-set entry (an excerpt or a bounded diff) or as an
-        explicit untrustedSources entry on a brief. There is no fourth path, and
-        no path that skips the wrapper.
+        can arrive on a change-set entry (an excerpt or a bounded diff), as an
+        explicit untrustedSources entry on a brief, or as an evidence packet
+        (a JSON file of observations produced by Invoke-EngineeringEvidenceFeed).
+        There is no fourth path, and no path that skips the wrapper.
     #>
     param([Parameter(Mandatory)][psobject] $WorkItem)
 
     $blocks = [System.Collections.Generic.List[object]]::new()
 
     foreach ($entry in @($WorkItem.changeSet)) {
+        # Evidence packet: a JSON file of observations from the engineering
+        # evidence feed. Each observation becomes an untrusted block.
+        $evidencePacketPath = [string] (
+            Get-Project42OptionalValue -InputObject $entry -Name 'evidencePacket' -Default ''
+        )
+        if ($evidencePacketPath) {
+            $resolvedPath = if ([System.IO.Path]::IsPathRooted($evidencePacketPath)) {
+                $evidencePacketPath
+            }
+            else {
+                Join-Path $PSScriptRoot '..' $evidencePacketPath
+            }
+            if (-not (Test-Path -LiteralPath $resolvedPath -PathType Leaf)) {
+                Write-DeliveryLog WARN "evidence packet not found: $resolvedPath (referenced by sourceChanges entry, skipping)"
+                continue
+            }
+            try {
+                $packet = Get-Content -LiteralPath $resolvedPath -Raw | ConvertFrom-Json
+                foreach ($obs in @(Get-Project42OptionalValue -InputObject $packet -Name 'observations' -Default @())) {
+                    $obsId = [string] (Get-Project42OptionalValue -InputObject $obs -Name 'id' -Default 'unknown')
+                    $obsSource = [string] (Get-Project42OptionalValue -InputObject $obs -Name 'source' -Default 'evidence-packet')
+                    $obsLocation = [string] (Get-Project42OptionalValue -InputObject $obs -Name 'location' -Default '')
+                    $obsContent = [string] (Get-Project42OptionalValue -InputObject $obs -Name 'content' -Default '')
+                    $obsDigest = [string] (Get-Project42OptionalValue -InputObject $obs -Name 'digest' -Default '')
+                    if ($obsContent) {
+                        $blocks.Add(
+                            (New-UntrustedBlock -Source "$obsSource/$obsId" -CanonicalUrl "urn:project42:evidence/$obsLocation" -Text $obsContent -RetrievedAt ([string] $packet.createdAt))
+                        )
+                    }
+                }
+                Write-DeliveryLog INFO "evidence: loaded $($blocks.Count) untrusted block(s) from $evidencePacketPath"
+            }
+            catch {
+                Write-DeliveryLog WARN "evidence packet $resolvedPath could not be parsed: $($_.Exception.Message)"
+            }
+            continue
+        }
+
         $sourceId = [string] $entry.sourceId
         $url = [string] $entry.url
         $retrievedAt = [string] (
@@ -1016,11 +1066,11 @@ function Get-DeliveryCitationBlockSet {
     foreach ($url in $urls) {
         try {
             $response = Invoke-Project42SourceFetch -Request ([pscustomobject]@{
-                url = $url
-                sourceId = 'citation'
-                publisher = 'cited-source'
-                timeoutSeconds = 20
-            })
+                    url            = $url
+                    sourceId       = 'citation'
+                    publisher      = 'cited-source'
+                    timeoutSeconds = 20
+                })
             $status = [int] $response.statusCode
             if ($status -lt 200 -or $status -ge 300 -or [string]::IsNullOrWhiteSpace([string] $response.content)) {
                 Write-DeliveryLog WARN "citation unreadable: $url -> HTTP $status. It stays CANNOT VERIFY."
@@ -1190,7 +1240,7 @@ function Write-DeliveryProposal {
         [psobject[]] $UntrustedBlocks = @()
     )
 
-    $changed = @($WorkItem.changeSet | Where-Object { [string] $_.state -eq 'changed' })
+    $changed = @($WorkItem.changeSet | Where-Object { [string] (Get-Project42OptionalValue -InputObject $_ -Name 'state' -Default '') -eq 'changed' })
 
     # An authoring brief has no changed source by definition, and for a long
     # time that meant it could never emit a proposal: the ensemble ran, spent
@@ -1212,8 +1262,8 @@ function Write-DeliveryProposal {
         }
 
         $authoringBasis = [pscustomobject]@{
-            briefId = [string] $WorkItem.id
-            requestedAt = [DateTimeOffset]::UtcNow.ToString('o')
+            briefId       = [string] $WorkItem.id
+            requestedAt   = [DateTimeOffset]::UtcNow.ToString('o')
             # Digest the REQUEST, so a reviewer can tell whether the brief moved
             # after the proposal was written.
             requestDigest = Get-Project42ExecutionDigest -Value (
@@ -1267,8 +1317,8 @@ function Write-DeliveryProposal {
         # untrusted thing in the chain, and this control is the one a human
         # decision is leaning on.
         [pscustomobject]@{
-            id = 'untrusted-source-delimiting'
-            status = 'passed'
+            id          = 'untrusted-source-delimiting'
+            status      = 'passed'
             evidenceRef = (
                 "run ${runId}: SOURCE-TEXT CHANNEL ONLY. " +
                 "$($UntrustedBlocks.Count) block(s) of retrieved source text " +
@@ -1285,8 +1335,8 @@ function Write-DeliveryProposal {
             )
         }
         [pscustomobject]@{
-            id = 'provider-independence'
-            status = 'passed'
+            id          = 'provider-independence'
+            status      = 'passed'
             evidenceRef = (
                 "run ${runId}: drafter " +
                 "$($WorkItem.brief.roles.drafter.providerFamily) and verifier " +
@@ -1295,8 +1345,8 @@ function Write-DeliveryProposal {
             )
         }
         [pscustomobject]@{
-            id = 'caller-side-ceilings'
-            status = 'passed'
+            id          = 'caller-side-ceilings'
+            status      = 'passed'
             evidenceRef = (
                 "run ${runId}: $($state.requestCount) of $MaxRequestsPerRun " +
                 "requests and $([Math]::Round($state.spendUsd, 4)) of " +
@@ -1305,16 +1355,16 @@ function Write-DeliveryProposal {
             )
         }
         [pscustomobject]@{
-            id = 'human-publication-gate'
-            status = 'passed'
+            id          = 'human-publication-gate'
+            status      = 'passed'
             evidenceRef = (
                 "run ${runId}: this proposal is inert. Automation proposes and " +
                 'never publishes (ADR-0004, ADR-0007 decision 6).'
             )
         }
         [pscustomobject]@{
-            id = 'evidence-packet-schema'
-            status = 'passed'
+            id          = 'evidence-packet-schema'
+            status      = 'passed'
             evidenceRef = (
                 "$([IO.Path]::GetFileName($packetPath)) validates against " +
                 "content-change-packet.schema.json; digest $($packetWrite.digest)."
@@ -1352,11 +1402,11 @@ function Write-DeliveryProposal {
     Write-DeliveryLog INFO "proposal emitted: $proposalPath (pending human decision, disposition $($packet.disposition))"
 
     return [pscustomobject]@{
-        packetPath = $packetPath
-        packetDigest = $packetWrite.digest
-        proposalPath = $proposalPath
+        packetPath     = $packetPath
+        packetDigest   = $packetWrite.digest
+        proposalPath   = $proposalPath
         proposalDigest = $proposalWrite.digest
-        disposition = [string] $packet.disposition
+        disposition    = [string] $packet.disposition
     }
 }
 
@@ -1424,7 +1474,7 @@ try {
         )
     }
     $pricing = Get-Content -LiteralPath $PricingPath -Raw |
-        ConvertFrom-Json -Depth 30 -DateKind String
+    ConvertFrom-Json -Depth 30 -DateKind String
     $rateTable = Get-Project42FoundryRateTable -Pricing $pricing -RequiredAliases @()
 
     # Pre-flight the pricing of every deployment this run will touch, so an
@@ -1432,7 +1482,7 @@ try {
     # through, having already spent money that no ceiling counted.
     $requiredAliases = [System.Collections.Generic.HashSet[string]]::new()
     foreach ($item in $workItems) {
-        foreach ($roleName in @('drafter', 'verifier', 'adversary', 'arbiter')) {
+        foreach ($roleName in @('researcher', 'drafter', 'verifier', 'adversary', 'arbiter', 'finalizer')) {
             $roleConfig = Get-Project42OptionalValue -InputObject $item.brief.roles -Name $roleName -Default $null
             if ($null -ne $roleConfig) {
                 $null = $requiredAliases.Add([string] $roleConfig.deployment)
@@ -1470,10 +1520,10 @@ try {
     $runKey = Get-Project42ExecutionDigest -Value (
         (
             $briefs |
-                ForEach-Object {
-                    "$([string] $_.id)|$(Get-Project42ExecutionDigest -Value ([string] $_.prompt))"
-                } |
-                Sort-Object
+            ForEach-Object {
+                "$([string] $_.id)|$(Get-Project42ExecutionDigest -Value ([string] $_.prompt))"
+            } |
+            Sort-Object
         ) -join "`n"
     )
     $checkpoint = Read-Project42DeliveryCheckpoint `
@@ -1530,7 +1580,10 @@ try {
         }
 
         $unresolved = [System.Collections.Generic.List[string]]::new()
-        foreach ($entry in @($item.changeSet | Where-Object { [string] $_.state -eq 'unreachable' })) {
+        foreach ($entry in @($item.changeSet | Where-Object {
+                    $entryState = Get-Project42OptionalValue -InputObject $_ -Name 'state' -Default ''
+                    $entryState -eq 'unreachable'
+                })) {
             $unresolved.Add(
                 "Source $($entry.sourceId) ($($entry.url)) was unreachable at " +
                 "$($entry.checkedAt). Treated as no change, not as a change. " +
@@ -1543,14 +1596,25 @@ try {
         # first request rather than between roles.
         $untrusted = @(Get-DeliveryUntrustedBlockSet -WorkItem $item)
 
-        $changed = @($item.changeSet | Where-Object { [string] $_.state -eq 'changed' })
+        $changed = @($item.changeSet | Where-Object {
+                (Get-Project42OptionalValue -InputObject $_ -Name 'evidencePacket' -Default '') -or
+                [string] $_.state -eq 'changed'
+            })
         $evidenceLines = [System.Collections.Generic.List[string]]::new()
         foreach ($entry in $changed) {
-            $evidenceLines.Add(
-                "sourceId=$($entry.sourceId) url=$($entry.url) " +
-                "previousDigest=$($entry.previousDigest) " +
-                "currentDigest=$($entry.currentDigest) checkedAt=$($entry.checkedAt)"
+            $evidencePacketPath = [string] (
+                Get-Project42OptionalValue -InputObject $entry -Name 'evidencePacket' -Default ''
             )
+            if ($evidencePacketPath) {
+                $evidenceLines.Add("evidencePacket=$evidencePacketPath (pre-generated diff evidence)")
+            }
+            else {
+                $evidenceLines.Add(
+                    "sourceId=$($entry.sourceId) url=$($entry.url) " +
+                    "previousDigest=$($entry.previousDigest) " +
+                    "currentDigest=$($entry.currentDigest) checkedAt=$($entry.checkedAt)"
+                )
+            }
         }
         $draftPrompt = @(
             "Work item: $($item.id)"
@@ -1585,12 +1649,64 @@ try {
             ''
         ) -join "`n"
 
+        # Researcher runs first, before the drafter. It gathers evidence the
+        # drafter will need and flags gaps the supplied material cannot fill.
+        # The researcher is optional: a brief without a researcher role skips
+        # this step and the drafter works from the supplied material alone.
+        $researcherConfig = Get-Project42OptionalValue -InputObject $brief.roles -Name 'researcher' -Default $null
+        $researcherResult = $null
+        $researchFindings = ''
+        if ($null -ne $researcherConfig) {
+            $researcherPrompt = @(
+                "Work item: $($item.id)"
+                'Acceptance criteria:'
+                (@($acceptanceCriteria | ForEach-Object { "- $_" }) -join "`n")
+                ''
+                [string] $brief.prompt
+            )
+            if ($evidenceLines.Count -gt 0) {
+                $researcherPrompt += @(
+                    ''
+                    'Changed sources under review (metadata, from our own detector):'
+                    ($evidenceLines -join "`n")
+                )
+            }
+            $researcherUserPrompt = ($researcherPrompt -join "`n")
+
+            $researcherResult = Invoke-DeliveryRole -Role researcher `
+                -WorkItemId ([string] $item.id) -WorkItemKey $workItemKey `
+                -DeploymentAlias $researcherConfig.deployment `
+                -ProviderFamily $researcherConfig.providerFamily `
+                -SystemPrompt (Get-DeliveryRolePrompt -Name 'researcher' -CanRetrieveUrls $false) `
+                -UserPrompt $researcherUserPrompt -RateTable $rateTable -AccessToken $accessToken `
+                -UntrustedBlocks $untrusted `
+                -MaxCompletionTokens ([int](Get-Project42OptionalValue -InputObject $researcherConfig -Name 'maxCompletionTokens' -Default 4096)) `
+                -Temperature (Get-Project42OptionalValue -InputObject $researcherConfig -Name 'temperature' -Default $null)
+
+            $researchFindings = [string] $researcherResult.content
+            Write-DeliveryLog INFO "brief=$($item.id) researcher completed"
+        }
+
+        # If the researcher ran, prepend its findings to the drafter's prompt
+        # so the drafter works from gathered evidence rather than raw material.
+        $drafterPrompt = $draftUserPrompt
+        if ($researchFindings) {
+            $drafterPrompt = @(
+                'RESEARCH FINDINGS (gathered before drafting; use these facts and sources):'
+                $researchFindings
+                ''
+                '---'
+                ''
+                $draftUserPrompt
+            ) -join "`n"
+        }
+
         $draft = Invoke-DeliveryRole -Role drafter `
             -WorkItemId ([string] $item.id) -WorkItemKey $workItemKey `
             -DeploymentAlias $brief.roles.drafter.deployment `
             -ProviderFamily $brief.roles.drafter.providerFamily `
             -SystemPrompt (Get-DeliveryRolePrompt -Name 'drafter' -CanRetrieveUrls $false) `
-            -UserPrompt $draftUserPrompt -RateTable $rateTable -AccessToken $accessToken `
+            -UserPrompt $drafterPrompt -RateTable $rateTable -AccessToken $accessToken `
             -UntrustedBlocks $untrusted `
             -Temperature (Get-Project42OptionalValue -InputObject $brief.roles.drafter -Name 'temperature' -Default $null) `
             -MaxCompletionTokens ([int](Get-Project42OptionalValue -InputObject $brief.roles.drafter -Name 'maxCompletionTokens' -Default 4096))
@@ -1732,6 +1848,14 @@ try {
         }
 
         $stages = [System.Collections.Generic.List[object]]::new()
+        if ($null -ne $researcherResult) {
+            $stages.Add(
+                (
+                    New-DeliveryStageRecord -RoleResult $researcherResult -Brief $brief `
+                        -Status ([string]::IsNullOrWhiteSpace($researcherResult.content) ? 'failed' : 'passed')
+                )
+            )
+        }
         $stages.Add(
             (
                 New-DeliveryStageRecord -RoleResult $draft -Brief $brief `
@@ -1762,6 +1886,59 @@ try {
             )
         }
 
+        # Finalizer runs last, after all other roles. It reviews the complete
+        # package for completeness and consistency before human handoff.
+        # The finalizer is optional: a brief without a finalizer role skips
+        # this step and the proposal goes to a human as-is.
+        $finalizerConfig = Get-Project42OptionalValue -InputObject $brief.roles -Name 'finalizer' -Default $null
+        $finalizerResult = $null
+        if ($null -ne $finalizerConfig) {
+            $finalizerPrompt = @(
+                "Work item: $($item.id)"
+                'Acceptance criteria:'
+                (@($acceptanceCriteria | ForEach-Object { "- $_" }) -join "`n")
+                ''
+                'DRAFT:'
+                [string] $draft.content
+                ''
+                'VERIFIER REPORT:'
+                [string] $verify.content
+                ''
+                'ADVERSARY REPORT:'
+                [string] $adversary.content
+            )
+            if ($null -ne $arbiterResult) {
+                $finalizerPrompt += @(
+                    ''
+                    'ARBITER RESOLUTION:'
+                    [string] $arbiterResult.content
+                )
+            }
+            $finalizerUserPrompt = ($finalizerPrompt -join "`n")
+
+            $finalizerResult = Invoke-DeliveryRole -Role finalizer `
+                -WorkItemId ([string] $item.id) -WorkItemKey $workItemKey `
+                -DeploymentAlias $finalizerConfig.deployment `
+                -ProviderFamily $finalizerConfig.providerFamily `
+                -SystemPrompt (Get-DeliveryRolePrompt -Name 'finalizer' -CanRetrieveUrls $false) `
+                -UserPrompt $finalizerUserPrompt -RateTable $rateTable -AccessToken $accessToken `
+                -UntrustedBlocks $untrusted `
+                -MaxCompletionTokens ([int](Get-Project42OptionalValue -InputObject $finalizerConfig -Name 'maxCompletionTokens' -Default 4096)) `
+                -Temperature (Get-Project42OptionalValue -InputObject $finalizerConfig -Name 'temperature' -Default $null)
+
+            Write-DeliveryLog INFO "brief=$($item.id) finalizer completed"
+        }
+
+        if ($null -ne $finalizerResult) {
+            $stages.Add(
+                (
+                    New-DeliveryStageRecord -RoleResult $finalizerResult -Brief $brief `
+                        -Status 'passed' `
+                        -ExtraFindings @('Finalizer package review.')
+                )
+            )
+        }
+
         $emitted = Write-DeliveryProposal `
             -WorkItem $item `
             -ExecutedStages @($stages) `
@@ -1770,25 +1947,25 @@ try {
             -UntrustedBlocks $untrusted
 
         $state.steps.Add([pscustomobject]@{
-            role = 'agreement'; brief = $item.id
-            verifier = $verdictV; adversary = $verdictA; arbiter = $verdictR
-            survives = $survives
-        })
+                role = 'agreement'; brief = $item.id
+                verifier = $verdictV; adversary = $verdictA; arbiter = $verdictR
+                survives = $survives
+            })
         if ($null -ne $emitted) {
             $state.proposals.Add($emitted)
         }
 
         $completed.Add([pscustomobject][ordered]@{
-            workItemId = [string] $item.id
-            workItemKey = $workItemKey
-            verifier = $verdictV
-            adversary = $verdictA
-            arbiter = $verdictR
-            survives = [bool] $survives
-            proposalPath = ($null -eq $emitted) ? $null : [string] $emitted.proposalPath
-            packetPath = ($null -eq $emitted) ? $null : [string] $emitted.packetPath
-            completedUtc = [datetime]::UtcNow.ToString('o')
-        })
+                workItemId   = [string] $item.id
+                workItemKey  = $workItemKey
+                verifier     = $verdictV
+                adversary    = $verdictA
+                arbiter      = $verdictR
+                survives     = [bool] $survives
+                proposalPath = ($null -eq $emitted) ? $null : [string] $emitted.proposalPath
+                packetPath   = ($null -eq $emitted) ? $null : [string] $emitted.packetPath
+                completedUtc = [datetime]::UtcNow.ToString('o')
+            })
         $null = $completedKeys.Add($workItemKey)
         Save-DeliveryProgress
 

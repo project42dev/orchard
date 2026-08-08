@@ -1,0 +1,158 @@
+# orchard-engine.yml — scheduled content lifecycle engine
+#
+# Runs the full Orchard lifecycle on a schedule:
+#   1. Discovery: find content opportunities
+#   2. Scoring: rank them
+#   3. Database: rebuild the content index
+#   4. Briefs: generate briefs for the delivery ensemble
+#   5. Delivery: run the ensemble against Azure AI Foundry
+#   6. Ingest: record results in the database
+#   7. Notify: create a GitHub Issue for human review
+#
+# Each step is independent and fails the workflow if it fails, so a failure in
+# discovery does not silently skip delivery, and a failure in delivery does not
+# silently skip notification.
+
+name: Orchard Engine
+
+on:
+    schedule:
+        # Run daily at 08:00 UTC (adjust to your review cadence)
+        - cron: "0 8 * * *"
+    workflow_dispatch:
+        inputs:
+            mode:
+                description: "Delivery mode (harness or engine)"
+                required: true
+                default: "harness"
+                type: choice
+                options:
+                    - harness
+                    - engine
+            offline:
+                description: "Run discovery in offline mode (no live fetches)"
+                default: true
+                type: boolean
+
+env:
+    NODE_VERSION: "22"
+
+jobs:
+    lifecycle:
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+
+        # Only run scheduled on the default branch
+        # workflow_dispatch can run on any branch
+        if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm ci
+
+            # ---- Phase 1: Discovery ----
+            - name: Discover content opportunities
+              id: discover
+              run: |
+                  OFFLINE_FLAG=""
+                  if [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
+                    OFFLINE_FLAG="--offline"
+                  fi
+                  node scripts/discover-content-opportunities.mjs \
+                    --db content.db \
+                    $OFFLINE_FLAG
+              continue-on-error: false
+
+            # ---- Phase 2: Scoring ----
+            - name: Score opportunities
+              id: score
+              run: |
+                  node scripts/score-opportunities.mjs \
+                    --db content.db
+              continue-on-error: false
+
+            # ---- Phase 3: Database ----
+            - name: Build content database
+              id: build-db
+              run: |
+                  node scripts/build-content-db.mjs \
+                    --db content.db
+              continue-on-error: false
+
+            # ---- Phase 4: Briefs ----
+            - name: Generate delivery briefs
+              id: briefs
+              run: |
+                  node scripts/generate-briefs.mjs \
+                    --db content.db \
+                    --out briefs/queue.json
+              continue-on-error: false
+
+            # ---- Phase 5: Delivery ----
+            # This step requires Azure authentication. The workflow uses OIDC to
+            # authenticate to Azure, then the delivery harness uses the resulting
+            # token to call the Foundry endpoint.
+            - name: Azure login
+              uses: azure/login@v2
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - name: Run delivery ensemble
+              id: delivery
+              run: |
+                  pwsh -NoProfile -File delivery/Invoke-Project42Delivery.ps1 \
+                    -Mode ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'harness' }} \
+                    -BriefPath briefs/queue.json \
+                    -Execute
+              env:
+                  FOUNDRY_ENDPOINT: ${{ secrets.FOUNDRY_ENDPOINT }}
+                  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+              continue-on-error: false
+
+            # ---- Phase 6: Ingest ----
+            - name: Ingest proposals
+              id: ingest
+              run: |
+                  node scripts/ingest-proposals.mjs \
+                    --db content.db \
+                    --run-records delivery/run-records \
+                    --apply
+              continue-on-error: false
+
+            # ---- Phase 7: Notify ----
+            - name: Notify review ready
+              id: notify
+              run: |
+                  node scripts/notify-review-ready.mjs \
+                    --db content.db \
+                    --proposals delivery/proposals
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              continue-on-error: false
+
+            # ---- Summary ----
+            - name: Summary
+              if: always()
+              run: |
+                  echo "## Orchard Engine Run" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "| Phase | Status |" >> $GITHUB_STEP_SUMMARY
+                  echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+                  echo "| Discover | ${{ steps.discover.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Score | ${{ steps.score.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Build DB | ${{ steps.build-db.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Briefs | ${{ steps.briefs.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Delivery | ${{ steps.delivery.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Ingest | ${{ steps.ingest.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Notify | ${{ steps.notify.outcome }} |" >> $GITHUB_STEP_SUMMARY

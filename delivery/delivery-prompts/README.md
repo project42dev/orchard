@@ -11,10 +11,12 @@ verdict lines they mandate.
 
 | File | Role | Must differ from |
 |---|---|---|
+| `researcher.md` | Gathers evidence before drafting begins | n/a |
 | `drafter.md` | Produces the candidate artifact | n/a |
 | `verifier.md` | Checks claims against cited sources | Drafter, by **provider family** |
 | `adversary.md` | Tries to refute the draft | Drafter and verifier, by deployment |
 | `arbiter.md` | Resolves a split, on human request only | All three |
+| `finalizer.md` | Reviews the complete package before human handoff | n/a |
 
 ## Rules that apply to every prompt
 

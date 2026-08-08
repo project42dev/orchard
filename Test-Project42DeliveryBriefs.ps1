@@ -55,7 +55,7 @@ function Assert-Brief {
 # records which deployment each role actually reached, so the independence rule
 # is checked against what was SENT rather than against what the file declares.
 $transportLog = @{
-    calls = 0
+    calls  = 0
     byRole = @{}
 }
 
@@ -67,24 +67,26 @@ $transport = {
     $system = [string] $RequestBody.messages[0].content
 
     $role = $null
-    foreach ($candidate in @('drafter', 'verifier', 'adversary', 'arbiter')) {
+    foreach ($candidate in @('researcher', 'drafter', 'verifier', 'adversary', 'arbiter', 'finalizer')) {
         if ($system -match "# Role: $candidate") { $role = $candidate; break }
     }
     if (-not $role) { throw 'The request carried no recognizable delivery role prompt.' }
     $transportLog.byRole[$role] = $DeploymentAlias
 
     $content = switch ($role) {
-        'drafter'   { "A drafted answer.`n`nASSUMPTIONS. None beyond the supplied evidence.`n`nOMITTED. Nothing." }
-        'verifier'  { "Claim checking complete.`nVERDICT: PASS" }
+        'researcher' { "DOMAINS. Code review.`nGAPS. None.`nTERMS. None.`nREADINESS: READY" }
+        'drafter' { "A drafted answer.`n`nASSUMPTIONS. None beyond the supplied evidence.`n`nOMITTED. Nothing." }
+        'verifier' { "Claim checking complete.`nVERDICT: PASS" }
         'adversary' { "Hostile review complete.`nVERDICT: STANDS" }
-        'arbiter'   { "Resolved.`nRESOLUTION: VERIFIER" }
+        'arbiter' { "Resolved.`nRESOLUTION: VERIFIER" }
+        'finalizer' { "COMPLETENESS. All criteria addressed.`nCONSISTENCY. No conflicts.`nDEFECTS. None.`nSUMMARY. Package ready.`nRECOMMENDATION: APPROVE" }
     }
 
     return [pscustomobject]@{
-        content = $content
-        promptTokens = 1200
+        content          = $content
+        promptTokens     = 1200
         completionTokens = 300
-        latencyMs = 42
+        latencyMs        = 42
     }
 }.GetNewClosure()
 
@@ -100,7 +102,7 @@ function Get-BriefAliasSet {
     $aliases = [System.Collections.Generic.HashSet[string]]::new()
     foreach ($file in $Path) {
         foreach ($brief in @(Get-Content -LiteralPath $file -Raw | ConvertFrom-Json)) {
-            foreach ($role in @('drafter', 'verifier', 'adversary', 'arbiter')) {
+            foreach ($role in @('researcher', 'drafter', 'verifier', 'adversary', 'arbiter', 'finalizer')) {
                 $config = $brief.roles.PSObject.Properties[$role]
                 if ($config) { $null = $aliases.Add([string] $config.Value.deployment) }
             }
@@ -114,17 +116,17 @@ function New-PricingForAliases {
 
     $rates = foreach ($a in $Alias) {
         @{
-            deploymentAlias = $a
-            inputUsdPerMillionTokens = 5.0
+            deploymentAlias           = $a
+            inputUsdPerMillionTokens  = 5.0
             outputUsdPerMillionTokens = 30.0
-            source = 'https://example.invalid/test-fixture-rate'
+            source                    = 'https://example.invalid/test-fixture-rate'
         }
     }
     return @{
         schemaVersion = '1.0'
-        currency = 'USD'
-        asOf = '2026-08-03T00:00:00Z'
-        rates = @($rates)
+        currency      = 'USD'
+        asOf          = '2026-08-03T00:00:00Z'
+        rates         = @($rates)
     }
 }
 
@@ -215,7 +217,7 @@ try {
 
     $pricingPath = Join-Path $root 'pricing.json'
     New-PricingForAliases -Alias $aliases | ConvertTo-Json -Depth 10 |
-        Set-Content -LiteralPath $pricingPath -Encoding utf8NoBOM
+    Set-Content -LiteralPath $pricingPath -Encoding utf8NoBOM
 
     # ------------------------------- the real harness brief through the real run
 

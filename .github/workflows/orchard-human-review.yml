@@ -1,0 +1,114 @@
+# orchard-human-review.yml — closes the loop when a human reviews a proposal
+#
+# Triggered when an Orchard proposal issue is closed in project42dev/orchard.
+# Reads the closing comment for a decision ("approved" or "rejected"),
+# then records the publication or rejection in the content database.
+#
+# The human's ONLY action is closing the GitHub Issue with a comment.
+# Everything else is automated.
+
+name: Orchard Human Review
+
+on:
+    issues:
+        types: [closed]
+
+env:
+    NODE_VERSION: "22"
+
+jobs:
+    review-decision:
+        # Only run for Orchard proposal issues
+        if: contains(github.event.issue.title, '[Orchard]')
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout orchard
+              uses: actions/checkout@v4
+              with:
+                  repository: project42dev/orchard
+                  token: ${{ secrets.ORCHARD_REPO_TOKEN }}
+                  path: orchard
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
+                  cache-dependency-path: orchard/package-lock.json
+
+            - name: Install dependencies
+              working-directory: orchard
+              run: npm ci
+
+            - name: Determine decision
+              id: decision
+              working-directory: orchard
+              run: |
+                  ISSUE_BODY=$(gh issue view ${{ github.event.issue.number }} --repo project42dev/orchard --comments --json body,comments -q '.comments[-1].body // ""')
+                  echo "Last comment: $ISSUE_BODY"
+
+                  # Look for approval or rejection in the closing comment
+                  if echo "$ISSUE_BODY" | grep -qiE '\b(approved|lgtm|accept|ship it|looks good)\b'; then
+                    echo "decision=approved" >> $GITHUB_OUTPUT
+                    echo "Decision: APPROVED"
+                  elif echo "$ISSUE_BODY" | grep -qiE '\b(rejected|denied|decline|no|reject)\b'; then
+                    echo "decision=rejected" >> $GITHUB_OUTPUT
+                    echo "Decision: REJECTED"
+                  else
+                    echo "decision=unclear" >> $GITHUB_OUTPUT
+                    echo "Decision: UNCLEAR — no approval or rejection keyword found in closing comment"
+                  fi
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Record publication (approved)
+              if: steps.decision.outputs.decision == 'approved'
+              working-directory: orchard
+              run: |
+                  # Extract subject IDs from the issue body
+                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'subject[:\s]+\K[\w-]+' || echo "")
+                  ACCEPTED_BY="${{ github.event.issue.closed_by.login || github.event.sender.login }}"
+
+                  for SUBJECT in $SUBJECTS; do
+                    echo "Recording publication for: $SUBJECT"
+                    node scripts/record-publication.mjs \
+                      --db content.db \
+                      --subject "$SUBJECT" \
+                      --accepted-by "$ACCEPTED_BY" \
+                      --note "Approved via issue #${{ github.event.issue.number }}" \
+                      --apply
+                  done
+
+            - name: Record rejection
+              if: steps.decision.outputs.decision == 'rejected'
+              working-directory: orchard
+              run: |
+                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'subject[:\s]+\K[\w-]+' || echo "")
+                  REJECTED_BY="${{ github.event.issue.closed_by.login || github.event.sender.login }}"
+
+                  for SUBJECT in $SUBJECTS; do
+                    echo "Recording rejection for: $SUBJECT"
+                    node scripts/reject-publication.mjs \
+                      --db content.db \
+                      --subject "$SUBJECT" \
+                      --rejected-by "$REJECTED_BY" \
+                      --note "Rejected via issue #${{ github.event.issue.number }}" \
+                      --apply
+                  done
+
+            - name: Comment on unclear decision
+              if: steps.decision.outputs.decision == 'unclear'
+              run: |
+                  gh issue comment ${{ github.event.issue.number }} \
+                    --repo project42dev/orchard \
+                    --body "> [!NOTE]
+                    > This Orchard proposal issue was closed without a clear approval or rejection keyword.
+                    >
+                    > To approve: close with a comment containing **approved**, **LGTM**, **accept**, or **ship it**.
+                    > To reject: close with a comment containing **rejected**, **denied**, or **decline**.
+                    >
+                    > No action was taken on the content database."
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

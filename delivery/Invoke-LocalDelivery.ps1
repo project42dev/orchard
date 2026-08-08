@@ -157,11 +157,15 @@ $($brief.acceptanceCriteria -join "`n")
 DRAFT TO VERIFY:
 $draft
 "@
+    $verifierMaxTokens = if ($brief.roles.verifier.PSObject.Properties['maxCompletionTokens']) {
+        [int]$brief.roles.verifier.maxCompletionTokens
+    }
+    else { 4096 }
     $verification = Invoke-FoundryChat `
         -Deployment $brief.roles.verifier.deployment `
         -SystemPrompt $verifierSystem `
         -UserPrompt $verifierPrompt `
-        -MaxTokens ([int]$brief.roles.verifier.maxCompletionTokens) `
+        -MaxTokens $verifierMaxTokens `
         -ProviderFamily $brief.roles.verifier.providerFamily
 
     $verLines = if ($verification) { ($verification -split "`n").Count } else { 0 }
@@ -180,11 +184,15 @@ $draft
 VERIFICATION REPORT:
 $verification
 "@
+    $adversaryMaxTokens = if ($brief.roles.adversary.PSObject.Properties['maxCompletionTokens']) {
+        [int]$brief.roles.adversary.maxCompletionTokens
+    }
+    else { 4096 }
     $adversary = Invoke-FoundryChat `
         -Deployment $brief.roles.adversary.deployment `
         -SystemPrompt $adversarySystem `
         -UserPrompt $adversaryPrompt `
-        -MaxTokens ([int]$brief.roles.adversary.maxCompletionTokens) `
+        -MaxTokens $adversaryMaxTokens `
         -ProviderFamily $brief.roles.adversary.providerFamily
 
     $advLines = if ($adversary) { ($adversary -split "`n").Count } else { 0 }
@@ -220,11 +228,15 @@ Produce the FINAL version incorporating all valid feedback. Output the complete 
 
     Write-Host "[DEBUG] Arbiter prompt size: $($arbiterPrompt.Length) chars"
 
+    $arbiterMaxTokens = if ($brief.roles.arbiter.PSObject.Properties['maxCompletionTokens']) {
+        [int]$brief.roles.arbiter.maxCompletionTokens
+    }
+    else { 4096 }
     $final = Invoke-FoundryChat `
         -Deployment $brief.roles.arbiter.deployment `
         -SystemPrompt $arbiterSystem `
         -UserPrompt $arbiterPrompt `
-        -MaxTokens ([int]$brief.roles.arbiter.maxCompletionTokens) `
+        -MaxTokens $arbiterMaxTokens `
         -ProviderFamily $brief.roles.arbiter.providerFamily
 
     $finalLines = if ($final) { ($final -split "`n").Count } else { 0 }

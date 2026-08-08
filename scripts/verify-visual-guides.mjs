@@ -4,8 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 
 const dbPath = process.argv[2];
 if (!dbPath) {
-  console.error('Usage: node verify-visual-guides.mjs <db-path>');
-  process.exit(1);
+    console.error('Usage: node verify-visual-guides.mjs <db-path>');
+    process.exit(1);
 }
 
 const db = new DatabaseSync(dbPath);
