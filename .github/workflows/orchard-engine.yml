@@ -131,7 +131,19 @@ jobs:
             # This step requires Azure authentication. The workflow uses OIDC to
             # authenticate to Azure, then the delivery harness uses the resulting
             # token to call the Foundry endpoint.
+            # Skipped when there are no briefs to deliver (queue.json is empty or
+            # has zero items).
+            - name: Check for briefs to deliver
+              id: check-briefs
+              run: |
+                  COUNT=$(node -e "const q=require('./briefs/queue.json'); console.log((q.items||[]).length)")
+                  echo "count=$COUNT" >> $GITHUB_OUTPUT
+                  if [ "$COUNT" -eq 0 ]; then
+                    echo "No briefs to deliver; skipping delivery, ingest, and notify."
+                  fi
+
             - name: Azure login
+              if: steps.check-briefs.outputs.count != '0'
               uses: azure/login@v2
               with:
                   client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -140,6 +152,7 @@ jobs:
 
             - name: Run delivery ensemble
               id: delivery
+              if: steps.check-briefs.outputs.count != '0'
               run: |
                   pwsh -NoProfile -File delivery/Invoke-Project42Delivery.ps1 \
                     -Mode ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'harness' }} \
@@ -153,6 +166,7 @@ jobs:
             # ---- Phase 6: Ingest ----
             - name: Ingest proposals
               id: ingest
+              if: steps.check-briefs.outputs.count != '0'
               run: |
                   node scripts/ingest-proposals.mjs \
                     --db content.db \
@@ -163,6 +177,7 @@ jobs:
             # ---- Phase 7: Notify ----
             - name: Notify review ready
               id: notify
+              if: steps.check-briefs.outputs.count != '0'
               run: |
                   node scripts/notify-review-ready.mjs \
                     --db content.db \
@@ -183,6 +198,6 @@ jobs:
                   echo "| Score | ${{ steps.score.outcome }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Build DB | ${{ steps.build-db.outcome }} |" >> $GITHUB_STEP_SUMMARY
                   echo "| Briefs | ${{ steps.briefs.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Delivery | ${{ steps.delivery.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Ingest | ${{ steps.ingest.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Notify | ${{ steps.notify.outcome }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Delivery | ${{ steps.delivery.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Ingest | ${{ steps.ingest.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+                  echo "| Notify | ${{ steps.notify.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
