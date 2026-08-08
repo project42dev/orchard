@@ -1,0 +1,14 @@
+{
+  "disposition": "ready-for-draft",
+  "evidence": {
+    "verifier": "grok-4-20-reasoning",
+    "drafter": "gpt-5-6-sol",
+    "arbiter": "mistral-large-3",
+    "source": "4-model ensemble (local)",
+    "adversary": "deepseek-v4-pro"
+  },
+  "schemaVersion": "1.0.0",
+  "proposalId": "proposal-p42-create-connect-your-tools-to-your-own-model-endpoint-learn-687f44ce",
+  "id": "packet-p42-create-connect-your-tools-to-your-own-model-endpoint-learn-687f44ce",
+  "createdAt": "2026-08-08T04:44:45.6414947Z"
+}

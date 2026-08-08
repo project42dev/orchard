@@ -1,0 +1,20 @@
+{
+  "id": "proposal-p42-create-cost-and-capacity-management-learn-4dd25fc4",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixs": [
+        "content/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "workItemId": "p42-create-cost-and-capacity-management-learn",
+  "disposition": "ready-for-draft",
+  "kind": "needs-creating",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See 04-final.md in delivery/private/local-proposals/4dd25fc4/",
+  "packetId": "packet-p42-create-cost-and-capacity-management-learn-4dd25fc4",
+  "subjectId": "cost-and-capacity-management-learn",
+  "createdAt": "2026-08-08T04:44:45.6632899Z"
+}

@@ -9,6 +9,19 @@
       "url": "https://github.com/project42dev/orchard/issues/10",
       "createdAt": "2026-08-08T04:05:34.987Z",
       "title": "[Orchard] 1 proposal(s) ready for review"
+    },
+    {
+      "proposalSetDigest": "xpo",
+      "proposalDigests": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "issueNumber": 11,
+      "url": "https://github.com/project42dev/orchard/issues/11",
+      "createdAt": "2026-08-08T04:44:50.731Z",
+      "title": "[Orchard] 4 proposal(s) ready for review"
     }
   ]
 }

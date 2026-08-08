@@ -1,0 +1,20 @@
+{
+  "id": "proposal-p42-create-connect-your-tools-to-your-own-model-endpoint-learn-687f44ce",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixs": [
+        "content/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "workItemId": "p42-create-connect-your-tools-to-your-own-model-endpoint-learn",
+  "disposition": "ready-for-draft",
+  "kind": "needs-creating",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See 04-final.md in delivery/private/local-proposals/687f44ce/",
+  "packetId": "packet-p42-create-connect-your-tools-to-your-own-model-endpoint-learn-687f44ce",
+  "subjectId": "connect-your-tools-to-your-own-model-endpoint-learn",
+  "createdAt": "2026-08-08T04:44:45.6414947Z"
+}

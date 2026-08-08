@@ -1,0 +1,36 @@
+{
+  "runId": "3c68e8d1-742d-4210-9349-64ffed341b35",
+  "startedUtc": "2026-08-08T03:06:39.035Z",
+  "completedUtc": "2026-08-08T03:06:39.035Z",
+  "outcome": "succeeded",
+  "mode": "harness",
+  "proposals": [
+    {
+      "proposalPath": "delivery\\\\private\\\\local-proposals\\\\3c68e8d1-742d-4210-9349-64ffed341b35\\\\proposal-p42-create-agent-orchestration-visual-guide-a1b2c3d4.json",
+      "proposalDigest": "e2e-test-20260807",
+      "disposition": "ready-for-draft"
+    }
+  ],
+  "steps": [
+    {
+      "role": "drafter",
+      "deployment": "gpt-5-6-sol",
+      "providerFamily": "OpenAI"
+    },
+    {
+      "role": "verifier",
+      "deployment": "grok-4-20-reasoning",
+      "providerFamily": "xAI"
+    },
+    {
+      "role": "adversary",
+      "deployment": "deepseek-v4-pro",
+      "providerFamily": "DeepSeek"
+    },
+    {
+      "role": "arbiter",
+      "deployment": "mistral-large-3",
+      "providerFamily": "MistralAI"
+    }
+  ]
+}

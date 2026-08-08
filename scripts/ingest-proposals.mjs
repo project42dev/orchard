@@ -78,9 +78,13 @@ export function readProposals(runRecordDir) {
         doc: {
           // The brief id is embedded in the proposal filename the platform
           // wrote, which is the only link back to what asked for the work.
-          briefId: basename(p.proposalPath ?? '')
-            .replace(/^proposal-/, '')
-            .replace(/-[0-9a-f]{8}\.json$/, ''),
+          // When the run record carries an explicit briefId or workItemId
+          // (e.g. local delivery runs), prefer those over the filename.
+          briefId: p.briefId
+            ?? basename(p.proposalPath ?? '')
+              .replace(/^proposal-/, '')
+              .replace(/-[0-9a-f]{8}\.json$/, ''),
+          workItemId: p.workItemId,
           disposition: p.disposition,
           proposalDigest: p.proposalDigest,
         },

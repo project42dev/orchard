@@ -1,0 +1,38 @@
+{
+  "outcome": "succeeded",
+  "steps": [
+    {
+      "role": "drafter",
+      "providerFamily": "OpenAI",
+      "deployment": "gpt-5-6-sol"
+    },
+    {
+      "role": "verifier",
+      "providerFamily": "xAI",
+      "deployment": "grok-4-20-reasoning"
+    },
+    {
+      "role": "adversary",
+      "providerFamily": "DeepSeek",
+      "deployment": "deepseek-v4-pro"
+    },
+    {
+      "role": "arbiter",
+      "providerFamily": "MistralAI",
+      "deployment": "mistral-large-3"
+    }
+  ],
+  "runId": "4dd25fc4-baf3-4898-bafd-0804b4799741",
+  "startedUtc": "2026-08-08T04:37:30Z",
+  "completedUtc": "2026-08-08T04:39:30Z",
+  "mode": "local",
+  "proposals": [
+    {
+      "workItemId": "create:cost-and-capacity-management-learn",
+      "briefId": "p42-create-cost-and-capacity-management-learn",
+      "proposalDigest": "local-delivery-run",
+      "disposition": "ready-for-draft",
+      "proposalPath": "delivery\\private\\local-proposals\\4dd25fc4-baf3-4898-bafd-0804b4799741\\04-final.md"
+    }
+  ]
+}
