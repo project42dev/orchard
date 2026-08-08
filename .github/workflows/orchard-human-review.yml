@@ -28,7 +28,6 @@ jobs:
               uses: actions/checkout@v4
               with:
                   repository: project42dev/orchard
-                  token: ${{ secrets.ORCHARD_REPO_TOKEN }}
                   path: orchard
 
             - name: Setup Node.js
@@ -46,10 +45,11 @@ jobs:
               id: decision
               working-directory: orchard
               run: |
-                  ISSUE_BODY=$(gh issue view ${{ github.event.issue.number }} --repo project42dev/orchard --comments --json body,comments -q '.comments[-1].body // ""')
-                  echo "Last comment: $ISSUE_BODY"
+                  # Use the issue body directly from the event payload (no API call needed)
+                  ISSUE_BODY="${{ github.event.issue.body }}"
+                  echo "Issue body excerpt: ${ISSUE_BODY:0:500}"
 
-                  # Look for approval or rejection in the closing comment
+                  # Look for approval or rejection in the issue body (closing comment is appended to body)
                   if echo "$ISSUE_BODY" | grep -qiE '\b(approved|lgtm|accept|ship it|looks good)\b'; then
                     echo "decision=approved" >> $GITHUB_OUTPUT
                     echo "Decision: APPROVED"
@@ -60,16 +60,24 @@ jobs:
                     echo "decision=unclear" >> $GITHUB_OUTPUT
                     echo "Decision: UNCLEAR — no approval or rejection keyword found in closing comment"
                   fi
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Record publication (approved)
               if: steps.decision.outputs.decision == 'approved'
               working-directory: orchard
               run: |
-                  # Extract subject IDs from the issue body
-                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'subject[:\s]+\K[\w-]+' || echo "")
-                  ACCEPTED_BY="${{ github.event.issue.closed_by.login || github.event.sender.login }}"
+                  # Extract proposal IDs from the issue body (pattern: proposal-<slug>-<hash>)
+                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-[\w-]+' | head -5 || echo "")
+                  ACCEPTED_BY="${{ github.event.sender.login }}"
+
+                  if [ -z "$SUBJECTS" ]; then
+                    echo "No proposal IDs found in issue body. Falling back to all ready proposals."
+                    SUBJECTS=$(node -e "
+                      import { DatabaseSync } from 'node:sqlite';
+                      const db = new DatabaseSync('content.db');
+                      const rows = db.prepare('SELECT id FROM work_item WHERE state = ?').all('ready-for-review');
+                      console.log(rows.map(r => r.id).join(' '));
+                    ")
+                  fi
 
                   for SUBJECT in $SUBJECTS; do
                     echo "Recording publication for: $SUBJECT"
@@ -85,8 +93,18 @@ jobs:
               if: steps.decision.outputs.decision == 'rejected'
               working-directory: orchard
               run: |
-                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'subject[:\s]+\K[\w-]+' || echo "")
-                  REJECTED_BY="${{ github.event.issue.closed_by.login || github.event.sender.login }}"
+                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-[\w-]+' | head -5 || echo "")
+                  REJECTED_BY="${{ github.event.sender.login }}"
+
+                  if [ -z "$SUBJECTS" ]; then
+                    echo "No proposal IDs found in issue body. Falling back to all ready proposals."
+                    SUBJECTS=$(node -e "
+                      import { DatabaseSync } from 'node:sqlite';
+                      const db = new DatabaseSync('content.db');
+                      const rows = db.prepare('SELECT id FROM work_item WHERE state = ?').all('ready-for-review');
+                      console.log(rows.map(r => r.id).join(' '));
+                    ")
+                  fi
 
                   for SUBJECT in $SUBJECTS; do
                     echo "Recording rejection for: $SUBJECT"
