@@ -92,7 +92,7 @@ jobs:
               run: |
                   # Extract subject_ids from proposal names in the issue body
                   # Pattern: proposal-p42-create-<subject_id>-<hash> or proposal-<subject_id>-<hash>
-                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(?:p42-create-)?\K[\w-]+(?=-\w{8})' | head -5 || echo "")
+                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(p42-create-)?[\w-]+-\w{8}' | sed -E 's/proposal-(p42-create-)?//; s/-[a-f0-9]{8}$//' | head -5 || echo "")
                   ACCEPTED_BY="${{ github.event.comment.user.login }}"
 
                   if [ -z "$RAW" ]; then
@@ -119,7 +119,7 @@ jobs:
               if: steps.decision.outputs.decision == 'denied'
               working-directory: orchard
               run: |
-                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(?:p42-create-)?\K[\w-]+(?=-\w{8})' | head -5 || echo "")
+                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(p42-create-)?[\w-]+-\w{8}' | sed -E 's/proposal-(p42-create-)?//; s/-[a-f0-9]{8}$//' | head -5 || echo "")
                   REJECTED_BY="${{ github.event.comment.user.login }}"
 
                   if [ -z "$RAW" ]; then
