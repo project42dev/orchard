@@ -14,6 +14,11 @@ on:
     issue_comment:
         types: [created]
 
+# Need explicit permissions for issue_comment events on public repos
+permissions:
+    issues: write
+    contents: read
+
 env:
     NODE_VERSION: "22"
 
