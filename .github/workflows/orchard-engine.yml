@@ -59,16 +59,34 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
+            # ---- Phase 0: Checkout platform repo for corpus ----
+            - name: Checkout project42-platform (corpus)
+              uses: actions/checkout@v4
+              with:
+                  repository: project42dev/project42-platform
+                  path: platform-corpus
+
             # ---- Phase 1: Discovery ----
             - name: Discover content opportunities
               id: discover
               run: |
+                  # Ensure probes.json exists (use example as starter if not present)
+                  if [ ! -f content/probes.json ]; then
+                    echo "No probes.json found; copying example as starter."
+                    cp content/opportunity-probes.example.json content/probes.json
+                  fi
                   OFFLINE_FLAG=""
                   if [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
                     OFFLINE_FLAG="--offline"
                   fi
                   node scripts/discover-content-opportunities.mjs \
-                    --db content.db \
+                    --registry content/opportunity-registry.starter.json \
+                    --corpus platform-corpus/content \
+                    --probes content/probes.json \
+                    --out delivery/discovery-proposals.json \
+                    --gap-threshold 0 \
+                    --surface learn \
+                    --timeout 30 \
                     $OFFLINE_FLAG
               continue-on-error: false
 
@@ -77,7 +95,7 @@ jobs:
               id: score
               run: |
                   node scripts/score-opportunities.mjs \
-                    --db content.db
+                    --registry content/opportunity-registry.starter.json
               continue-on-error: false
 
             # ---- Phase 3: Database ----
@@ -85,6 +103,7 @@ jobs:
               id: build-db
               run: |
                   node scripts/build-content-db.mjs \
+                    --content platform-corpus/content \
                     --db content.db
               continue-on-error: false
 

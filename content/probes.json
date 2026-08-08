@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "1.2",
+  "description": "Topic probes for a discovery pass. Each is measured with WORD BOUNDARIES against both the local corpus and the surveyed market text. A probe may declare which kinds it applies to; a probe with no kinds applies to all of them. Supply your own; these found real gaps in a real curriculum and are kept as a worked example.",
+  "probeDesignRules": [
+    "MEASURE THE SUBJECT, NOT ITS PROPER NOUNS. A regex that is a list of product names measures vocabulary, not coverage. Ours claimed we taught nothing about agent orchestration because we never write 'LangChain'; we had a nine-module class-ready path on it.",
+    "REJECT GENERIC WORDS THAT HAVE A SECOND MEANING. '\\badapters?\\b' looks like a fine-tuning term and matched 134 software-integration adapters, reporting a real gap as covered. A hidden gap is worse than a false one: nobody goes looking for it.",
+    "THE CORPUS IS JSON, SO FIELD NAMES ARE IN THE TEXT. '\\bnarration\\b' matched 333 instances of \"kind\":\"narration\", an asset cue type, not a single word of subject matter. Check what a term matches before trusting its count.",
+    "DO NOT BROADEN INTO AN ADJACENT CONCEPT. 'grounded answer' is the outcome of retrieval-augmented generation, not the technique. Folding it into the RAG probe would hide the gap the same way 'adapters' did.",
+    "A PRODUCT NAME IS A MOVING TARGET. When a proper noun genuinely is the subject, probe every name the product has held. 'Azure AI Foundry' scores 0 and 0, which reads as a total gap; the product was renamed, and 'Microsoft Foundry' scores 1 and 9. A regex pinned to a retired name reports absence and is believed.",
+    "AFTER EDITING A REGEX, RUN --offline AND READ THE COUNTS. Every failure above exited 0 and looked healthy."
+  ],
+  "kinds": ["learn", "field-guide", "visual-guide"],
+  "probes": [
+    { "id": "retrieval-augmented-generation", "term": "RAG", "regex": "\\bRAG\\b|retrieval[- ]augmented", "title": "Retrieval-augmented generation, embeddings, and vector search", "level": "intermediate",
+      "audited": "2026-08-03. Kept narrow deliberately. Broadening with 'grounded answer' scores 4 in Learn and would erase the gap, but grounding is the outcome, not the retrieval technique. Do not add it." },
+
+    { "id": "vector-search-and-embeddings", "term": "vector", "regex": "\\bvector (search|database|store)\\b|\\bembeddings?\\b", "title": "Embeddings and vector stores", "level": "intermediate",
+      "audited": "2026-08-03. Subject terms, no second meaning. Unchanged." },
+
+    { "id": "agent-orchestration", "term": "orchestration", "regex": "\\borchestrat\\w*|\\bmulti[- ]agent\\b|\\bagent handoffs?\\b", "title": "Agent orchestration and multi-agent patterns", "level": "intermediate",
+      "audited": "2026-08-03. REPLACES the old orchestration-frameworks probe, which searched only for LangChain, LlamaIndex and Semantic Kernel. Those appear zero times, so it reported a nine-module class-ready path as a total gap. This regex measures the subject and scores 81 in Learn, 27 in Field Guide." },
+
+    { "id": "orchestration-framework-portability", "term": "LangChain", "regex": "\\bLangChain\\b|\\bLlamaIndex\\b|\\bSemantic Kernel\\b|\\bAutoGen\\b|\\bCrewAI\\b|\\bLangGraph\\b|\\bPydantic ?AI\\b", "title": "Mapping our orchestration patterns onto named frameworks", "level": "intermediate",
+      "audited": "2026-08-03. NEW. The proper nouns are still worth measuring, but as what they actually are: a vocabulary bridge. We teach orchestration entirely in our own terms, so a reader who knows LangChain cannot tell that our material covers what they need. That is a portability gap, not a coverage gap, and it is one bridging piece rather than a curriculum." },
+
+    { "id": "executive-and-leader-track", "term": "executive", "regex": "\\bexecutives?\\b|\\bboard[- ]level\\b|\\bdecision[- ]makers?\\b|\\bC[- ]?suite\\b", "title": "AI for executives, leaders, and decision makers", "level": "beginner",
+      "audited": "2026-08-03. Broadened from executives/board-level to include decision maker and C-suite. Still scores 1 in Learn and 0 in Field Guide, so the gap is real and survives the broadening." },
+
+    { "id": "fine-tuning-and-distillation", "term": "fine-tuning", "regex": "\\bfine[- ]?tun\\w*|\\bdistillation\\b|\\bLoRA\\b|\\bQLoRA\\b|\\bPEFT\\b|\\badapter (layers?|tuning|weights?)\\b", "title": "Fine-tuning, adapters, distillation, and when not to train", "level": "advanced",
+      "audited": "2026-08-03. FIXED TWO WAYS. The old regex never searched for 'fine-tun' at all despite the id, and its bare '\\badapters?\\b' matched 134 software-integration adapters in Learn and 38 in Field Guide, reporting the topic as covered. Real counts are 5 in Learn and 0 in Field Guide. This probe was hiding a gap, which is the more dangerous direction of the same error." },
+
+    { "id": "voice-agents-and-instructors", "term": "voice agent", "regex": "\\bvoice agents?\\b|\\bspeech[- ]to[- ]text\\b|\\btext[- ]to[- ]speech\\b|\\bTTS\\b|\\bSTT\\b|\\bvirtual instructors?\\b", "title": "Voice agents, virtual instructors, and accessible media", "level": "intermediate",
+      "audited": "2026-08-03. Added TTS, STT and virtual instructor, all of which score 0, so the gap holds. DELIBERATELY EXCLUDES 'narration' and 'caption': narration alone scores 333 in Learn, every one of them the JSON asset cue \"kind\":\"narration\", and captions appear only as an accessibility requirement. Neither is subject matter. Do not add them." },
+
+    { "id": "model-context-protocol", "term": "MCP", "regex": "\\bMCP\\b|Model Context Protocol", "title": "Model Context Protocol and tool interoperability", "level": "intermediate",
+      "audited": "2026-08-03. A proper noun, but here the proper noun IS the subject. Correctly reported Learn and Field Guide as covered and the visual guide as absent, which holds up: no diagram file mentions MCP." },
+
+    { "id": "prompt-injection-defence", "term": "prompt injection", "title": "Prompt injection and untrusted content handling", "level": "intermediate",
+      "audited": "2026-08-03. Plain subject term. Unchanged." },
+
+    { "id": "agent-evaluation", "term": "evaluation", "regex": "\\bagent evaluation\\b|\\btrajectory\\b", "title": "Agent evaluation and trajectory scoring", "level": "advanced",
+      "audited": "2026-08-03. Subject phrases. Unchanged." },
+
+    { "id": "cost-and-capacity-management", "term": "cost", "regex": "\\bcost (control|ceiling|management|governance)\\b|\\btokens? per minute\\b|\\bTPM\\b|\\bspend (limit|cap|control)\\b", "title": "Cost, capacity, and spend control for AI systems", "level": "intermediate",
+      "audited": "2026-08-03. Added TPM and spend limit. Kept scoped to cost CONTROL on purpose: bare 'cost' appears 355 times because we discuss cost constantly, while the mechanisms for capping it are what is missing." },
+
+    { "id": "managed-model-platforms", "term": "managed model platform", "regex": "\\bmanaged (model|inference|AI) (service|platform|endpoint)s?\\b|\\bmodel[- ]as[- ]a[- ]service\\b|\\bhosted (model|inference) (endpoint|service)s?\\b|\\bmanaged endpoints?\\b", "title": "Managed model platforms, and choosing between hosting and self-hosting", "level": "intermediate",
+      "audited": "2026-08-03. NEW. Measures the SUBJECT, not a vendor. Scores 3 in Learn and 0 in Field Guide against 21 and 38 for self-hosting, so the curriculum teaches one side of a two-sided decision. Deliberately NOT broadened to bare 'hosted', which scores 39 and 39 because it also matches every instance of self-hosted. Related finding worth its own piece later: rival platform names (Bedrock, Vertex AI, SageMaker, Azure ML) score 0 and 0, so we name no managed platform at all. That is a vocabulary bridge like orchestration-framework-portability, not a coverage gap." },
+
+    { "id": "microsoft-foundry-platform", "term": "Microsoft Foundry", "regex": "\\b(Microsoft|Azure AI) Foundry\\b|\\bFoundry (Models?|portal|project|resource)\\b", "title": "Microsoft Foundry, from provisioning to model deployment", "level": "intermediate",
+      "audited": "2026-08-03. NEW, and it corrects a claim made without measuring. The reported finding was that Azure AI Foundry scores 0 in Learn and 0 in Field Guide, therefore we teach it not at all. Both zeros are real and both are misleading: the product was RENAMED, and 'Microsoft Foundry' scores 1 in Learn and 9 in Field Guide. This regex carries both names plus Foundry used as the platform noun, and scores 1 and 11. The gap is therefore narrow and one-sided rather than total: the Field Guide already carries decision-grade coverage in model-provider-decisions, while Learn has a single mention and no module." },
+
+    { "id": "agent-loop-anatomy-diagram", "kinds": ["visual-guide"], "term": "agent loop", "regex": "\\bagent loop\\b|perceive.{0,20}plan.{0,20}act", "title": "Agent loop anatomy and trust boundaries", "level": "intermediate" },
+    { "id": "autonomy-ladder-diagram", "kinds": ["visual-guide"], "term": "autonomy", "regex": "\\bautonomy (ladder|spectrum)\\b|\\bbounded delegation\\b", "title": "The autonomy ladder and approval patterns", "level": "beginner" },
+    { "id": "workflow-vs-agent-matrix", "kinds": ["visual-guide"], "term": "workflow versus agent", "regex": "workflow (vs\\.?|versus) agent", "title": "Workflow versus agent selection matrix", "level": "intermediate" },
+    { "id": "rag-pipeline-diagram", "kinds": ["visual-guide"], "term": "retrieval pipeline", "regex": "\\bretrieval pipeline\\b|\\bchunking\\b|\\bre[- ]?ranking\\b", "title": "Retrieval pipeline, from source to grounded answer", "level": "intermediate" },
+    { "id": "multi-agent-topology-diagram", "kinds": ["visual-guide"], "term": "multi-agent", "regex": "\\bmulti[- ]agent\\b|\\bagent[- ]to[- ]agent\\b", "title": "Multi-agent topologies and failure amplification", "level": "advanced" }
+  ]
+}
