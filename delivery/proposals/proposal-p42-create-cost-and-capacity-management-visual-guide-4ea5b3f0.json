@@ -1,0 +1,21 @@
+{
+  "createdAt": "2026-08-08T04:49:13.7688104Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/4ea5b3f0-9f92-435c-99d3-60d721df6264/",
+  "workItemId": "create:cost-and-capacity-management-visual-guide",
+  "packetId": "packet-p42-create-cost-and-capacity-management-visual-guide-4ea5b3f0",
+  "id": "proposal-p42-create-cost-and-capacity-management-visual-guide-4ea5b3f0",
+  "kind": "needs-creating",
+  "subjectId": "cost-and-capacity-management-visual-guide",
+  "targets": [
+    {
+      "repository": "project42dev/guide.project-42.dev",
+      "pathPrefixes": [
+        "diagrams/cost-and-capacity-management.mmd",
+        "config/diagrams.json"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

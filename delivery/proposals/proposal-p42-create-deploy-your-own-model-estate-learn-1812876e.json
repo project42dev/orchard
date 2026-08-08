@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T04:55:21.4250429Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/1812876e-6d01-46ec-9f94-d927b7c8516e/",
+  "workItemId": "create:deploy-your-own-model-estate-learn",
+  "packetId": "packet-p42-create-deploy-your-own-model-estate-learn-1812876e",
+  "id": "proposal-p42-create-deploy-your-own-model-estate-learn-1812876e",
+  "kind": "needs-creating",
+  "subjectId": "deploy-your-own-model-estate-learn",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/modules/deploy-your-own-model-estate/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

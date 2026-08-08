@@ -22,6 +22,37 @@
       "url": "https://github.com/project42dev/orchard/issues/11",
       "createdAt": "2026-08-08T04:44:50.731Z",
       "title": "[Orchard] 4 proposal(s) ready for review"
+    },
+    {
+      "proposalSetDigest": "-prahn8",
+      "proposalDigests": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "issueNumber": 12,
+      "url": "https://github.com/project42dev/orchard/issues/12",
+      "createdAt": "2026-08-08T05:41:51.541Z",
+      "title": "[Orchard] 22 proposal(s) ready for review"
     }
   ]
 }

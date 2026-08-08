@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T05:40:12.9897826Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/8a7a683a-56a0-4d6d-a635-2c2615261260/",
+  "workItemId": "create:orchestration-framework-portability-learn",
+  "packetId": "packet-p42-create-orchestration-framework-portability-learn-8a7a683a",
+  "id": "proposal-p42-create-orchestration-framework-portability-learn-8a7a683a",
+  "kind": "needs-creating",
+  "subjectId": "orchestration-framework-portability-learn",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/modules/orchestration-framework-portability/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

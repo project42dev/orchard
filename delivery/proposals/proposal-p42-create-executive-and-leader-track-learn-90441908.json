@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T05:01:09.2153014Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/90441908-cf11-4201-9b88-4c780769f5de/",
+  "workItemId": "create:executive-and-leader-track-learn",
+  "packetId": "packet-p42-create-executive-and-leader-track-learn-90441908",
+  "id": "proposal-p42-create-executive-and-leader-track-learn-90441908",
+  "kind": "needs-creating",
+  "subjectId": "executive-and-leader-track-learn",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/modules/executive-and-leader-track/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

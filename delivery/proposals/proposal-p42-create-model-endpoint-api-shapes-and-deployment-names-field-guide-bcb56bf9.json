@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T05:28:16.6568530Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/bcb56bf9-d32c-4822-af29-adaef1658ad6/",
+  "workItemId": "create:model-endpoint-api-shapes-and-deployment-names-field-guide",
+  "packetId": "packet-p42-create-model-endpoint-api-shapes-and-deployment-names-field-guide-bcb56bf9",
+  "id": "proposal-p42-create-model-endpoint-api-shapes-and-deployment-names-field-guide-bcb56bf9",
+  "kind": "needs-creating",
+  "subjectId": "model-endpoint-api-shapes-and-deployment-names-field-guide",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/resources/model-endpoint-api-shapes-and-deployment-names/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

@@ -1,0 +1,14 @@
+{
+  "evidence": {
+    "source": "4-model ensemble (local)",
+    "arbiter": "mistral-large-3",
+    "adversary": "deepseek-v4-pro",
+    "verifier": "grok-4-20-reasoning",
+    "drafter": "gpt-5-6-sol"
+  },
+  "id": "packet-p42-create-orchestration-framework-portability-learn-8a7a683a",
+  "proposalId": "proposal-p42-create-orchestration-framework-portability-learn-8a7a683a",
+  "schemaVersion": "1.0.0",
+  "createdAt": "2026-08-08T05:40:12.9897826Z",
+  "disposition": "ready-for-draft"
+}

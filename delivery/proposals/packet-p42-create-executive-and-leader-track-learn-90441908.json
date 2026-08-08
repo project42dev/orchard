@@ -1,0 +1,14 @@
+{
+  "evidence": {
+    "source": "4-model ensemble (local)",
+    "arbiter": "mistral-large-3",
+    "adversary": "deepseek-v4-pro",
+    "verifier": "grok-4-20-reasoning",
+    "drafter": "gpt-5-6-sol"
+  },
+  "id": "packet-p42-create-executive-and-leader-track-learn-90441908",
+  "proposalId": "proposal-p42-create-executive-and-leader-track-learn-90441908",
+  "schemaVersion": "1.0.0",
+  "createdAt": "2026-08-08T05:01:09.2153014Z",
+  "disposition": "ready-for-draft"
+}

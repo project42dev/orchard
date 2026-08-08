@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T05:10:29.0747899Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/e061d09c-9b60-4829-9807-8f88b44bd4cc/",
+  "workItemId": "create:fine-tuning-and-distillation-learn",
+  "packetId": "packet-p42-create-fine-tuning-and-distillation-learn-e061d09c",
+  "id": "proposal-p42-create-fine-tuning-and-distillation-learn-e061d09c",
+  "kind": "needs-creating",
+  "subjectId": "fine-tuning-and-distillation-learn",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/modules/fine-tuning-and-distillation/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

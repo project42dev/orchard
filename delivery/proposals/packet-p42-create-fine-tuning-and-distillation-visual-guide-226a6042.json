@@ -1,0 +1,14 @@
+{
+  "evidence": {
+    "source": "4-model ensemble (local)",
+    "arbiter": "mistral-large-3",
+    "adversary": "deepseek-v4-pro",
+    "verifier": "grok-4-20-reasoning",
+    "drafter": "gpt-5-6-sol"
+  },
+  "id": "packet-p42-create-fine-tuning-and-distillation-visual-guide-226a6042",
+  "proposalId": "proposal-p42-create-fine-tuning-and-distillation-visual-guide-226a6042",
+  "schemaVersion": "1.0.0",
+  "createdAt": "2026-08-08T05:12:33.1351366Z",
+  "disposition": "ready-for-draft"
+}

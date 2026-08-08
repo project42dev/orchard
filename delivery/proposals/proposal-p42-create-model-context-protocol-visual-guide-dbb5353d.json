@@ -1,0 +1,21 @@
+{
+  "createdAt": "2026-08-08T05:24:51.1139758Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/dbb5353d-5cef-4b22-8c26-34e206ccbf74/",
+  "workItemId": "create:model-context-protocol-visual-guide",
+  "packetId": "packet-p42-create-model-context-protocol-visual-guide-dbb5353d",
+  "id": "proposal-p42-create-model-context-protocol-visual-guide-dbb5353d",
+  "kind": "needs-creating",
+  "subjectId": "model-context-protocol-visual-guide",
+  "targets": [
+    {
+      "repository": "project42dev/guide.project-42.dev",
+      "pathPrefixes": [
+        "diagrams/model-context-protocol.mmd",
+        "config/diagrams.json"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

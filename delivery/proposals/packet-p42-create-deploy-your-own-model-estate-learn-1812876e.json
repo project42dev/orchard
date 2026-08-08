@@ -1,0 +1,14 @@
+{
+  "evidence": {
+    "source": "4-model ensemble (local)",
+    "arbiter": "mistral-large-3",
+    "adversary": "deepseek-v4-pro",
+    "verifier": "grok-4-20-reasoning",
+    "drafter": "gpt-5-6-sol"
+  },
+  "id": "packet-p42-create-deploy-your-own-model-estate-learn-1812876e",
+  "proposalId": "proposal-p42-create-deploy-your-own-model-estate-learn-1812876e",
+  "schemaVersion": "1.0.0",
+  "createdAt": "2026-08-08T04:55:21.4250429Z",
+  "disposition": "ready-for-draft"
+}

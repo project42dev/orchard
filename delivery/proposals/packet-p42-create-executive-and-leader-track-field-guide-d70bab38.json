@@ -1,0 +1,14 @@
+{
+  "evidence": {
+    "source": "4-model ensemble (local)",
+    "arbiter": "mistral-large-3",
+    "adversary": "deepseek-v4-pro",
+    "verifier": "grok-4-20-reasoning",
+    "drafter": "gpt-5-6-sol"
+  },
+  "id": "packet-p42-create-executive-and-leader-track-field-guide-d70bab38",
+  "proposalId": "proposal-p42-create-executive-and-leader-track-field-guide-d70bab38",
+  "schemaVersion": "1.0.0",
+  "createdAt": "2026-08-08T04:58:07.6965446Z",
+  "disposition": "ready-for-draft"
+}

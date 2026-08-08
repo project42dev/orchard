@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T04:58:07.6965446Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/d70bab38-c373-41f4-88c0-f8cbcd17eeba/",
+  "workItemId": "create:executive-and-leader-track-field-guide",
+  "packetId": "packet-p42-create-executive-and-leader-track-field-guide-d70bab38",
+  "id": "proposal-p42-create-executive-and-leader-track-field-guide-d70bab38",
+  "kind": "needs-creating",
+  "subjectId": "executive-and-leader-track-field-guide",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/resources/executive-and-leader-track/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}

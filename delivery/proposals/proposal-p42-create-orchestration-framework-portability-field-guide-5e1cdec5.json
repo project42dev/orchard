@@ -1,0 +1,20 @@
+{
+  "createdAt": "2026-08-08T05:33:30.2694204Z",
+  "humanDecision": "pending",
+  "summary": "4-model ensemble completed locally. See delivery/private/local-proposals/5e1cdec5-432e-47e6-9f59-d933f071a2c8/",
+  "workItemId": "create:orchestration-framework-portability-field-guide",
+  "packetId": "packet-p42-create-orchestration-framework-portability-field-guide-5e1cdec5",
+  "id": "proposal-p42-create-orchestration-framework-portability-field-guide-5e1cdec5",
+  "kind": "needs-creating",
+  "subjectId": "orchestration-framework-portability-field-guide",
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/resources/orchestration-framework-portability/"
+      ]
+    }
+  ],
+  "schemaVersion": "1.0.0",
+  "disposition": "ready-for-draft"
+}
