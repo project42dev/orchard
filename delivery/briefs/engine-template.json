@@ -9,6 +9,11 @@
     "The output is a proposal. It never asserts that anything has been published, merged, or corrected."
   ],
   "roles": {
+    "researcher": {
+      "deployment": "gpt-5-6-sol",
+      "providerFamily": "OpenAI",
+      "maxCompletionTokens": 4096
+    },
     "drafter": {
       "deployment": "gpt-5-6-sol",
       "providerFamily": "OpenAI"
@@ -24,6 +29,11 @@
     "arbiter": {
       "deployment": "mistral-large-3",
       "providerFamily": "Mistral AI"
+    },
+    "finalizer": {
+      "deployment": "gpt-5-6-luna",
+      "providerFamily": "OpenAI",
+      "maxCompletionTokens": 4096
     }
   },
   "targets": [

@@ -1,0 +1,42 @@
+{
+  "id": "p42-ai-foundations-enrichment-module-10",
+  "prompt": "Create enrichment content for the AI Foundations module \"privacy-safety-and-responsibility\" (Privacy, Safety, and Responsible Use). The module's class script already exists at content/training/ai-foundations/privacy-safety-and-responsibility/class-script.json. Read it as your primary source.\r\n\r\nLearning objectives: Identify sensitive data and establish an input boundary before using an AI system.; Scale review and safeguards according to consequence, exposure, and reversibility.; Recognize concerns involving privacy, security, harmful bias, transparency, and misuse.; Create a simple responsible-use plan with ownership, verification, monitoring, and recovery.\r\n\r\nProduce FIVE deliverables:\r\n\r\n1. SUPPLEMENTARY READING (supplementary-reading.md): 500-1,000 words of discussion text the learner reads between video segments. NOT a repeat of the script. Expand on the concepts from the learning objectives. Write for a beginner audience.\r\n\r\n2. LAB (lab/README.md): A hands-on exercise with objective, prerequisites, step-by-step instructions, expected output, and troubleshooting. The learner should apply the module's concepts to a real scenario. Every step that can fail must carry a remediation path.\r\n\r\n3. DIAGRAMS (diagrams/): Two to four Mermaid .mmd files that visualize the module's key concepts. Each must be syntactically valid and render without a legend. Use clear node labels and directional flow.\r\n\r\n4. VISUAL ASSETS (images/): SVG files derived from the visual descriptions in the class script segments. Each segment with a \"visual\" object needs an SVG. Use the Project 42 brand colors: navy #0b1225, lime #c9f25f, cyan #63d7e4, orange #ff8c5a, violet #a99df7, paper #f6f3eb. Include altText-equivalent descriptions as SVG comments.\r\n\r\n5. CODE SAMPLES (examples/README.md): State that this module is conceptual and has no code exercises. Point to modules 13-15 for coding workflows.\r\n\r\nConstraints:\r\n- Do not invent tool names, version numbers, or configuration keys.\r\n- Write for beginner level.\r\n- Every lab step that can fail must carry a remediation path.\r\n- Mermaid sources must be syntactically valid and render without a legend.\r\n- SVGs must include altText-equivalent descriptions as comments.\r\n- Supplementary reading must expand on (not repeat) the class script.",
+  "roles": {
+    "drafter": {
+      "maxCompletionTokens": 16384,
+      "deployment": "gpt-5-6-luna",
+      "providerFamily": "OpenAI"
+    },
+    "adversary": {
+      "maxCompletionTokens": 8192,
+      "deployment": "deepseek-v4-pro",
+      "providerFamily": "DeepSeek"
+    },
+    "arbiter": {
+      "maxCompletionTokens": "16384",
+      "deployment": "gpt-5-6-luna",
+      "providerFamily": "OpenAI"
+    },
+    "verifier": {
+      "maxCompletionTokens": 8192,
+      "deployment": "grok-4-20-reasoning",
+      "providerFamily": "xAI"
+    }
+  },
+  "acceptanceCriteria": [
+    "Supplementary reading is 500-1000 words and expands on (not repeats) the class script.",
+    "Lab has objective, prerequisites, step-by-step instructions, expected output, and troubleshooting.",
+    "Mermaid .mmd files are syntactically valid.",
+    "SVGs use Project 42 brand colors and derive from class-script.json visual descriptions.",
+    "No invented tool names, version numbers, or configuration keys.",
+    "All content is at beginner level."
+  ],
+  "targets": [
+    {
+      "repository": "project42dev/project42-platform",
+      "pathPrefixes": [
+        "content/training/ai-foundations/privacy-safety-and-responsibility/"
+      ]
+    }
+  ]
+}

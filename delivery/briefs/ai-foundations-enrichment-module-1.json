@@ -1,0 +1,42 @@
+{
+    "id": "p42-ai-foundations-enrichment-module-1",
+    "prompt": "Create enrichment content for the AI Foundations module \"what-ai-does\" (What AI Does—and Does Not Do). The module's class script already exists at content/training/ai-foundations/what-ai-does/class-script.json. Read it as your primary source.\n\nProduce FIVE deliverables:\n\n1. SUPPLEMENTARY READING (supplementary-reading.md): 500-1,000 words of discussion text the learner reads between video segments. NOT a repeat of the script. Expand on the concepts: model vs product vs agent boundaries, the verification ladder, failure modes, and when to stop. Write for a beginner audience.\n\n2. LAB (lab/README.md): A hands-on exercise with objective, prerequisites, step-by-step instructions, expected output, and troubleshooting. The learner should map a real AI product interaction to its components (model, product, retrieval, tools, agentic loop), identify three plausible failures, rate four risk factors, and decide whether to use/verify/redesign/stop.\n\n3. DIAGRAMS (diagrams/): Three Mermaid .mmd files:\n   - ai-product-boundary-map.mmd: Shows the model nested inside a product containing instructions, context, retrieval, memory, tools, policy, and an optional agent loop.\n   - verification-ladder.mmd: Shows how consequence, volatility, uncertainty, and reversibility determine verification strength.\n   - failure-evidence-map.mmd: Maps eight failure modes (fabrication, staleness, scope drift, bias, inconsistency, context failure, tool uncertainty, untested code) to their evidence checks and dispositions.\n\n4. VISUAL ASSETS (images/): SVG files derived from the visual descriptions in the class script segments. Each segment with a \"visual\" object needs an SVG. Use the Project 42 brand colors: navy #0b1225, lime #c9f25f, cyan #63d7e4, orange #ff8c5a, violet #a99df7, paper #f6f3eb.\n\n5. CODE SAMPLES: This module is conceptual (no coding workflow), so produce a examples/README.md stating that this module has no code exercises and pointing to modules 13-15 for coding workflows.\n\nConstraints:\n- Do not invent tool names, version numbers, or configuration keys.\n- Write for beginner level.\n- Every lab step that can fail must carry a remediation path.\n- Mermaid sources must be syntactically valid and render without a legend.\n- SVGs must include altText-equivalent descriptions as comments.",
+    "acceptanceCriteria": [
+        "Supplementary reading is 500-1000 words and expands on (not repeats) the class script.",
+        "Lab has objective, prerequisites, step-by-step instructions, expected output, and troubleshooting.",
+        "Three Mermaid .mmd files are syntactically valid.",
+        "SVGs use Project 42 brand colors and derive from class-script.json visual descriptions.",
+        "No invented tool names, version numbers, or configuration keys.",
+        "All content is at beginner level."
+    ],
+    "roles": {
+        "drafter": {
+            "deployment": "gpt-5-6-luna",
+            "providerFamily": "OpenAI",
+            "maxCompletionTokens": 16384
+        },
+        "verifier": {
+            "deployment": "grok-4-20-reasoning",
+            "providerFamily": "xAI",
+            "maxCompletionTokens": 8192
+        },
+        "adversary": {
+            "deployment": "deepseek-v4-pro",
+            "providerFamily": "DeepSeek",
+            "maxCompletionTokens": 8192
+        },
+        "arbiter": {
+            "deployment": "mistral-large-3",
+            "providerFamily": "Mistral AI",
+            "maxCompletionTokens": 8192
+        }
+    },
+    "targets": [
+        {
+            "repository": "project42dev/project42-platform",
+            "pathPrefixes": [
+                "content/training/ai-foundations/what-ai-does/"
+            ]
+        }
+    ]
+}

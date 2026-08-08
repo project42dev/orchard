@@ -34,6 +34,16 @@ on:
                 default: true
                 type: boolean
 
+# Only one lifecycle run at a time. A new dispatch cancels an in-progress one.
+concurrency:
+    group: orchard-engine
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+    issues: write
+    id-token: write
+
 env:
     NODE_VERSION: "22"
 

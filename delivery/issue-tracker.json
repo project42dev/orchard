@@ -1,29 +1,6 @@
 {
   "issues": [
     {
-      "proposalSetDigest": "0",
-      "proposalDigests": [
-        null
-      ],
-      "issueNumber": 10,
-      "url": "https://github.com/project42dev/orchard/issues/10",
-      "createdAt": "2026-08-08T04:05:34.987Z",
-      "title": "[Orchard] 1 proposal(s) ready for review"
-    },
-    {
-      "proposalSetDigest": "xpo",
-      "proposalDigests": [
-        null,
-        null,
-        null,
-        null
-      ],
-      "issueNumber": 11,
-      "url": "https://github.com/project42dev/orchard/issues/11",
-      "createdAt": "2026-08-08T04:44:50.731Z",
-      "title": "[Orchard] 4 proposal(s) ready for review"
-    },
-    {
       "proposalSetDigest": "-prahn8",
       "proposalDigests": [
         null,
@@ -49,9 +26,9 @@
         null,
         null
       ],
-      "issueNumber": 12,
-      "url": "https://github.com/project42dev/orchard/issues/12",
-      "createdAt": "2026-08-08T05:41:51.541Z",
+      "issueNumber": 13,
+      "url": "https://github.com/project42dev/orchard/issues/13",
+      "createdAt": "2026-08-08T15:40:15.469Z",
       "title": "[Orchard] 22 proposal(s) ready for review"
     }
   ]
