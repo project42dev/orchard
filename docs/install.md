@@ -11,6 +11,12 @@ author's accounts, and wants Orchard running against their own estate.
 
 - **Node 22.5 or later.** The content database uses `node:sqlite`, which is built
   in. There is nothing to `npm install`.
+- **Node 24 requires `--experimental-sqlite`.** `node:sqlite` is still
+  experimental on Node 24. Add `--experimental-sqlite` to every `node` command
+  below, or set the `NODE_OPTIONS` env var:
+  ```bash
+  export NODE_OPTIONS="--experimental-sqlite"
+  ```
 - **An endpoint that speaks the OpenAI wire format**, and a key or token for it.
   Azure AI Foundry, OpenAI, a self-hosted vLLM or Ollama server, or anything else
   that accepts `/chat/completions` will do.
@@ -143,7 +149,12 @@ cp content/opportunity-registry.starter.json /path/to/your/opportunity-registry.
 ```
 
 Then edit its `watchList` to name the catalogue pages you want to measure demand
-against. The shipped entry is a placeholder and will find nothing.
+against. The shipped entry is a placeholder and will find nothing. The format is
+an array of URLs:
+
+```json
+"watchList": ["https://learn.microsoft.com/en-us/training/browse/"]
+```
 
 ```bash
 node scripts/discover-content-opportunities.mjs \
