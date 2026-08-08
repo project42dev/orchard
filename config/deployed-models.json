@@ -1,0 +1,15 @@
+[
+  { "id": "gpt-5-6-sol",     "providerFamily": "OpenAI" },
+  { "id": "gpt-5-6-luna",    "providerFamily": "OpenAI" },
+  { "id": "gpt-5-6-terra",   "providerFamily": "OpenAI" },
+  { "id": "grok-4-20-reasoning",       "providerFamily": "xAI" },
+  { "id": "grok-4-1-fast-reasoning",   "providerFamily": "xAI" },
+  { "id": "grok-4-1-fast-non-reasoning","providerFamily": "xAI" },
+  { "id": "deepseek-v4-pro",  "providerFamily": "DeepSeek" },
+  { "id": "deepseek-v4-flash", "providerFamily": "DeepSeek" },
+  { "id": "mistral-large-3",  "providerFamily": "MistralAI" },
+  { "id": "kimi-k2-7-code",   "providerFamily": "MoonshotAI" },
+  { "id": "phi-4-reasoning",  "providerFamily": "Microsoft" },
+  { "id": "text-embedding-3-large", "providerFamily": "OpenAI" },
+  { "id": "text-embedding-3-small", "providerFamily": "OpenAI" }
+]
