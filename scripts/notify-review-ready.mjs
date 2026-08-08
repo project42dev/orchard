@@ -185,14 +185,17 @@ function buildIssueBody(matched) {
     lines.push('1. Read the proposal and its packet');
     lines.push('2. Verify the deterministic gates');
     lines.push('3. Review the model stages for any red flags');
-    lines.push('4. Decide: accept, reject, or request revision');
-    lines.push('5. Type your decision and click **Close with comment** (NOT just Comment):');
-    lines.push('   - **`approved`** (or `LGTM`, `accept`, `ship it`) to publish');
-    lines.push('   - **`rejected`** (or `denied`, `decline`) to reject');
+    lines.push('4. Decide: accept or reject');
+    lines.push('5. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):');
+    lines.push('   - **`Approved`** — publishes the content');
+    lines.push('   - **`Denied`** — rejects the content');
     lines.push('');
-    lines.push('The issue must be **closed** for the workflow to fire.');
-    lines.push('Closing the issue triggers the `orchard-human-review` workflow');
-    lines.push('which records your decision automatically. You never touch a terminal.');
+    lines.push('The `orchard-human-review` workflow will:');
+    lines.push('1. Reply to confirm it received your decision');
+    lines.push('2. Record the publication or rejection');
+    lines.push('3. Close this issue automatically');
+    lines.push('');
+    lines.push('You never touch a terminal. Just comment and wait for the confirmation reply.');
 
     return lines.join('\n');
 }
