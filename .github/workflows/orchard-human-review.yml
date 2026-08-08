@@ -90,20 +90,22 @@ jobs:
               if: steps.decision.outputs.decision == 'approved'
               working-directory: orchard
               run: |
-                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-[\w-]+' | head -5 || echo "")
+                  # Extract subject_ids from proposal names in the issue body
+                  # Pattern: proposal-p42-create-<subject_id>-<hash> or proposal-<subject_id>-<hash>
+                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(?:p42-create-)?\K[\w-]+(?=-\w{8})' | head -5 || echo "")
                   ACCEPTED_BY="${{ github.event.comment.user.login }}"
 
-                  if [ -z "$SUBJECTS" ]; then
-                    echo "No proposal IDs found in issue body. Falling back to all ready proposals."
-                    SUBJECTS=$(node -e "
+                  if [ -z "$RAW" ]; then
+                    echo "No proposal IDs found in issue body. Falling back to claimed work items."
+                    RAW=$(node -e "
                       import { DatabaseSync } from 'node:sqlite';
                       const db = new DatabaseSync('content.db');
-                      const rows = db.prepare('SELECT id FROM work_item WHERE state = ?').all('ready-for-review');
-                      console.log(rows.map(r => r.id).join(' '));
+                      const rows = db.prepare('SELECT subject_id FROM work_item WHERE state IN (\'claimed\', \'in-progress\')').all();
+                      console.log(rows.map(r => r.subject_id).join(' '));
                     ")
                   fi
 
-                  for SUBJECT in $SUBJECTS; do
+                  for SUBJECT in $RAW; do
                     echo "Recording publication for: $SUBJECT"
                     node scripts/record-publication.mjs \
                       --db content.db \
@@ -117,20 +119,20 @@ jobs:
               if: steps.decision.outputs.decision == 'denied'
               working-directory: orchard
               run: |
-                  SUBJECTS=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-[\w-]+' | head -5 || echo "")
+                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(?:p42-create-)?\K[\w-]+(?=-\w{8})' | head -5 || echo "")
                   REJECTED_BY="${{ github.event.comment.user.login }}"
 
-                  if [ -z "$SUBJECTS" ]; then
-                    echo "No proposal IDs found in issue body. Falling back to all ready proposals."
-                    SUBJECTS=$(node -e "
+                  if [ -z "$RAW" ]; then
+                    echo "No proposal IDs found in issue body. Falling back to claimed work items."
+                    RAW=$(node -e "
                       import { DatabaseSync } from 'node:sqlite';
                       const db = new DatabaseSync('content.db');
-                      const rows = db.prepare('SELECT id FROM work_item WHERE state = ?').all('ready-for-review');
-                      console.log(rows.map(r => r.id).join(' '));
+                      const rows = db.prepare('SELECT subject_id FROM work_item WHERE state IN (\'claimed\', \'in-progress\')').all();
+                      console.log(rows.map(r => r.subject_id).join(' '));
                     ")
                   fi
 
-                  for SUBJECT in $SUBJECTS; do
+                  for SUBJECT in $RAW; do
                     echo "Recording rejection for: $SUBJECT"
                     node scripts/reject-publication.mjs \
                       --db content.db \
