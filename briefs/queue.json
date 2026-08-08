@@ -1,12 +1,63 @@
 [
   {
-    "id": "p42-create-connect-your-tools-to-your-own-model-endpoint-learn",
-    "subjectId": "connect-your-tools-to-your-own-model-endpoint-learn",
-    "workItemId": "create:connect-your-tools-to-your-own-model-endpoint-learn",
+    "id": "p42-create-cost-and-capacity-management-visual-guide",
+    "subjectId": "cost-and-capacity-management-visual-guide",
+    "workItemId": "create:cost-and-capacity-management-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Cost, capacity, and spend control for AI systems (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Cost, capacity, and spend control for AI systems (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/cost-and-capacity-management.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-cost-controls-for-agentic-tools-learn",
+    "subjectId": "cost-controls-for-agentic-tools-learn",
+    "workItemId": "create:cost-controls-for-agentic-tools-learn",
     "kind": "needs-creating",
     "surface": "learn",
-    "title": "Connect your editor and agents to a model endpoint you own (Learn)",
-    "prompt": "Write the learn content for \"Connect your editor and agents to a model endpoint you own (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "title": "Cost controls for agentic tools: why alerts and capacity are not brakes (Learn)",
+    "prompt": "Write the learn content for \"Cost controls for agentic tools: why alerts and capacity are not brakes (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
     "acceptanceCriteria": [
       "Every source is listed at the end of the piece, with a URL that resolves over https.",
       "No tool name, version number, or configuration key appears that the supplied material does not establish.",
@@ -42,19 +93,67 @@
       {
         "repository": "project42dev/project42-platform",
         "pathPrefixes": [
-          "content/modules/connect-your-tools-to-your-own-model-endpoint/"
+          "content/modules/cost-controls-for-agentic-tools/"
         ]
       }
     ]
   },
   {
-    "id": "p42-create-cost-and-capacity-management-field-guide",
-    "subjectId": "cost-and-capacity-management-field-guide",
-    "workItemId": "create:cost-and-capacity-management-field-guide",
+    "id": "p42-create-deploy-your-own-model-estate-learn",
+    "subjectId": "deploy-your-own-model-estate-learn",
+    "workItemId": "create:deploy-your-own-model-estate-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Deploy and operate your own multi-vendor model estate",
+    "prompt": "Write the learn content for \"Deploy and operate your own multi-vendor model estate\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/deploy-your-own-model-estate/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-executive-and-leader-track-field-guide",
+    "subjectId": "executive-and-leader-track-field-guide",
+    "workItemId": "create:executive-and-leader-track-field-guide",
     "kind": "needs-creating",
     "surface": "field-guide",
-    "title": "Cost, capacity, and spend control for AI systems (Field Guide)",
-    "prompt": "Write the field-guide content for \"Cost, capacity, and spend control for AI systems (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "title": "AI for executives, leaders, and decision makers (Field Guide)",
+    "prompt": "Write the field-guide content for \"AI for executives, leaders, and decision makers (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
     "acceptanceCriteria": [
       "Every source is listed at the end of the piece, with a URL that resolves over https.",
       "No tool name, version number, or configuration key appears that the supplied material does not establish.",
@@ -89,19 +188,19 @@
       {
         "repository": "project42dev/project42-platform",
         "pathPrefixes": [
-          "content/resources/cost-and-capacity-management/"
+          "content/resources/executive-and-leader-track/"
         ]
       }
     ]
   },
   {
-    "id": "p42-create-cost-and-capacity-management-learn",
-    "subjectId": "cost-and-capacity-management-learn",
-    "workItemId": "create:cost-and-capacity-management-learn",
+    "id": "p42-create-executive-and-leader-track-learn",
+    "subjectId": "executive-and-leader-track-learn",
+    "workItemId": "create:executive-and-leader-track-learn",
     "kind": "needs-creating",
     "surface": "learn",
-    "title": "Cost, capacity, and spend control for AI systems (Learn)",
-    "prompt": "Write the learn content for \"Cost, capacity, and spend control for AI systems (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "title": "AI for executives, leaders, and decision makers (Learn)",
+    "prompt": "Write the learn content for \"AI for executives, leaders, and decision makers (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
     "acceptanceCriteria": [
       "Every source is listed at the end of the piece, with a URL that resolves over https.",
       "No tool name, version number, or configuration key appears that the supplied material does not establish.",
@@ -137,7 +236,1079 @@
       {
         "repository": "project42dev/project42-platform",
         "pathPrefixes": [
-          "content/modules/cost-and-capacity-management/"
+          "content/modules/executive-and-leader-track/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-executive-and-leader-track-visual-guide",
+    "subjectId": "executive-and-leader-track-visual-guide",
+    "workItemId": "create:executive-and-leader-track-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "AI for executives, leaders, and decision makers (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"AI for executives, leaders, and decision makers (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/executive-and-leader-track.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-fine-tuning-and-distillation-field-guide",
+    "subjectId": "fine-tuning-and-distillation-field-guide",
+    "workItemId": "create:fine-tuning-and-distillation-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Fine-tuning, adapters, distillation, and when not to train (Field Guide)",
+    "prompt": "Write the field-guide content for \"Fine-tuning, adapters, distillation, and when not to train (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/fine-tuning-and-distillation/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-fine-tuning-and-distillation-learn",
+    "subjectId": "fine-tuning-and-distillation-learn",
+    "workItemId": "create:fine-tuning-and-distillation-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Fine-tuning, adapters, distillation, and when not to train (Learn)",
+    "prompt": "Write the learn content for \"Fine-tuning, adapters, distillation, and when not to train (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/fine-tuning-and-distillation/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-fine-tuning-and-distillation-visual-guide",
+    "subjectId": "fine-tuning-and-distillation-visual-guide",
+    "workItemId": "create:fine-tuning-and-distillation-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Fine-tuning, adapters, distillation, and when not to train (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Fine-tuning, adapters, distillation, and when not to train (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/fine-tuning-and-distillation.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-identity-and-secrets-for-model-access-field-guide",
+    "subjectId": "identity-and-secrets-for-model-access-field-guide",
+    "workItemId": "create:identity-and-secrets-for-model-access-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Identity and secrets for model access: tenant scope, data plane, and key retrieval (Field Guide)",
+    "prompt": "Write the field-guide content for \"Identity and secrets for model access: tenant scope, data plane, and key retrieval (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/identity-and-secrets-for-model-access/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-microsoft-foundry-fundamentals-learn",
+    "subjectId": "microsoft-foundry-fundamentals-learn",
+    "workItemId": "create:microsoft-foundry-fundamentals-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Microsoft Foundry fundamentals: accounts, projects, deployments and quota",
+    "prompt": "Write the learn content for \"Microsoft Foundry fundamentals: accounts, projects, deployments and quota\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/microsoft-foundry-fundamentals/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-model-behaviour-differences-field-guide",
+    "subjectId": "model-behaviour-differences-field-guide",
+    "workItemId": "create:model-behaviour-differences-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "How a model you host differs from a subscription or a vendor key",
+    "prompt": "Write the field-guide content for \"How a model you host differs from a subscription or a vendor key\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/model-behaviour-differences/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-model-context-protocol-visual-guide",
+    "subjectId": "model-context-protocol-visual-guide",
+    "workItemId": "create:model-context-protocol-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Model Context Protocol and tool interoperability (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Model Context Protocol and tool interoperability (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/model-context-protocol.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-model-endpoint-api-shapes-and-deployment-names-field-guide",
+    "subjectId": "model-endpoint-api-shapes-and-deployment-names-field-guide",
+    "workItemId": "create:model-endpoint-api-shapes-and-deployment-names-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Endpoint API shapes: deployment names, api-version, and why a client 404s (Field Guide)",
+    "prompt": "Write the field-guide content for \"Endpoint API shapes: deployment names, api-version, and why a client 404s (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/model-endpoint-api-shapes-and-deployment-names/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-multi-agent-topology-diagram-visual-guide",
+    "subjectId": "multi-agent-topology-diagram-visual-guide",
+    "workItemId": "create:multi-agent-topology-diagram-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Multi-agent topologies and failure amplification (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Multi-agent topologies and failure amplification (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/multi-agent-topology-diagram.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-orchestration-framework-portability-field-guide",
+    "subjectId": "orchestration-framework-portability-field-guide",
+    "workItemId": "create:orchestration-framework-portability-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Mapping our orchestration patterns onto named frameworks (Field Guide)",
+    "prompt": "Write the field-guide content for \"Mapping our orchestration patterns onto named frameworks (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/orchestration-framework-portability/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-orchestration-framework-portability-learn",
+    "subjectId": "orchestration-framework-portability-learn",
+    "workItemId": "create:orchestration-framework-portability-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Mapping our orchestration patterns onto named frameworks (Learn)",
+    "prompt": "Write the learn content for \"Mapping our orchestration patterns onto named frameworks (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/orchestration-framework-portability/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-orchestration-framework-portability-visual-guide",
+    "subjectId": "orchestration-framework-portability-visual-guide",
+    "workItemId": "create:orchestration-framework-portability-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Mapping our orchestration patterns onto named frameworks (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Mapping our orchestration patterns onto named frameworks (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/orchestration-framework-portability.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-retrieval-augmented-generation-field-guide",
+    "subjectId": "retrieval-augmented-generation-field-guide",
+    "workItemId": "create:retrieval-augmented-generation-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Retrieval-augmented generation, embeddings, and vector search (Field Guide)",
+    "prompt": "Write the field-guide content for \"Retrieval-augmented generation, embeddings, and vector search (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/retrieval-augmented-generation/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-retrieval-augmented-generation-learn",
+    "subjectId": "retrieval-augmented-generation-learn",
+    "workItemId": "create:retrieval-augmented-generation-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Retrieval-augmented generation, embeddings, and vector search (Learn)",
+    "prompt": "Write the learn content for \"Retrieval-augmented generation, embeddings, and vector search (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/retrieval-augmented-generation/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-retrieval-augmented-generation-visual-guide",
+    "subjectId": "retrieval-augmented-generation-visual-guide",
+    "workItemId": "create:retrieval-augmented-generation-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Retrieval-augmented generation, embeddings, and vector search (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Retrieval-augmented generation, embeddings, and vector search (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/retrieval-augmented-generation.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-vector-search-and-embeddings-field-guide",
+    "subjectId": "vector-search-and-embeddings-field-guide",
+    "workItemId": "create:vector-search-and-embeddings-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Embeddings and vector stores (Field Guide)",
+    "prompt": "Write the field-guide content for \"Embeddings and vector stores (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/vector-search-and-embeddings/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-vector-search-and-embeddings-learn",
+    "subjectId": "vector-search-and-embeddings-learn",
+    "workItemId": "create:vector-search-and-embeddings-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Embeddings and vector stores (Learn)",
+    "prompt": "Write the learn content for \"Embeddings and vector stores (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/vector-search-and-embeddings/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-vector-search-and-embeddings-visual-guide",
+    "subjectId": "vector-search-and-embeddings-visual-guide",
+    "workItemId": "create:vector-search-and-embeddings-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Embeddings and vector stores (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Embeddings and vector stores (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/vector-search-and-embeddings.mmd",
+          "config/diagrams.json"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-voice-agents-and-instructors-field-guide",
+    "subjectId": "voice-agents-and-instructors-field-guide",
+    "workItemId": "create:voice-agents-and-instructors-field-guide",
+    "kind": "needs-creating",
+    "surface": "field-guide",
+    "title": "Voice agents, virtual instructors, and accessible media (Field Guide)",
+    "prompt": "Write the field-guide content for \"Voice agents, virtual instructors, and accessible media (Field Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The piece answers a question a practitioner arrives with, and answers it before it explains itself.",
+      "Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/resources/voice-agents-and-instructors/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-voice-agents-and-instructors-learn",
+    "subjectId": "voice-agents-and-instructors-learn",
+    "workItemId": "create:voice-agents-and-instructors-learn",
+    "kind": "needs-creating",
+    "surface": "learn",
+    "title": "Voice agents, virtual instructors, and accessible media (Learn)",
+    "prompt": "Write the learn content for \"Voice agents, virtual instructors, and accessible media (Learn)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The module states what a learner can do after it that they could not do before.",
+      "Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.",
+      "The module declares its level and does not assume knowledge above that level without saying so."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/project42-platform",
+        "pathPrefixes": [
+          "content/modules/voice-agents-and-instructors/"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p42-create-voice-agents-and-instructors-visual-guide",
+    "subjectId": "voice-agents-and-instructors-visual-guide",
+    "workItemId": "create:voice-agents-and-instructors-visual-guide",
+    "kind": "needs-creating",
+    "surface": "visual-guide",
+    "title": "Voice agents, virtual instructors, and accessible media (Visual Guide)",
+    "prompt": "Write the visual-guide content for \"Voice agents, virtual instructors, and accessible media (Visual Guide)\", at intermediate level.\n\nThis topic was selected because a discovery pass measured a gap between what the market teaches and what this estate covers. The evidence for that gap follows. Treat it as the reason the piece exists, not as material to quote.\n\nFORM. The deliverable is not prose. Produce two things:\n1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.\n2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.\n\nThe altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.\nDo not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.\n\nConstraints:\n- Do not invent tool names, version numbers, product names, or configuration keys. If the supplied material does not establish one, say so rather than guessing it.\n- Cite only sources whose URLs resolve directly over https. Do not cite a DOI, a paywalled identifier, or anything a reader cannot open.\n- If a claim cannot be supported by a resolvable source, mark it UNKNOWN and omit it rather than citing something unreachable.\n- Write for the stated level. Do not assume knowledge the level does not imply, and do not pad the piece to reach a length.",
+    "acceptanceCriteria": [
+      "Every source is listed at the end of the piece, with a URL that resolves over https.",
+      "No tool name, version number, or configuration key appears that the supplied material does not establish.",
+      "Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.",
+      "The piece is written for intermediate level and says so.",
+      "The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.",
+      "The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.",
+      "The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.",
+      "The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.",
+      "No SVG is authored by hand. The rendered image is generated from the source."
+    ],
+    "roles": {
+      "drafter": {
+        "deployment": "gpt-5-6-sol",
+        "providerFamily": "OpenAI",
+        "maxCompletionTokens": 8192
+      },
+      "verifier": {
+        "deployment": "grok-4-20-reasoning",
+        "providerFamily": "xAI",
+        "maxCompletionTokens": 8192
+      },
+      "adversary": {
+        "deployment": "deepseek-v4-pro",
+        "providerFamily": "DeepSeek",
+        "maxCompletionTokens": 8192
+      },
+      "arbiter": {
+        "deployment": "mistral-large-3",
+        "providerFamily": "MistralAI",
+        "maxCompletionTokens": 8192
+      }
+    },
+    "targets": [
+      {
+        "repository": "project42dev/guide.project-42.dev",
+        "pathPrefixes": [
+          "diagrams/voice-agents-and-instructors.mmd",
+          "config/diagrams.json"
         ]
       }
     ]
