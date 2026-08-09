@@ -69,28 +69,27 @@ function readProposals(proposalDir) {
 
 function matchToWorkItems(db, proposals) {
     /** Cross-references proposals against the work_item table. Returns an array
-     *  of { proposal, packet, workItem } where workItem is the matching row or
-     *  null if unmatched. */
+     *  of { proposal, packet, workItem, contentPath } where workItem is the
+     *  matching row or null if unmatched, and contentPath is the path to the
+     *  final content file if found. */
     const results = [];
 
-    const stmt = db.prepare(
-        'SELECT id, subject_id, kind, state, first_seen, updated_at FROM work_item WHERE id = ?'
-    );
+    const allItems = db.prepare(
+        'SELECT id, subject_id, title, kind, state, ado_id FROM work_item'
+    ).all();
 
     for (const p of proposals) {
-        // The proposal's packet.id is "packet-{slug}". The slug encodes the work
-        // item id. Extract it: packet-{workItemId}-{runIdPrefix}
         const packetId = p.packet.id;
-        // Try to find a work item whose id appears in the packet id
         let workItem = null;
 
-        // The work item id is embedded in the packet id. Try direct match first.
-        const allItems = db.prepare('SELECT id, subject_id, kind, state, first_seen, updated_at FROM work_item').all();
-        for (const row of allItems) {
-            if (packetId.includes(row.id)) {
-                workItem = row;
-                break;
-            }
+        // Packet ID format: packet-p42-create-<subject>-<runIdPrefix>
+        // Work item ID format: create:<subject>
+        // Extract the subject by stripping "packet-p42-" prefix and the trailing "-<hash>"
+        const subjectMatch = packetId.match(/^packet-p42-(?:create-)?(.+?)-[0-9a-f]{8}$/);
+        if (subjectMatch) {
+            const subject = subjectMatch[1];
+            const wiId = `create:${subject}`;
+            workItem = allItems.find(row => row.id === wiId) || null;
         }
 
         results.push({ ...p, workItem });
@@ -102,8 +101,10 @@ function matchToWorkItems(db, proposals) {
 // ---------------------------------------------------------------------------
 // issue body builder
 
-function buildIssueBody(matched) {
-    /** Builds a markdown issue body summarizing all proposals ready for review. */
+function buildIssueBody(matched, localProposalsDir) {
+    /** Builds a markdown issue body summarizing all proposals ready for review.
+     *  When localProposalsDir is provided, includes the actual proposal content
+     *  in collapsible sections so reviewers can read it directly in the issue. */
 
     const lines = [
         '## Orchard proposals ready for review',
@@ -119,13 +120,34 @@ function buildIssueBody(matched) {
         const pkt = m.packet;
         const wi = m.workItem;
 
-        lines.push(`### ${p.id}`);
+        // Section header: human-readable title
+        const heading = wi?.title || p.subjectId || p.id;
+        lines.push(`### ${heading}`);
         lines.push('');
+
+        // ---- KEY LINKS ----
+        lines.push('| | |');
+        lines.push('|---|---|');
+
+        // ADO link
+        if (wi?.ado_id) {
+            const adoUrl = `https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/${wi.ado_id}`;
+            lines.push(`| **ADO** | [User Story #${wi.ado_id}](${adoUrl}) |`);
+        } else {
+            lines.push('| **ADO** | *not yet mirrored* |');
+        }
+
+        // Content link — anchor to the inline collapsible section below
+        const slug = (wi?.subject_id || p.id || '').replace(/[^a-z0-9-]/gi, '-').substring(0, 60);
+        lines.push(`| **Content** | [View inline below](#proposal-content-${slug}) |`);
+
+        lines.push('');
+
+        // ---- DETAILS TABLE ----
         lines.push('| Field | Value |');
         lines.push('|-------|-------|');
+        lines.push(`| Packet ID | \`${p.id}\` |`);
         lines.push(`| Disposition | \`${pkt.disposition}\` |`);
-        lines.push(`| Packet digest | \`${p.packetDigest}\` |`);
-        lines.push(`| Proposal digest | \`${p.proposalDigest}\` |`);
 
         if (wi) {
             lines.push(`| Work item | \`${wi.id}\` (${wi.kind}, ${wi.state}) |`);
@@ -136,7 +158,7 @@ function buildIssueBody(matched) {
 
         // Targets
         if (p.targets && p.targets.length > 0) {
-            lines.push('| Targets | ' + p.targets.map(t => `\`${t.repo || t.repository}/${t.path || ''}\``).join(', ') + ' |');
+            lines.push('| Targets | ' + p.targets.map(t => `\`${t.repo || t.repository}/${(t.pathPrefixes || [t.path]).join(', ')}\``).join('<br>') + ' |');
         }
 
         // Model stages summary
@@ -172,6 +194,24 @@ function buildIssueBody(matched) {
             lines.push('</details>');
         }
 
+        // ---- PROPOSAL CONTENT (collapsible inline) ----
+        if (localProposalsDir && existsSync(localProposalsDir)) {
+            const content = findProposalContentText(p, localProposalsDir);
+            if (content) {
+                lines.push('');
+                lines.push(`<a name="proposal-content-${slug}"></a>`);
+                lines.push('<details><summary>📄 Proposal content (click to expand)</summary>');
+                lines.push('');
+                const maxContent = 2000;
+                const truncated = content.length > maxContent
+                    ? content.slice(0, maxContent) + '\n\n... (truncated — full content in delivery/private/local-proposals/)'
+                    : content;
+                lines.push(truncated);
+                lines.push('');
+                lines.push('</details>');
+            }
+        }
+
         lines.push('');
         lines.push('---');
         lines.push('');
@@ -180,24 +220,67 @@ function buildIssueBody(matched) {
     // Review procedure
     lines.push('## Review procedure');
     lines.push('');
-    lines.push('See [`docs/runbooks/content-proposal-review.md`](https://github.com/project42dev/orchard/blob/main/docs/runbooks/content-proposal-review.md) for the 9-point human review checklist.');
-    lines.push('');
-    lines.push('1. Read the proposal and its packet');
-    lines.push('2. Verify the deterministic gates');
-    lines.push('3. Review the model stages for any red flags');
-    lines.push('4. Decide: accept or reject');
-    lines.push('5. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):');
-    lines.push('   - **`Approved`** — publishes the content');
+    lines.push('1. Click each **Content** link above to read the drafted content');
+    lines.push('2. Click each **ADO** link to see the tracking User Story');
+    lines.push('3. Verify the deterministic gates');
+    lines.push('4. Review the model stages for any red flags');
+    lines.push('5. Decide: accept or reject');
+    lines.push('6. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):');
+    lines.push('   - **`Approved`** — publishes the content to the live site');
     lines.push('   - **`Denied`** — rejects the content');
     lines.push('');
     lines.push('The `orchard-human-review` workflow will:');
     lines.push('1. Reply to confirm it received your decision');
     lines.push('2. Record the publication or rejection');
-    lines.push('3. Close this issue automatically');
+    lines.push('3. Commit and push the content to the platform repo (on Approve)');
+    lines.push('4. Update the ADO User Story state');
+    lines.push('5. Close this issue automatically');
     lines.push('');
     lines.push('You never touch a terminal. Just comment and wait for the confirmation reply.');
 
     return lines.join('\n');
+}
+
+/**
+ * Find the local-proposals directory for a given proposal by searching run-records.
+ * Returns the path to the 04-final.md file if found, or null.
+ */
+function findProposalContent(proposal, localProposalsDir) {
+    if (!localProposalsDir || !existsSync(localProposalsDir)) return null;
+
+    // The proposal's id contains an 8-char hex suffix that matches the first 8 chars
+    // of a local-proposals subdirectory UUID.
+    // e.g. "proposal-p42-create-agent-orchestration-visual-guide-3c68e8d1" -> look for dir starting with "3c68e8d1"
+    const uuidMatch = (proposal.id || '').match(/([0-9a-f]{8})(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i)
+        || (proposal.proposalId || '').match(/([0-9a-f]{8})(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i)
+        || (proposal.id || '').match(/([0-9a-f]{8})$/i)
+        || (proposal.proposalId || '').match(/([0-9a-f]{8})$/i);
+
+    if (!uuidMatch) return null;
+
+    const uuidPrefix = uuidMatch[1];
+
+    for (const entry of readdirSync(localProposalsDir)) {
+        if (!entry.startsWith(uuidPrefix)) continue;
+        const finalPath = resolve(localProposalsDir, entry, '04-final.md');
+        if (existsSync(finalPath)) {
+            return finalPath;
+        }
+    }
+    return null;
+}
+
+/**
+ * Read the text content of 04-final.md for a proposal. Returns the text or null.
+ */
+function findProposalContentText(proposal, localProposalsDir) {
+    const path = findProposalContent(proposal, localProposalsDir);
+    if (!path) return null;
+    try {
+        return readFileSync(path, 'utf-8');
+    } catch {
+        return null;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +318,7 @@ function main() {
             proposals: { type: 'string' },
             'dry-run': { type: 'boolean', default: false },
             'tracker': { type: 'string' },  // path to issue-tracker.json
+            'local-proposals': { type: 'string' },  // path to local-proposals dir with 04-final.md files
         },
     });
 
@@ -290,8 +374,15 @@ function main() {
     }
 
     // 6. Build the issue body
-    const body = buildIssueBody(matched);
-    const title = `[Orchard] ${matched.length} proposal(s) ready for review`;
+    const localProposalsDir = args.values['local-proposals']
+        ? resolve(args.values['local-proposals'])
+        : resolve(proposalDir, '..', 'private', 'local-proposals');
+    const body = buildIssueBody(matched, existsSync(localProposalsDir) ? localProposalsDir : null);
+
+    // Derive a meaningful title from the dispositions present.
+    const dispositions = [...new Set(matched.map(m => m.packet.disposition))].sort();
+    const phaseLabel = dispositions.join('/');
+    const title = `[Orchard] ${matched.length} proposal(s) ready for review — ${phaseLabel}`;
 
     if (dryRun) {
         console.log('\n=== DRY RUN — would create issue ===');

@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS work_item (
   note         TEXT,
   first_seen   TEXT NOT NULL,
   updated_at   TEXT NOT NULL,
+  -- ADO work item id, populated when the work item is mirrored to Azure DevOps.
+  -- Null means the item has not been pushed to ADO yet (e.g. dry-run builds).
+  ado_id       INTEGER,
   UNIQUE (kind, subject_id)
 );
 

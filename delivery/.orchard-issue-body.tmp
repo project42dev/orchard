@@ -4,285 +4,1474 @@
 
 ---
 
-### proposal-p42-create-agent-orchestration-visual-guide-3c68e8d1
+### Agent orchestration and multi-agent patterns (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7248](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7248) |
+| **Content** | [View inline below](#proposal-content-agent-orchestration-visual-guide) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-agent-orchestration-visual-guide-3c68e8d1` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
+| Work item | `create:agent-orchestration-visual-guide` (needs-creating, queued) |
+| Subject | `agent-orchestration-visual-guide` |
+| Targets | `project42dev/project42-platform/content/diagrams/` |
+
+<a name="proposal-content-agent-orchestration-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+flowchart TB
+    IN["Incoming task<br/>goal • constraints • acceptance criteria"] --> DECIDE{"Which coordination shape fits the task?"}
+
+    DECIDE -->|"The task has fixed, known stages"| S_A
+    DECIDE -->|"One specialist should handle it"| R_ROUTER
+    DECIDE -->|"Subtasks are independent"| P_COORD
+    DECIDE -->|"Subtasks emerge during execution"| O_ORCH
+    DECIDE -->|"Quality can be evaluated iteratively"| E_GEN
+    DECIDE -->|"Ownership changes as work unfolds"| H_CURRENT
+
+    subgraph SEQ["Sequential handoff — fixed stages"]
+        direction LR
+        S_A["Agent A<br/>complete stage 1"] --> S_CHECK["Checkpoint<br/>state • evidence • open issues"]
+        S_CHECK --> S_CHECK_PASS{"Checkpoint passed?"}
+        S_CHECK_PASS -->|"Yes"| S_B["Agent B<br/>complete stage 2"]
+        S_CHECK_PASS -->|"No"| S_REWORK["Agent A<br/>rework stage 1"]
+        S_REWORK --> S_CHECK
+        S_B --> S_OUT["Pipeline result"]
+    end
+
+    subgraph ROUTE["Router and specialists — select one path"]
+        direction LR
+        R_ROUTER["Router<br/>classify by intent, risk, or capability"] -->|"Class A"| R_A["Specialist agent A"]
+        R_ROUTER -->|"Class B"| R_B["Specialist agent B"]
+        R_ROUTER -->|"Other"| R_C["Fallback specialist"]
+        R_A --> R_FEEDBACK{"Can handle?"}
+        R_B --> R_FEEDBACK
+        R_C --> R_FEEDBACK
+        R_FEEDBACK -->|"Yes"| R_OUT["Selected response"]
+        R_FEEDBACK -->|"No"| R_RECLASSIFY["Router<br/>re-classify"]
+        R_RECLASSIFY --> R_ROUTER
+    end
+
+    subgraph PAR["Parallel fan-out and fan-in — independent work"]
+        direction LR
+        P_COORD["Coordinator<br/>split independent subtasks"] --> P_A["Worker agent A"]
+        P_COORD --> P_B["Worker agent B"]
+        P_COORD --> P_N["Worker agent N"]
+        P_A --> P_JOIN["Aggregator<br/>combine results, detect overlap/disagreement/missing work"]
+        P_B --> P_JOIN
+        P_N --> P_JOIN
+        P_JOIN --> P_CONFLICT{"Conflicts detected?"}
+        P_CONFLICT -
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Connect your editor and agents to a model endpoint you own (Learn)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7251](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7251) |
+| **Content** | [View inline below](#proposal-content-connect-your-tools-to-your-own-model-endpoint-learn) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-connect-your-tools-to-your-own-model-endpoint-learn-687f44ce` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:connect-your-tools-to-your-own-model-endpoint-learn` (needs-creating, queued) |
+| Subject | `connect-your-tools-to-your-own-model-endpoint-learn` |
 | Targets | `project42dev/project42-platform/` |
 
+<a name="proposal-content-connect-your-tools-to-your-own-model-endpoint-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Connect your editor and agents to a model endpoint you own
+
+This module is written at an intermediate level.
+
+A model endpoint is an HTTP service through which a client sends model requests and receives generated output. If you operate or control that endpoint, you can connect supported editors and agent runtimes to it instead of using their default model provider.
+
+The connection requires agreement across multiple layers:
+
+1. **Network reachability:** The client must be able to send requests to the endpoint.
+2. **Protocol compatibility:** The client and endpoint must use compatible request, response, and authentication formats.
+3. **Functional compatibility:** The model must support the features the client expects, such as tool calling or streaming.
+
+## What you will learn
+
+By the end of this lesson, you should be able to:
+
+- Identify the information required to connect a client to your endpoint.
+- Test the endpoint independently of an editor or agent.
+- Configure clients without guessing URL paths or configuration keys.
+- Validate chat, streaming, and agent features separately.
+- Diagnose common network, authentication, protocol, and model errors.
+- Handle endpoint credentials and agent permissions safely.
+
+## Prerequisites
+
+You need:
+
+- A running model endpoint that you operate or are authorized to use.
+- The endpoint’s API documentation.
+- A model identifier accepted by that endpoint.
+- Credentials, if authentication is enabled.
+- An editor or agent runtime that supports a custom endpoint or the protocol exposed by your service.
+- A command-line HTTP client. Consult your endpoint documentation for examples.
+
+This lesson cannot provide the exact setting names for your editor or agent because those names are client-specific. Use only settings documented by the client.
+
 ---
 
-### proposal-p42-create-connect-your-tools-to-your-own-model-endpoint-learn-687f44ce
+## 1. Understand the connection
+
+A typical request travels through the following components:
+
+```text
+Editor or agent
+      |
+      | HTTPS request
+      v
+Model endpoint or gateway
+      |
+ 
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Cost, capacity, and spend control for AI systems (Field Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7247](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7247) |
+| **Content** | [View inline below](#proposal-content-cost-and-capacity-management-field-guide) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-cost-and-capacity-management-field-guide-1f86570e` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
+| Work item | `create:cost-and-capacity-management-field-guide` (needs-creating, queued) |
+| Subject | `cost-and-capacity-management-field-guide` |
 | Targets | `project42dev/project42-platform/` |
 
+<a name="proposal-content-cost-and-capacity-management-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Cost, Capacity, and Spend Control for AI Systems
+**Field Guide – Intermediate Level**
+
+This guide is written for practitioners with foundational experience in cloud operations, cost management, or AI system deployment. It assumes familiarity with basic cloud billing concepts, service-level objectives, and workload scaling, but does not require expertise in queuing theory, accounting variance decomposition, or container orchestration internals. Where intermediate-level concepts appear (e.g., Little’s Law, resource requests vs. limits), they are explained or simplified to match the stated audience.
+
 ---
 
-### proposal-p42-create-cost-and-capacity-management-field-guide-1f86570e
+## How to Operate Within Cost, Capacity, and Spend Boundaries Simultaneously
+
+An AI system can stay within its nominal request budget yet fail due to quota exhaustion, insufficient serving capacity, long queues, retries, or unexpected input/output size changes. The practical objective is to operate within three boundaries at the same time:
+
+1. **Cost:** The resources consumed by the system.
+2. **Capacity:** The workload the system can sustain while meeting its service objectives.
+3. **Spend:** The amount the organization is willing or authorized to pay.
+
+To achieve this, follow these steps:
+
+1. **Define an economic unit** that connects consumption to a useful outcome.
+2. **Build a complete cost model** that includes all components, not just model invocation.
+3. **Separate demand, capacity, and quota** to diagnose mismatches.
+4. **Establish minimum telemetry** to explain cost and service behavior.
+5. **Create a capacity plan** that accounts for demand, headroom, and recovery.
+6. **Forecast spend** from workload drivers, exposing assumptions.
+7. **Implement controls** at multiple layers to prevent overspend.
+8. **Optimize in the right order**, starting with unnecessary work.
+9. **Diagnose common failure patterns** with clear remediation paths.
+
+---
+
+## 1. Start with the Economic Unit
+
+A monthly infrastructure total is useful for accounting but too coarse for engineeri
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Cost, capacity, and spend control for AI systems (Learn)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7244](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7244) |
+| **Content** | [View inline below](#proposal-content-cost-and-capacity-management-learn) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-cost-and-capacity-management-learn-4dd25fc4` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
+| Work item | `create:cost-and-capacity-management-learn` (needs-creating, queued) |
+| Subject | `cost-and-capacity-management-learn` |
 | Targets | `project42dev/project42-platform/` |
 
----
+<a name="proposal-content-cost-and-capacity-management-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
 
-### proposal-p42-create-cost-and-capacity-management-learn-4dd25fc4
+# Cost, Capacity, and Spend Control for AI Systems
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+**Level: Intermediate**
 
----
+AI systems combine variable demand, probabilistic workloads, and multiple cost drivers. A service may appear inexpensive per request while still creating an unacceptable monthly bill. Conversely, aggressive cost limits can reduce capacity and cause latency, failed requests, or missed batch deadlines.
 
-### proposal-p42-create-cost-and-capacity-management-visual-guide-4ea5b3f0
+Effective control requires treating three related concerns separately:
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/guide.project-42.dev/` |
+- **Cost:** the resources consumed to deliver a unit of value.
+- **Capacity:** the amount of work the system can complete while meeting its service objectives.
+- **Spend:** the money charged over a reporting period.
 
----
+This module explains how to measure each concern, connect them in a forecast, and apply controls without unintentionally damaging reliability.
 
-### proposal-p42-create-cost-and-capacity-management-visual-guide-77957b37
+## Learning objectives
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/guide.project-42.dev/` |
+After completing this module, you should be able to:
 
----
+1. Identify the main cost drivers of an AI workload.
+2. Calculate useful unit-cost metrics.
+3. Estimate capacity from demand, concurrency, and service time.
+4. Build a driver-based spend forecast.
+5. Distinguish budgets, quotas, rate limits, and capacity controls.
+6. Choose controls appropriate to interactive inference, batch processing, experimentation, and training.
+7. Detect optimizations that reduce reported cost but transfer risk or expense elsewhere.
 
-### proposal-p42-create-cost-controls-for-agentic-tools-learn-d7e1b2f0
+## Prerequisites
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+You should understand:
+
+- Basic cloud or datacenter resource concepts, including compute, memory, storage, and networking.
+- The difference between training and inference.
+- Basic service metrics such as request rate, latency, and error rate.
+- The purpose of service-level objectives, or SLOs.
 
 ---
 
-### proposal-p42-create-deploy-your-own-model-estate-learn-1812876e
+## 1. Cost, capacity, and spend are different measurements
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+These terms are related but not interchangeable.
 
----
+### Cost
 
-### proposal-p42-create-executive-and-leader-track-field-guide-d70bab38
+Cost measures the resources required to produce an outcome. It is most useful when normalized by a unit of value, such as:
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+- Cost per successful request.
+- Cost per generated document.
+- Cost per resolved su
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
-### proposal-p42-create-executive-and-leader-track-learn-90441908
+### Cost, capacity, and spend control for AI systems (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7240](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7240) |
+| **Content** | [View inline below](#proposal-content-cost-and-capacity-management-visual-guide) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-cost-and-capacity-management-visual-guide-4ea5b3f0` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+| Work item | `create:cost-and-capacity-management-visual-guide` (needs-creating, queued) |
+| Subject | `cost-and-capacity-management-visual-guide` |
+| Targets | `project42dev/guide.project-42.dev/diagrams/cost-and-capacity-management.mmd, config/diagrams.json` |
+
+<a name="proposal-content-cost-and-capacity-management-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+flowchart TB
+    D["Demand envelope<br/>Request volume, concurrency, input/output size, and variability over time"]
+    T["Service targets<br/>Quality, latency, availability, and completion time thresholds"]
+    C["Cost and supply inputs<br/>Usage pricing, fixed costs, shared overhead, and available capacity"]
+
+    D --> E
+    T --> E
+    C --> E
+
+    E["Estimate required work<br/>Model inference calls, accelerator time, storage, and data transfer"]
+    E --> P
+
+    P["Create capacity and spend plan<br/>Stable baseline, variable peak, headroom, unit-cost target, forecast, and budget"]
+
+    P --> R
+    P --> G
+    P --> K
+
+    R["Reduce work per outcome<br/>Route by task, trim context, limit output, cache or deduplicate, and batch compatible jobs"]
+    G["Shape demand<br/>Set quotas, rate/concurrency limits, admission rules, and job schedules to smooth load"]
+    K["Match supply to demand<br/>Scale variable load, cover stable baseline, and minimize idle capacity"]
+
+    R --> X
+    G --> X
+    K --> X
+
+    X["Run the AI system<br/>Models, retrieval, processing, storage, and supporting services"]
+    X --> O
+
+    O["Measure actual operation<br/>Consumption, queues, utilization, latency, quality, errors, and completed outcomes"]
+    O --> U
+
+    U["Allocate and normalize cost<br/>Assign direct, shared, and idle costs; calculate cost per successful outcome"]
+    U --> S
+
+    S{"Are service targets met?"}
+    S -- "No" --> M
+    M["Diagnose before scaling<br/>Separate capacity saturation from model, data, workflow, or dependency problems"]
+    M --> P
+
+    S -- "Yes" --> B
+    B{"Is spend within forecast and guardrails?"}
+    B -- "No forecast exists" --> P
+    B -- "No" --> A
+    A["Choose a spend response<br/>Investigate anomalies, reduce work, reshape demand, revise supply, or approve variance"]
+    A --> P
+
+    B -- "Yes" --> H
+    H["Operate and learn<br/>Update demand baselines, unit costs, forecasts, and capacity assumptions from observed data"]
+    H --
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
-### proposal-p42-create-executive-and-leader-track-visual-guide-8ad09398
+### Cost, capacity, and spend control for AI systems (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7240](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7240) |
+| **Content** | [View inline below](#proposal-content-cost-and-capacity-management-visual-guide) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-cost-and-capacity-management-visual-guide-77957b37` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/guide.project-42.dev/` |
+| Work item | `create:cost-and-capacity-management-visual-guide` (needs-creating, queued) |
+| Subject | `cost-and-capacity-management-visual-guide` |
+| Targets | `project42dev/guide.project-42.dev/diagrams/cost-and-capacity-management.mmd, config/diagrams.json` |
+
+<a name="proposal-content-cost-and-capacity-management-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+flowchart TB
+    A["Incoming AI request<br/>(prompt, context, requested work)"]
+    P["Control policy<br/>(spend cap, tokens-per-minute ceiling, concurrency limit)"]
+    G{"Admission check<br/>Does the request fit within current ceilings?"}
+    O["Controlled outcome<br/>Reduce scope, defer, or reject"]
+    X["Execute work<br/>(model inference)"]
+    U["Usage event<br/>(tokens consumed)"]
+
+    A --> G
+    P --> G
+    G -- "No" --> O
+    G -- "Yes" --> X --> U
+
+    classDef input fill:#E8F1FF,stroke:#3568A8,color:#102A43,stroke-width:1.5px;
+    classDef policy fill:#F3E8FF,stroke:#7A4FA3,color:#32174D,stroke-width:1.5px;
+    classDef decision fill:#FFF4CC,stroke:#A87700,color:#4A3400,stroke-width:2px;
+    classDef action fill:#E7F7EE,stroke:#2D7D4F,color:#123D27,stroke-width:1.5px;
+    classDef stop fill:#FFE9E7,stroke:#B94A48,color:#5C1E1D,stroke-width:1.5px;
+
+    class A input;
+    class P policy;
+    class G decision;
+    class X action;
+    class O stop;
+```
+
+```yaml
+title: "Cost and capacity controls for AI systems (Intermediate)"
+category: "AI operations"
+summary: "A visual outline of how to check each AI request against spend and capacity ceilings before execution."
+description: "The guide shows the basic flow from an incoming request through an admission check that compares the request against current policy ceilings (spend cap, tokens-per-minute, concurrency). Requests that fit are executed; those that do not are reduced, deferred, or rejected. No detailed control-loop mechanics, reservation system, or reconciliation process is asserted because the supplied material does not support them."
+altText: "The flow starts at Incoming AI request and Control policy, which both feed into the Admission check decision node. A No branch moves to Controlled outcome, where the request is reduced, deferred, or rejected. A Yes branch moves to Execute work, which produces a Usage event."
+caption: "Admit work only if it fits within current spend and capacity ceilings
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
-### proposal-p42-create-fine-tuning-and-distillation-field-guide-8fd0b029
+### Cost controls for agentic tools: why alerts and capacity are not brakes (Learn)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7254](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7254) |
+| **Content** | [View inline below](#proposal-content-cost-controls-for-agentic-tools-learn) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-cost-controls-for-agentic-tools-learn-d7e1b2f0` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+| Work item | `create:cost-controls-for-agentic-tools-learn` (needs-creating, queued) |
+| Subject | `cost-controls-for-agentic-tools-learn` |
+| Targets | `project42dev/project42-platform/content/modules/cost-controls-for-agentic-tools/` |
+
+<a name="proposal-content-cost-controls-for-agentic-tools-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Cost controls for agentic tools: why alerts and capacity are not brakes
+
+**Level: Intermediate**
+
+Agentic systems can make repeated model calls, invoke tools, retry failures, delegate work, and continue until a goal or stopping condition is reached. This makes their cost profile different from that of a single API request.
+
+This module is written for intermediate learners who are familiar with basic concepts such as agentic execution graphs, fan-out, episodes, and admission control. If you are not familiar with these terms, you may need to review foundational material before proceeding.
+
+A dashboard can show that spending is high. An alert can notify someone. A concurrency limit can slow the system down. None of these mechanisms necessarily stops further spending.
+
+To enforce a cost limit, the system needs a control in the execution path that can refuse new work.
+
+## Learning objectives
+
+After completing this module, you should be able to:
+
+- distinguish alerts, capacity controls, and cost brakes;
+- explain why agentic execution can overshoot a budget;
+- estimate the possible overshoot after an alert;
+- design admission control using budget reservations;
+- place limits at the agent, workflow, tenant, and account levels;
+- test whether a claimed spending limit is actually enforceable.
+
+## 1. Three controls that solve different problems
+
+The terms *budget*, *quota*, and *limit* are often used loosely. Start by classifying a control according to what it actually does.
+
+| Control | Primary purpose | Typical response at threshold | Does it guarantee a spending ceiling? |
+|---|---|---|---|
+| Alert | Visibility and notification | Sends a message or creates an event | No |
+| Capacity control | Limits simultaneous or per-period resource use | Delays or rejects work when capacity is exhausted | Usually no |
+| Cost brake | Prevents additional financial liability | Rejects, cancels, degrades, or requires approval before work proceeds | Yes, if coverage and metering are sound 
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
-### proposal-p42-create-fine-tuning-and-distillation-learn-e061d09c
+### Deploy and operate your own multi-vendor model estate
+
+| | |
+|---|---|
+| **ADO** | [User Story #7256](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7256) |
+| **Content** | [View inline below](#proposal-content-deploy-your-own-model-estate-learn) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-deploy-your-own-model-estate-learn-1812876e` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+| Work item | `create:deploy-your-own-model-estate-learn` (needs-creating, queued) |
+| Subject | `deploy-your-own-model-estate-learn` |
+| Targets | `project42dev/project42-platform/content/modules/deploy-your-own-model-estate/` |
+
+<a name="proposal-content-deploy-your-own-model-estate-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Deploy and operate your own multi-vendor model estate
+
+**Level: Intermediate**
+
+A multi-vendor model estate lets an application use models from more than one provider or deployment environment. The goal is not merely to place several API clients behind one endpoint. A production estate must consistently handle model selection, capability differences, failures, security, evaluation, observability, and cost.
+
+This module is designed for learners who already understand HTTP APIs, application deployment, logging, and basic generative AI concepts. It assumes you have built a simple single-model API integration, are familiar with load balancing fundamentals, and have experience with infrastructure-as-code or operational tooling.
+
+## Learning objectives
+
+By the end of this module, you should be able to:
+
+- Design a vendor-neutral model access layer without hiding important provider differences.
+- Route requests according to capability, quality, latency, cost, and policy.
+- Define fallback behavior that does not silently change application semantics.
+- Monitor model traffic while limiting exposure of prompts and generated content.
+- Evaluate model or provider changes before and during rollout.
+- Create operational controls for credentials, quotas, incidents, and spend.
 
 ---
 
-### proposal-p42-create-fine-tuning-and-distillation-visual-guide-226a6042
+## 1. Define the estate boundary
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/guide.project-42.dev/` |
+A model estate includes more than model endpoints. Treat it as three connected planes.
 
----
+### Data plane
 
-### proposal-p42-create-identity-and-secrets-for-model-access-field-guide-70a5099c
+The data plane handles live inference traffic:
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+- Request validation
+- Authentication and authorization
+- Prompt and context assembly
+- Provider-specific translation
+- Model invocation
+- Streaming
+- Tool-call handling
+- Response normalization
+- Error translation
 
----
+Keep the latency-sensitive path as small as practical. Evaluation jobs, reporting, and administrative changes should not have to run synchronously with inference.
 
-### proposal-p42-create-microsoft-foundry-fundamentals-learn-6f6ddc48
+### Control plane
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+The control plane determines how the data plane behaves:
+
+- Model inventory
+- Capability declarations
+- Routing and fallback 
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
-### proposal-p42-create-model-behaviour-differences-field-guide-3a004f4b
+### AI for executives, leaders, and decision makers (Field Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7232](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7232) |
+| **Content** | [View inline below](#proposal-content-executive-and-leader-track-field-guide) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-executive-and-leader-track-field-guide-d70bab38` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+| Work item | `create:executive-and-leader-track-field-guide` (needs-creating, queued) |
+| Subject | `executive-and-leader-track-field-guide` |
+| Targets | `project42dev/project42-platform/content/resources/executive-and-leader-track/` |
+
+<a name="proposal-content-executive-and-leader-track-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# AI for Executives, Leaders, and Decision Makers
+**Field Guide (Intermediate Level)**
+
+AI leadership is the discipline of deciding:
+- where AI can create measurable value;
+- which decisions may be delegated or assisted;
+- what evidence is required before deployment;
+- how accountability remains with the organization;
+- and when an AI system should be restricted, suspended, or retired.
+
+This guide is written for readers who understand basic AI terminology and are now responsible for investment, governance, procurement, or operational decisions.
 
 ---
 
-### proposal-p42-create-model-context-protocol-visual-guide-dbb5353d
+## 1. Start with the decision, not the model
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/guide.project-42.dev/` |
+An AI initiative should begin with a business decision or workflow, not a general ambition to “use AI.”
 
----
+Frame each opportunity in this order:
 
-### proposal-p42-create-model-endpoint-api-shapes-and-deployment-names-field-guide-bcb56bf9
+1. **Outcome:** What measurable result should improve?
+2. **User:** Who will use or be affected by the system?
+3. **Decision:** What judgment, action, or output will AI influence?
+4. **Baseline:** How is the work performed today?
+5. **Failure:** What happens when the system is wrong?
+6. **Evidence:** What would demonstrate that it is good enough?
+7. **Accountability:** Who owns the result after deployment?
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+A weak proposal says:
+> Use generative AI to improve customer service.
 
----
+A decision-ready proposal says:
+> Reduce the time agents spend searching approved support material, while maintaining current escalation and complaint rates. The system will propose answers for agent review and will not send responses directly to customers during the initial deployment.
 
-### proposal-p42-create-multi-agent-topology-diagram-visual-guide-ce99b595
+The second formulation defines the user, workflow, control boundary, outcome, and initial level of autonomy.
 
-| Field | Value |
-|-------|-------|
-| Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/guide.project-42.dev/` |
+### The executive test
+Do not approve an initiative until its sponsor can complete this sentence:
+> For **[specific users]**, the system will assist or perform **[specific task]**, using **[permitted information]**, to improve **[measurable outcome]**, subject to **[human and technical controls]**, with reassessment planned by **[specific date]** and measurement conduc
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
-### proposal-p42-create-orchestration-framework-portability-field-guide-5e1cdec5
+### AI for executives, leaders, and decision makers (Learn)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7228](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7228) |
+| **Content** | [View inline below](#proposal-content-executive-and-leader-track-learn) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-executive-and-leader-track-learn-90441908` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+| Work item | `create:executive-and-leader-track-learn` (needs-creating, queued) |
+| Subject | `executive-and-leader-track-learn` |
+| Targets | `project42dev/project42-platform/content/modules/executive-and-leader-track/` |
+
+<a name="proposal-content-executive-and-leader-track-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# AI for executives, leaders, and decision makers
+
+AI leadership is not primarily a technology-selection exercise. It is the discipline of choosing where AI can create value, deciding how much authority an AI system should have, and establishing controls that keep outcomes aligned with organizational goals.
+
+At an intermediate level, leaders should be able to move beyond general AI awareness and evaluate concrete investments, operating models, risks, and performance evidence.
+
+## Learning objectives
+
+After completing this module, you should be able to:
+
+- Connect AI initiatives to measurable organizational outcomes.
+- Distinguish useful AI opportunities from poorly defined experiments.
+- Select an appropriate level of human oversight and system autonomy, accounting for both authority and time.
+- Evaluate the full economics of an AI initiative, including comparative analysis of alternatives.
+- Assign accountability across the AI lifecycle.
+- Use a risk-based governance model that adapts to both static and dynamic risks.
+- Define evidence for pilot, deployment, expansion, and retirement decisions.
 
 ---
 
-### proposal-p42-create-orchestration-framework-portability-learn-8a7a683a
+## 1. Treat AI as a portfolio of decisions
+
+An organization does not have a single “AI strategy” decision. It has a portfolio of decisions about:
+
+1. **Problems:** Which outcomes are important enough to address?
+2. **Methods:** Is AI appropriate, or would rules, conventional software, process redesign, or additional staffing work better?
+3. **Authority:** What may the system recommend, draft, decide, or execute, and over what time horizon?
+4. **Data:** Is the required data lawful, representative, secure, current, and usable?
+5. **Controls:** How will the organization detect and respond to failures?
+6. **Economics:** Does the expected benefit exceed the full lifecycle cost, including comparative analysis of alternatives?
+7. **Ownership:** Who is accountable for results after deployment?
+
+AI can support several kinds of work:
+
+- **Prediction:** Estimate an outcome, such 
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### AI for executives, leaders, and decision makers (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7236](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7236) |
+| **Content** | [View inline below](#proposal-content-executive-and-leader-track-visual-guide) |
 
 | Field | Value |
 |-------|-------|
+| Packet ID | `proposal-p42-create-executive-and-leader-track-visual-guide-8ad09398` |
 | Disposition | `ready-for-draft` |
-| Packet digest | `undefined` |
-| Proposal digest | `undefined` |
-| Work item | *not matched* |
-| Targets | `project42dev/project42-platform/` |
+| Work item | `create:executive-and-leader-track-visual-guide` (needs-creating, queued) |
+| Subject | `executive-and-leader-track-visual-guide` |
+| Targets | `project42dev/guide.project-42.dev/diagrams/executive-and-leader-track.mmd, config/diagrams.json` |
+
+<a name="proposal-content-executive-and-leader-track-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+flowchart TB
+    subgraph S0["Accountability across the loop"]
+        R["Accountability roles & escalation<br/>Executive sponsor: outcome, risk appetite, capital<br/>Business owner: workflow, adoption, recourse<br/>Technical & control functions: evidence, operations, challenge<br/>Affected people: feedback, appeal, and veto rights at evidence gate"]
+    end
+
+    subgraph S1["1 — Set direction"]
+        A["Business outcome & boundaries<br/>Target result, baseline, affected groups, constraints, time horizon"]
+        B["Workflow facts<br/>Decision points, actors, data sources, failure modes, current cost"]
+        C{"AI suitability gate<br/>Task is evaluable, supervisable, and safely contained?"}
+        N["Non-AI alternative<br/>Process redesign, policy change, training, conventional automation"]
+    end
+
+    subgraph S2["2 — Make the investment decision"]
+        D["AI role & exposure<br/>Assist, recommend with review, or act within defined limits<br/>Impact, reach, reversibility, security, privacy, legal, reputation"]
+        E{"Portfolio gate<br/>Expected value ≥ cost + exposure + readiness?"}
+        G["Park or stop<br/>Record reason, assumptions, and trigger conditions for revisit"]
+    end
+
+    subgraph S3["3 — Prove value and control"]
+        H["Evidence & control plan<br/>Success thresholds, test data, human oversight, fallback, incident response"]
+        I["Limited pilot<br/>Constrain users, data, decisions, duration, authority"]
+        J{"Evidence gate<br/>Value, reliability, adoption, controls ≥ approved exposure?"}
+        K["Redesign or stop<br/>Narrow scope, adjust controls, or terminate"]
+    end
+
+    subgraph S4["4 — Authorize and operate"]
+        L["Deployment decision<br/>Named approver, operating owner, budget, use limits, escalation, rollback"]
+        M["Operate & monitor<br/>Business value, quality, exceptions, overrides, user impact, cost, drift, incidents"]
+        O{"Review gate<br/>Outcomes & controls within approved limits?"
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Fine-tuning, adapters, distillation, and when not to train (Field Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7246](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7246) |
+| **Content** | [View inline below](#proposal-content-fine-tuning-and-distillation-field-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-fine-tuning-and-distillation-field-guide-8fd0b029` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:fine-tuning-and-distillation-field-guide` (needs-creating, queued) |
+| Subject | `fine-tuning-and-distillation-field-guide` |
+| Targets | `project42dev/project42-platform/content/resources/fine-tuning-and-distillation/` |
+
+<a name="proposal-content-fine-tuning-and-distillation-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Fine-tuning, adapters, distillation, and when not to train
+
+This guide is written for an intermediate-level audience familiar with language-model inference, prompts, datasets, and standard training concepts such as loss functions and validation sets.
+
+---
+
+Once prompting alone stops being sufficient, several interventions are available:
+
+- **Updating all model parameters:** train the entire model on task-specific data.
+- **Updating a small set of parameters:** train only added or selected parameters while keeping most of the model fixed.
+- **Training a smaller model:** create a more efficient model that imitates a stronger one.
+- **No training:** improve prompts, retrieval, tools, validation, or workflow design instead.
+
+These methods solve different problems. The correct question is not “How should we fine-tune?” but:
+
+> **What is failing, and what is the least complex intervention that fixes it?**
+
+---
+
+## 1. Start by identifying the failure mode
+
+Training is appropriate only when the failure is learnable from examples and the resulting behavior can be evaluated.
+
+Separate the problem into one or more of these categories:
+
+| Failure mode | Typical first intervention |
+|---|---|
+| The model does not follow a stable output format | Structured prompting, constrained decoding, validation |
+| The model lacks current or private facts | Retrieval or tool use |
+| The model performs a recurring task inconsistently | Supervised updates to model parameters |
+| The model must learn organization-specific terminology or style | Updates to model parameters |
+| The model is accurate but too slow or expensive | A smaller or more efficient model, quantization, or routing |
+| The model fails because the task requires external calculation or action | Tools and workflow decomposition |
+| Requirements change frequently | Prompting, retrieval, or configurable rules |
+| The base model lacks the underlying capability | A more capable base model, task decomposition, or additional data; p
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Fine-tuning, adapters, distillation, and when not to train (Learn)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7243](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7243) |
+| **Content** | [View inline below](#proposal-content-fine-tuning-and-distillation-learn) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-fine-tuning-and-distillation-learn-e061d09c` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:fine-tuning-and-distillation-learn` (needs-creating, queued) |
+| Subject | `fine-tuning-and-distillation-learn` |
+| Targets | `project42dev/project42-platform/content/modules/fine-tuning-and-distillation/` |
+
+<a name="proposal-content-fine-tuning-and-distillation-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Fine-tuning, adapters, distillation, and when not to train
+
+This is an intermediate-level module. It assumes familiarity with basic neural-network concepts, such as parameters, training objectives, and evaluation metrics. Some sections use linear algebra notation (e.g., matrix multiplication, rank) to explain parameter-efficient methods. If these concepts are unfamiliar, review them before proceeding.
+
+A capable base model is often only the starting point. You may need more consistent outputs, domain-specific behavior, lower inference cost, or better performance on a narrow task. Training is one way to achieve those goals—but it is not always the best first move.
+
+This lesson compares four choices:
+
+- **Full fine-tuning:** update most or all of a model’s parameters.
+- **Adapter-based tuning:** train a small set of additional or low-rank parameters while keeping the base model largely frozen.
+- **Distillation:** train a smaller student model to imitate a stronger teacher.
+- **No training:** use prompting, retrieval, tools, validation, or workflow changes instead.
+
+The central question is not “Can this model be trained?” It is:
+
+> What is the smallest intervention that reliably fixes the measured failure?
+
+## Learning objectives
+
+By the end of this lesson, you should be able to:
+
+1. Distinguish fine-tuning, adapters, and distillation.
+2. Match each method to the problem it is designed to solve.
+3. Recognize cases in which prompting, retrieval, tools, or constrained generation are a better choice.
+4. Design a training and evaluation plan that compares against a non-trained baseline.
+5. Account for operational costs such as serving, updates, rollback, privacy, and model upgrades.
+
+---
+
+## 1. Start with the failure, not the method
+
+Before choosing a training technique, classify what is going wrong.
+
+| Observed failure | Likely intervention |
+|---|---|
+| The model ignores a required format or style | Prompting first; then constrained generation if available; then superv
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Fine-tuning, adapters, distillation, and when not to train (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7237](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7237) |
+| **Content** | [View inline below](#proposal-content-fine-tuning-and-distillation-visual-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-fine-tuning-and-distillation-visual-guide-226a6042` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:fine-tuning-and-distillation-visual-guide` (needs-creating, queued) |
+| Subject | `fine-tuning-and-distillation-visual-guide` |
+| Targets | `project42dev/guide.project-42.dev/diagrams/fine-tuning-and-distillation.mmd, config/diagrams.json` |
+
+<a name="proposal-content-fine-tuning-and-distillation-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+flowchart TD
+    A["Define the requirement<br/>and a held-out evaluation set"] --> B["Test a no-training baseline<br/>Prompting, supplied context or retrieval, and workflow changes"]
+    B --> C{"Does the baseline meet<br/>quality, safety, latency, and cost targets?"}
+
+    C -- "Yes" --> N["Do not train<br/>Deploy the simplest adequate approach"]
+    C -- "No" --> D{"What is the main bottleneck?"}
+
+    D -- "Missing, private, or changing knowledge" --> R["Improve retrieval and context<br/>Check source coverage, relevance, and grounding"]
+    R --> E["Evaluate on the held-out set"]
+
+    D -- "Stable task behavior, style,<br/>format, or domain adaptation" --> F{"Is representative, permitted<br/>training data available?"}
+    F -- "No" --> W["Do not train yet<br/>Collect, clean, and label data"]
+    W --> B
+    F -- "Yes" --> U{"Must the base model stay unchanged,<br/>or support multiple task variants?"}
+
+    U -- "Yes" --> AD["Use parameter-efficient tuning<br/>Freeze the base and train a small task-specific update"]
+    U -- "No" --> Q{"Is a broad weight update justified<br/>by evaluation evidence and training budget?"}
+    Q -- "No" --> AD
+    Q -- "Yes" --> FT["Use full fine-tuning<br/>Update the model weights for the target task"]
+
+    AD --> E
+    FT --> E
+
+    D -- "Serving model is too large,<br/>slow, or costly" --> P{"Is there a capable teacher<br/>and representative transfer data?"}
+    P -- "No" --> X["Improve teacher or data<br/>or use non-training serving changes"]
+    X --> P
+    P -- "Yes" --> DS["Use distillation<br/>Train a smaller student to reproduce teacher behaviour"]
+    DS --> E
+
+    E --> G{"Do all acceptance tests pass?"}
+    G -- "No" --> D
+    G -- "Yes" --> M["Deploy and monitor<br/>Check regressions, drift, safety, latency, and cost"]
+    N --> M
+    M -- "New requirement or drift" --> A
+
+    K["Changing facts belong in retrievable sources;<br/>training is not a dependable refresh mechanism."]
+    L["Parameter-efficient tuning r
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Identity and secrets for model access: tenant scope, data plane, and key retrieval (Field Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7253](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7253) |
+| **Content** | [View inline below](#proposal-content-identity-and-secrets-for-model-access-field-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-identity-and-secrets-for-model-access-field-guide-70a5099c` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:identity-and-secrets-for-model-access-field-guide` (needs-creating, queued) |
+| Subject | `identity-and-secrets-for-model-access-field-guide` |
+| Targets | `project42dev/project42-platform/content/resources/identity-and-secrets-for-model-access/` |
+
+<a name="proposal-content-identity-and-secrets-for-model-access-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Identity and secrets for model access: tenant scope, data plane, and key retrieval
+## Field Guide (Intermediate Level)
+
+Model access often fails even when every individual component appears correctly configured. A user can manage a model resource but not invoke it. A workload can obtain a token, but for the wrong tenant or audience. An application can read a secret, yet retrieve an expired key. These failures arise because identity, authorization, resource scope, and secret retrieval are separate links in the access path.
+
+This guide provides a provider-neutral method for designing and troubleshooting that path. It is written for practitioners with intermediate experience in cloud services, identity management, and application security. Exact role names, token fields, endpoint formats, and configuration keys are service-specific and are not established here.
+
+---
+
+## 1. The access path
+
+A typical request crosses several security boundaries:
+
+```text
+Workload
+  │
+  ├─ authenticates as a workload identity
+  │
+  ├─ obtains authorization to read a secret, if one is required
+  │
+  ├─ retrieves the secret or obtains a model-service access token
+  │
+  └─ invokes the model endpoint
+          │
+          ├─ tenant and issuer validation
+          ├─ audience or resource validation
+          ├─ data-plane authorization
+          ├─ model or deployment scope
+          └─ network and service policy
+```
+
+Treat these as separate decisions. “Authentication succeeded” does not mean “model invocation is authorized.”
+
+For each request, be able to name:
+
+1. **The calling principal** — the human, service, or workload identity.
+2. **The identity tenant** — the administrative boundary in which that principal is recognized.
+3. **The token issuer** — the authority that issued the access token, if tokens are used.
+4. **The intended audience or resource** — the service for which the token was issued.
+5. **The model resource owner or tenant** — the boundary containing the endpoint or deploym
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Microsoft Foundry fundamentals: accounts, projects, deployments and quota
+
+| | |
+|---|---|
+| **ADO** | [User Story #7255](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7255) |
+| **Content** | [View inline below](#proposal-content-microsoft-foundry-fundamentals-learn) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-microsoft-foundry-fundamentals-learn-6f6ddc48` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:microsoft-foundry-fundamentals-learn` (needs-creating, queued) |
+| Subject | `microsoft-foundry-fundamentals-learn` |
+| Targets | `project42dev/project42-platform/content/modules/microsoft-foundry-fundamentals/` |
+
+<a name="proposal-content-microsoft-foundry-fundamentals-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Microsoft Foundry fundamentals: accounts, projects, deployments, and quota
+**Intermediate level**
+
+Microsoft Foundry organizes AI development into several related scopes. Understanding those scopes is essential when you plan access control, deploy models, troubleshoot capacity, or divide work among teams.
+
+## Learning objectives
+
+After completing this module, you should be able to:
+
+- Explain the relationship between an Azure subscription, a Foundry account, a project, and a model deployment, including how access, billing, and quota are inherited across these scopes.
+- Decide whether to separate workloads by account, project, or deployment, using a clear decision framework.
+- Describe how an application addresses a deployed model, including the role of deployment names and endpoints.
+- Explain how quota differs from cost budgets and runtime rate limits, and identify the specific quota dimensions that apply to a given deployment.
+- Diagnose common deployment and quota problems by isolating the failing layer (identity, authorization, endpoint, deployment, quota, or runtime throughput).
+
+## Prerequisites
+
+You should already understand:
+
+- Basic Azure concepts, including subscriptions, resource groups, regions, and role-based access control.
+- Basic Azure networking concepts, including virtual networks, private endpoints, and service endpoints, as these often influence account and project boundaries.
+- The difference between a foundation model and an application that calls the model.
+- Basic API concepts such as endpoints, authentication, requests, and responses.
+
+---
+
+## 1. Understand the resource hierarchy
+
+A typical Foundry environment fits into the Azure resource hierarchy as follows:
+
+```text
+Microsoft Entra tenant
+└── Azure subscription
+    └── Resource group
+        └── Foundry account
+            ├── Project A
+            │   └── (Project-scoped deployments, if supported)
+            ├── Project B
+            │   └── (Project-scoped deployments, if supported)
+
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### How a model you host differs from a subscription or a vendor key
+
+| | |
+|---|---|
+| **ADO** | [User Story #7257](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7257) |
+| **Content** | [View inline below](#proposal-content-model-behaviour-differences-field-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-model-behaviour-differences-field-guide-3a004f4b` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:model-behaviour-differences-field-guide` (needs-creating, queued) |
+| Subject | `model-behaviour-differences-field-guide` |
+| Targets | `project42dev/project42-platform/content/resources/model-behaviour-differences/` |
+
+<a name="proposal-content-model-behaviour-differences-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# How a Model You Host Differs from a Subscription or a Vendor Key
+
+The important distinction is not **which model name appears in the interface**. It is **who operates the inference service, who controls the surrounding system, and who carries the operational risk**.
+
+A model offered through a subscription, the same or a similar model called through an API key, and a model deployed on your infrastructure can produce comparable text while being fundamentally different systems.
+
+---
+
+## The Three Access Patterns
+
+| Access Pattern          | What You Receive                          | Who Runs Inference       | Typical Billing Unit       | Your Main Responsibility                     |
+|-------------------------|-------------------------------------------|--------------------------|----------------------------|-----------------------------------------------|
+| Application subscription| Access to a provider’s user-facing tool   | Provider                 | User, seat, or time period | Account administration and acceptable use     |
+| Vendor API key          | A credential for programmatic access      | Provider                 | Usage, capacity, or allowance | Application integration and credential security |
+| Model you host          | Model artifacts under a license           | You or your operator     | Compute, storage, operations | The complete inference service                |
+
+These categories describe responsibilities, not commercial labels. A vendor may call an API plan a “subscription,” and a hosted offering may include managed operations. Read the service description and contract to determine who controls what.
+
+---
+
+## 1. An Application Subscription is Access to a Finished Tool
+
+A subscription gives people access to a provider-controlled interface. The provider chooses and operates the model, runtime, safety controls, update schedule, and user experience.
+
+A subscription does **not** give you:
+
+- programmatic access to the model;
+- a transferable allowance
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Model Context Protocol and tool interoperability (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7239](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7239) |
+| **Content** | [View inline below](#proposal-content-model-context-protocol-visual-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-model-context-protocol-visual-guide-dbb5353d` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:model-context-protocol-visual-guide` (needs-creating, queued) |
+| Subject | `model-context-protocol-visual-guide` |
+| Targets | `project42dev/guide.project-42.dev/diagrams/model-context-protocol.mmd, config/diagrams.json` |
+
+<a name="proposal-content-model-context-protocol-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    box MCP host
+        participant H as Host
+        participant C as MCP client
+    end
+    participant S as MCP server
+    participant T as Tool implementation
+
+    U->>H: Request
+    H->>C: Open or reuse connection
+
+    opt New session
+        C->>S: initialize
+        S-->>C: Agreed protocol capabilities
+        C->>S: tools/list
+        S-->>C: Tool definitions: names, descriptions
+    end
+
+    C-->>H: Available tools
+    H->>H: Select a tool and apply host policy or user approval
+
+    alt Call allowed
+        H->>C: Selected tool name and arguments
+        C->>S: tools/call
+        S->>S: Validate arguments and enforce server policy
+        S->>T: Execute tool
+
+        opt Tool needs external system
+            T->>E: Perform operation
+            E-->>T: Return data or status
+            Note right of E: External system or local capability (not standardized by MCP)
+        end
+
+        T-->>S: Output or error
+        S-->>C: Tool result or error
+        C-->>H: Result for further processing
+        H-->>U: Response using the result
+    else Call denied
+        H-->>U: Continue without the tool or request changes
+    end
+
+    Note over C,S: MCP standardizes capability negotiation, tool discovery, and invocation
+    Note over S,T: MCP does not standardize tool implementation or external systems
+```
+
+```yaml
+title: "Model Context Protocol and tool interoperability"
+category: "AI architecture and interoperability"
+level: "Intermediate"
+summary: "How an MCP host discovers and invokes server-provided tools through a standard client–server exchange while execution remains behind the server boundary."
+description: >-
+  This visual guide is written for an intermediate audience. It follows one tool
+  interaction from a user request to a result. An MCP client inside the host
+  establishes a session with an MCP server, negotiates capabilities, and learns
+  which tools the server exposes through tools/list. T
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Endpoint API shapes: deployment names, api-version, and why a client 404s (Field Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7252](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7252) |
+| **Content** | [View inline below](#proposal-content-model-endpoint-api-shapes-and-deployment-names-field-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-model-endpoint-api-shapes-and-deployment-names-field-guide-bcb56bf9` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:model-endpoint-api-shapes-and-deployment-names-field-guide` (needs-creating, queued) |
+| Subject | `model-endpoint-api-shapes-and-deployment-names-field-guide` |
+| Targets | `project42dev/project42-platform/content/resources/model-endpoint-api-shapes-and-deployment-names/` |
+
+<a name="proposal-content-model-endpoint-api-shapes-and-deployment-names-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Endpoint API shapes: deployment names, `api-version`, and why a client 404s
+
+**Written for intermediate practitioners.**
+
+You just got a 404 from your client. Before changing credentials or deployment names, answer these questions in order:
+
+1. Is this the intended host?
+2. Is this the documented path shape?
+3. Is the deployment identifier in the correct place?
+4. Does that deployment belong to this endpoint?
+5. Is this API version supported for this exact operation?
+6. Did the client append or remove any route components?
+7. Could authorization be intentionally masked as 404?
+
+Most 404 investigations become straightforward once you treat the endpoint, deployment name, and API version as separate routing inputs rather than interchangeable labels.
+
+---
+
+## Fast decision tree
+
+```text
+Received an HTTP 404
+        |
+        v
+Does the response appear to come from the intended service host?
+        |
+   no --+--> Correct the host, proxy, or environment.
+        |
+       yes
+        |
+        v
+Does the final path exactly match the documented operation shape?
+        |
+   no --+--> Correct the base URL or client route composition.
+        |
+       yes
+        |
+        v
+Is the deployment identifier in the location required by that shape?
+        |
+   no --+--> Move it to the documented path, body, or client argument.
+        |
+       yes
+        |
+        v
+Does that deployment exist under this exact endpoint?
+        |
+   no --+--> Correct the endpoint–deployment pair.
+        |
+       yes
+        |
+        v
+Is the API version required and supported for this operation?
+        |
+   no --+--> Supply or correct it according to the operation reference.
+        |
+       yes
+        |
+        v
+Compare authentication, method, headers, and body with a minimal
+documented request; consider whether forbidden resources are masked as 404.
+```
+
+---
+
+## The core idea
+
+A client does not call “a model” or “a deployment” in the abstract. It sends an HTTP request to a specific targe
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Multi-agent topologies and failure amplification (Visual Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7250](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7250) |
+| **Content** | [View inline below](#proposal-content-multi-agent-topology-diagram-visual-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-multi-agent-topology-diagram-visual-guide-ce99b595` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:multi-agent-topology-diagram-visual-guide` (needs-creating, queued) |
+| Subject | `multi-agent-topology-diagram-visual-guide` |
+| Targets | `project42dev/guide.project-42.dev/diagrams/multi-agent-topology-diagram.mmd, config/diagrams.json` |
+
+<a name="proposal-content-multi-agent-topology-diagram-visual-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+```mermaid
+flowchart TB
+    subgraph HUB["A. Supervisor / hub-and-spoke"]
+        direction LR
+        SReq["Request"] --> SHub["Supervisor<br/>routes and dispatches"]
+        SHub -->|"dispatch"| SOne["Specialist A"]
+        SHub -->|"dispatch"| STwo["Specialist B"]
+        SOne -->|"return"| SHub
+        STwo -->|"return"| SHub
+        SHub -->|"aggregate"| SResult["Result"]
+
+        SHub -. "hub unavailable" .-> SStop["Whole workflow stops"]
+        STwo -. "bad or late result" .-> SCheck["Validation (UNKNOWN if enforced)"]
+        SCheck -->|"reject, retry, or degrade"| SContained["Branch failure contained (UNKNOWN)"]
+        SCheck -. "accepted unchecked" .-> SResult
+    end
+
+    subgraph PIPE["B. Sequential pipeline"]
+        direction LR
+        PReq["Request"] --> POne["Step 1 agent"]
+        POne --> PCOne["Checkpoint (UNKNOWN if enforced)"]
+        PCOne --> PTwo["Step 2 agent"]
+        PTwo --> PCTwo["Checkpoint (UNKNOWN if enforced)"]
+        PCTwo --> PThree["Step 3 agent"]
+        PThree --> PResult["Result"]
+
+        POne -. "faulty output passes checkpoint" .-> PTwo
+        PTwo -. "builds on the fault" .-> PThree
+        PThree -. "fault reaches the end" .-> PBad["Corrupted result"]
+        PCOne -->|"on failure: reject or repair (UNKNOWN)"| PContained["Propagation stopped (UNKNOWN)"]
+    end
+
+    subgraph MESH["C. Peer mesh"]
+        direction LR
+        MReq["Task enters mesh"] --> MA["Peer A"]
+        MA <--> MB["Peer B"]
+        MB <--> MC["Peer C"]
+        MC <--> MA
+
+        MA --> MBoundary["Boundary validation (UNKNOWN)"]
+        MB --> MBoundary
+        MC --> MBoundary
+        MBoundary --> MResult["Result"]
+
+        MA -. "fault introduced" .-> MFault["Faulty claim from Peer A"]
+        MFault -. "unchecked fan-out" .-> MB
+        MFault -. "unchecked fan-out" .-> MC
+        MB -. "repeat" .-> MC
+        MC -. "feedback" .-> MA
+
+        MFault -->|"if enforced (UNKNOWN)"| MGuard["Provenance checks<br/>deduplication<br/>hop or loop bounds 
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Mapping our orchestration patterns onto named frameworks (Field Guide)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7245](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7245) |
+| **Content** | [View inline below](#proposal-content-orchestration-framework-portability-field-guide) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-orchestration-framework-portability-field-guide-5e1cdec5` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:orchestration-framework-portability-field-guide` (needs-creating, queued) |
+| Subject | `orchestration-framework-portability-field-guide` |
+| Targets | `project42dev/project42-platform/content/resources/orchestration-framework-portability/` |
+
+<a name="proposal-content-orchestration-framework-portability-field-guide"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Mapping our orchestration patterns onto named frameworks
+**Field Guide – Intermediate Level**
+
+---
+
+## How to map observable behavior to named patterns
+
+Use this table to classify an orchestration design based on its behavior, not on its diagrams, class names, or vendor terminology.
+
+| Observable behavior | Primary named framework | Additional applicable pattern | Do not call it this when… |
+|---|---|---|---|
+| A central component decides which participant acts next and tracks progress | **Process Manager** | Orchestrated Saga, state machine | The component only forwards messages without tracking process state |
+| Participants react to events and publish subsequent events without a central controller | **Choreography** | Event-driven Saga, publish–subscribe | A hidden coordinator still determines the sequence |
+| A business operation spans multiple independently committed changes and uses compensating actions | **Saga** | Process Manager or choreography | The operation is one local atomic transaction, or failure is handled only by retry |
+| A message carries the sequence of destinations it should visit | **Routing Slip** | Dynamic routing | A coordinator keeps the route and sends each command itself |
+| One request is sent to several handlers and their replies are collected | **Scatter–Gather** | Aggregator, correlation identifier | Results are never collected or evaluated together |
+| Progress is represented as states and permitted transitions | **Finite-state machine** or **statechart** | Process Manager | The “states” are merely log messages or task statuses with no transition rules |
+| Tasks run when their predecessors are complete, with no cycles allowed | **DAG workflow** | Dataflow or dependency scheduling | The process can intentionally return to an earlier task |
+| A process includes events, gateways, human work, timers, and explicit end states | **BPMN process** | Saga or state machine | The diagram is only informal boxes and arrows |
+| Data passes throu
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
+
+---
+
+### Mapping our orchestration patterns onto named frameworks (Learn)
+
+| | |
+|---|---|
+| **ADO** | [User Story #7242](https://dev.azure.com/hybridcloudsolutions/Project%2042/_workitems/edit/7242) |
+| **Content** | [View inline below](#proposal-content-orchestration-framework-portability-learn) |
+
+| Field | Value |
+|-------|-------|
+| Packet ID | `proposal-p42-create-orchestration-framework-portability-learn-8a7a683a` |
+| Disposition | `ready-for-draft` |
+| Work item | `create:orchestration-framework-portability-learn` (needs-creating, queued) |
+| Subject | `orchestration-framework-portability-learn` |
+| Targets | `project42dev/project42-platform/content/modules/orchestration-framework-portability/` |
+
+<a name="proposal-content-orchestration-framework-portability-learn"></a>
+<details><summary>📄 Proposal content (click to expand)</summary>
+
+# Mapping our orchestration patterns onto named frameworks
+
+This module is written at an **intermediate level**. It assumes familiarity with basic orchestration and choreography concepts, as well as distributed transactions and asynchronous messaging patterns.
+
+Orchestration patterns are often described locally: “run these steps in order,” “wait for all responses,” or “undo completed work if a later step fails.” Named frameworks give us a shared vocabulary for those behaviors.
+
+The mapping is not one-to-one. A single orchestration may combine a workflow, a state machine, a process manager, and a Saga. Map patterns by their observable behavior and responsibility—not by what a diagram or component happens to be called.
+
+---
+
+## Learning objectives
+
+By the end of this lesson, you should be able to:
+
+- distinguish orchestration from choreography;
+- map common control-flow patterns to established workflow terminology;
+- recognize process manager, state machine, Scatter-Gather, and Saga behavior;
+- choose the most useful framework for explaining or reviewing an orchestration;
+- avoid common category errors, such as treating every multi-step workflow as a Saga;
+- explain how a Process Manager differs from a workflow engine;
+- identify when multiple-instance workflow applies versus Scatter-Gather.
+
+---
+
+## Start with behavior
+
+Before assigning a framework, describe the pattern without local terminology:
+
+1. **Who decides what happens next?**
+2. **Where is progress recorded?**
+3. **Are steps sequential, conditional, parallel, or event-driven?**
+4. **Does the coordinator wait for replies?**
+5. **Can execution last beyond one request or process lifetime?**
+6. **What happens after partial failure?**
+7. **Does recovery retry, compensate, stop, or require human action?**
+
+These answers produce a more reliable mapping than component names such as “manager,” “controller,” or “workflow.”
+
+---
+
+## The main framework families
+
+### Workflow and control-flow patterns
+
+A workflow describ
+
+... (truncated — full content in delivery/private/local-proposals/)
+
+</details>
 
 ---
 
 ## Review procedure
 
-See [`docs/runbooks/content-proposal-review.md`](https://github.com/project42dev/orchard/blob/main/docs/runbooks/content-proposal-review.md) for the 9-point human review checklist.
-
-1. Read the proposal and its packet
-2. Verify the deterministic gates
-3. Review the model stages for any red flags
-4. Decide: accept or reject
-5. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):
-   - **`Approved`** — publishes the content
+1. Click each **Content** link above to read the drafted content
+2. Click each **ADO** link to see the tracking User Story
+3. Verify the deterministic gates
+4. Review the model stages for any red flags
+5. Decide: accept or reject
+6. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):
+   - **`Approved`** — publishes the content to the live site
    - **`Denied`** — rejects the content
 
 The `orchard-human-review` workflow will:
 1. Reply to confirm it received your decision
 2. Record the publication or rejection
-3. Close this issue automatically
+3. Commit and push the content to the platform repo (on Approve)
+4. Update the ADO User Story state
+5. Close this issue automatically
 
 You never touch a terminal. Just comment and wait for the confirmation reply.

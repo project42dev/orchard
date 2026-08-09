@@ -18,6 +18,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -400,6 +401,33 @@ function main() {
   if (r.duplicateIds.length) {
     console.error(`\nDUPLICATE ids, only the first of each was indexed: ${r.duplicateIds.join(', ')}`);
     process.exit(1);
+  }
+
+  // Mirror new work items to Azure DevOps if --ado-sync is passed.
+  // This is optional: local dev builds skip it, CI builds include it.
+  if (args['ado-sync'] && r.workItemsCreated > 0) {
+    const org = args['ado-org'] || 'hybridcloudsolutions';
+    const project = args['ado-project'] || 'Project 42';
+    const area = args['ado-area'] || 'Project 42\\Content Intelligence';
+    console.log(`\nADO sync: mirroring ${r.workItemsCreated} new work item(s) to Azure DevOps...`);
+    try {
+      const adoArgs = [
+        `--db`, `"${resolve(dbPath)}"`,
+        `--operation`, `create`,
+        `--org`, org,
+        `--project`, `"${project}"`,
+        `--area`, `"${area}"`,
+        `--apply`,
+      ];
+      execSync(`node "${resolve(HERE, 'ado-sync.mjs')}" ${adoArgs.join(' ')}`, {
+        encoding: 'utf-8',
+        stdio: 'inherit',
+        timeout: 60_000,
+      });
+    } catch (err) {
+      console.error('ADO sync failed (non-fatal — database is still valid):');
+      console.error(err.stderr || err.message);
+    }
   }
 }
 

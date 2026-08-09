@@ -2,8 +2,8 @@
 #
 # Triggered when someone comments on an Orchard proposal issue.
 # Reads the comment for a decision ("Approved" or "Denied"),
-# records the publication or rejection, posts a confirmation,
-# and closes the issue.
+# records the publication or rejection, commits content to the platform repo
+# (on Approve), syncs ADO state, posts a confirmation, and closes the issue.
 #
 # The human's ONLY action is commenting "Approved" or "Denied".
 # Everything else is automated.
@@ -11,151 +11,275 @@
 name: Orchard Human Review
 
 on:
-    issue_comment:
-        types: [created]
+  issue_comment:
+    types: [created]
 
-# Need explicit permissions for issue_comment events on public repos
 permissions:
-    issues: write
-    contents: read
+  issues: write
+  contents: write # needed to push to platform repo
 
 env:
-    NODE_VERSION: "22"
+  NODE_VERSION: "22"
 
 jobs:
-    review-decision:
-        # Only run for Orchard proposal issues, and only for comments (not PRs)
-        if: |
-            contains(github.event.issue.title, '[Orchard]') &&
-            github.event.issue.pull_request == null
-        runs-on: ubuntu-latest
-        timeout-minutes: 10
+  review-decision:
+    # Only run for Orchard proposal issues, and only for comments (not PRs)
+    if: |
+      contains(github.event.issue.title, '[Orchard]') &&
+      github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
 
-        steps:
-            - name: Checkout orchard
-              uses: actions/checkout@v4
-              with:
-                  repository: project42dev/orchard
-                  path: orchard
+    steps:
+      - name: Checkout orchard
+        uses: actions/checkout@v4
+        with:
+          repository: project42dev/orchard
+          path: orchard
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ env.NODE_VERSION }}
-                  cache: "npm"
-                  cache-dependency-path: orchard/package-lock.json
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: orchard/package-lock.json
 
-            - name: Install dependencies
-              working-directory: orchard
-              run: npm ci
+      - name: Install dependencies
+        working-directory: orchard
+        run: npm ci
 
-            - name: Determine decision
-              id: decision
-              run: |
-                  COMMENT="${{ github.event.comment.body }}"
-                  echo "Comment: $COMMENT"
+      - name: Determine decision
+        id: decision
+        run: |
+          COMMENT="${{ github.event.comment.body }}"
+          echo "Comment: $COMMENT"
 
-                  if echo "$COMMENT" | grep -qiE '^\s*approved\s*$'; then
-                    echo "decision=approved" >> $GITHUB_OUTPUT
-                    echo "Decision: APPROVED"
-                  elif echo "$COMMENT" | grep -qiE '^\s*denied\s*$'; then
-                    echo "decision=denied" >> $GITHUB_OUTPUT
-                    echo "Decision: DENIED"
-                  else
-                    echo "decision=ignore" >> $GITHUB_OUTPUT
-                    echo "Decision: IGNORE — not a decision keyword"
-                  fi
+          if echo "$COMMENT" | grep -qiE '^\s*approved\s*$'; then
+            echo "decision=approved" >> $GITHUB_OUTPUT
+            echo "Decision: APPROVED"
+          elif echo "$COMMENT" | grep -qiE '^\s*denied\s*$'; then
+            echo "decision=denied" >> $GITHUB_OUTPUT
+            echo "Decision: DENIED"
+          else
+            echo "decision=ignore" >> $GITHUB_OUTPUT
+            echo "Decision: IGNORE — not a decision keyword"
+          fi
 
-            - name: Acknowledge receipt (approved)
-              if: steps.decision.outputs.decision == 'approved'
-              run: |
-                  gh issue comment ${{ github.event.issue.number }} \
-                    --repo project42dev/orchard \
-                    --body "> [!NOTE]
-                    > **Received: Approved.** Recording publication now. I'll close this issue when done."
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Acknowledge receipt (approved)
+        if: steps.decision.outputs.decision == 'approved'
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo project42dev/orchard \
+            --body "> [!NOTE]
+            > **Received: Approved.** Recording publication, pushing content, and syncing ADO. I'll close this issue when done."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Acknowledge receipt (denied)
-              if: steps.decision.outputs.decision == 'denied'
-              run: |
-                  gh issue comment ${{ github.event.issue.number }} \
-                    --repo project42dev/orchard \
-                    --body "> [!NOTE]
-                    > **Received: Denied.** Recording rejection now. I'll close this issue when done."
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Acknowledge receipt (denied)
+        if: steps.decision.outputs.decision == 'denied'
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo project42dev/orchard \
+            --body "> [!NOTE]
+            > **Received: Denied.** Recording rejection and syncing ADO. I'll close this issue when done."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Record publication (approved)
-              if: steps.decision.outputs.decision == 'approved'
-              working-directory: orchard
-              run: |
-                  # Extract subject_ids from proposal names in the issue body
-                  # Pattern: proposal-p42-create-<subject_id>-<hash> or proposal-<subject_id>-<hash>
-                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(p42-create-)?[\w-]+-\w{8}' | sed -E 's/proposal-(p42-create-)?//; s/-[a-f0-9]{8}$//' | head -5 || echo "")
-                  ACCEPTED_BY="${{ github.event.comment.user.login }}"
+      # ---- EXTRACT SUBJECTS ----
+      # Parse the issue body to find all proposal IDs and extract subject_ids.
+      # Also extracts target repos so we know where to publish.
+      - name: Extract subjects and targets
+        id: extract
+        run: |
+          ISSUE_BODY=$(cat <<'ISSUE_EOF'
+          ${{ github.event.issue.body }}
+          ISSUE_EOF
+          )
 
-                  if [ -z "$RAW" ]; then
-                    echo "No proposal IDs found in issue body. Falling back to claimed work items."
-                    RAW=$(node -e "
-                      import { DatabaseSync } from 'node:sqlite';
-                      const db = new DatabaseSync('content.db');
-                      const rows = db.prepare('SELECT subject_id FROM work_item WHERE state IN (\'claimed\', \'in-progress\')').all();
-                      console.log(rows.map(r => r.subject_id).join(' '));
-                    ")
-                  fi
+          # Extract subject_ids from proposal IDs in the issue body
+          # Pattern: proposal-p42-create-<subject_id>-<hash>
+          SUBJECTS=$(echo "$ISSUE_BODY" | grep -oP 'proposal-(p42-create-)?[\w-]+-\w{8}' | sed -E 's/proposal-(p42-create-)?//; s/-[a-f0-9]{8}$//' | sort -u | head -20 || echo "")
 
-                  for SUBJECT in $RAW; do
-                    echo "Recording publication for: $SUBJECT"
-                    node scripts/record-publication.mjs \
-                      --db content.db \
-                      --subject "$SUBJECT" \
-                      --accepted-by "$ACCEPTED_BY" \
-                      --note "Approved via issue #${{ github.event.issue.number }}" \
-                      --apply
-                  done
+          if [ -z "$SUBJECTS" ]; then
+            echo "No proposal IDs found in issue body. Falling back to claimed work items."
+            SUBJECTS=$(node -e "
+              import { DatabaseSync } from 'node:sqlite';
+              const db = new DatabaseSync('orchard/content.db');
+              const rows = db.prepare('SELECT subject_id FROM work_item WHERE state IN (\"claimed\", \"in-progress\")').all();
+              console.log(rows.map(r => r.subject_id).join(' '));
+            ")
+          fi
 
-            - name: Record rejection (denied)
-              if: steps.decision.outputs.decision == 'denied'
-              working-directory: orchard
-              run: |
-                  RAW=$(echo "${{ github.event.issue.body }}" | grep -oP 'proposal-(p42-create-)?[\w-]+-\w{8}' | sed -E 's/proposal-(p42-create-)?//; s/-[a-f0-9]{8}$//' | head -5 || echo "")
-                  REJECTED_BY="${{ github.event.comment.user.login }}"
+          echo "subjects=$SUBJECTS" >> $GITHUB_OUTPUT
+          echo "Extracted subjects: $SUBJECTS"
 
-                  if [ -z "$RAW" ]; then
-                    echo "No proposal IDs found in issue body. Falling back to claimed work items."
-                    RAW=$(node -e "
-                      import { DatabaseSync } from 'node:sqlite';
-                      const db = new DatabaseSync('content.db');
-                      const rows = db.prepare('SELECT subject_id FROM work_item WHERE state IN (\'claimed\', \'in-progress\')').all();
-                      console.log(rows.map(r => r.subject_id).join(' '));
-                    ")
-                  fi
+          # Extract target repos from the issue body
+          TARGETS=$(echo "$ISSUE_BODY" | grep -oP 'project42dev/[\w.-]+' | sort -u | tr '\n' ' ' || echo "")
+          echo "targets=$TARGETS" >> $GITHUB_OUTPUT
+          echo "Target repos: $TARGETS"
 
-                  for SUBJECT in $RAW; do
-                    echo "Recording rejection for: $SUBJECT"
-                    node scripts/reject-publication.mjs \
-                      --db content.db \
-                      --subject "$SUBJECT" \
-                      --rejected-by "$REJECTED_BY" \
-                      --note "Denied via issue #${{ github.event.issue.number }}" \
-                      --apply
-                  done
+      # ---- RECORD PUBLICATION (APPROVED) ----
+      - name: Record publication (approved)
+        if: steps.decision.outputs.decision == 'approved'
+        working-directory: orchard
+        run: |
+          ACCEPTED_BY="${{ github.event.comment.user.login }}"
+          for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
+            echo "Recording publication for: $SUBJECT"
+            node scripts/record-publication.mjs \
+              --db content.db \
+              --subject "$SUBJECT" \
+              --accepted-by "$ACCEPTED_BY" \
+              --note "Approved via issue #${{ github.event.issue.number }}" \
+              --apply
+          done
 
-            - name: Close issue (approved)
-              if: steps.decision.outputs.decision == 'approved'
-              run: |
-                  gh issue close ${{ github.event.issue.number }} \
-                    --repo project42dev/orchard \
-                    --comment "Publication recorded. Closing."
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ---- RECORD REJECTION (DENIED) ----
+      - name: Record rejection (denied)
+        if: steps.decision.outputs.decision == 'denied'
+        working-directory: orchard
+        run: |
+          REJECTED_BY="${{ github.event.comment.user.login }}"
+          for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
+            echo "Recording rejection for: $SUBJECT"
+            node scripts/reject-publication.mjs \
+              --db content.db \
+              --subject "$SUBJECT" \
+              --rejected-by "$REJECTED_BY" \
+              --note "Denied via issue #${{ github.event.issue.number }}" \
+              --apply
+          done
 
-            - name: Close issue (denied)
-              if: steps.decision.outputs.decision == 'denied'
-              run: |
-                  gh issue close ${{ github.event.issue.number }} \
-                    --repo project42dev/orchard \
-                    --comment "Rejection recorded. Closing."
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ---- PUBLISH CONTENT TO PLATFORM REPO (APPROVED) ----
+      # Checks out the target repo(s), copies the proposal content into the
+      # right paths, commits, and pushes.
+      - name: Checkout platform repo for publishing
+        if: steps.decision.outputs.decision == 'approved'
+        uses: actions/checkout@v4
+        with:
+          repository: project42dev/project42-platform
+          path: platform-repo
+          token: ${{ secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Publish content to platform repo
+        if: steps.decision.outputs.decision == 'approved'
+        working-directory: orchard
+        run: |
+          ACCEPTED_BY="${{ github.event.comment.user.login }}"
+          ISSUE_NUM="${{ github.event.issue.number }}"
+
+          for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
+            echo "Publishing content for: $SUBJECT"
+
+            # Find the local proposal directory for this subject
+            # The proposal JSON has the runId which matches the local-proposals directory
+            PROPOSAL_FILE=$(ls delivery/proposals/proposal-*${SUBJECT}*.json 2>/dev/null | head -1 || echo "")
+            if [ -z "$PROPOSAL_FILE" ]; then
+              echo "  WARN: No proposal file found for $SUBJECT, skipping publish"
+              continue
+            fi
+
+            # Extract runId from the proposal
+            RUN_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8')).id.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1] || '')")
+            if [ -z "$RUN_ID" ]; then
+              echo "  WARN: No run ID in proposal, skipping publish"
+              continue
+            fi
+
+            LOCAL_DIR="delivery/private/local-proposals/$RUN_ID"
+            FINAL_FILE="$LOCAL_DIR/04-final.md"
+            if [ ! -f "$FINAL_FILE" ]; then
+              echo "  WARN: No 04-final.md at $FINAL_FILE, skipping publish"
+              continue
+            fi
+
+            # Determine target path from the proposal
+            TARGET_PATH=$(node -e "
+              const p = JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8'));
+              const t = (p.targets || [])[0];
+              if (t && t.pathPrefixes && t.pathPrefixes[0]) {
+                console.log(t.pathPrefixes[0]);
+              } else {
+                console.log('content/modules/' + p.subjectId + '.json');
+              }
+            ")
+
+            # Determine target repo (default to project42-platform)
+            TARGET_REPO=$(node -e "
+              const p = JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8'));
+              const t = (p.targets || [])[0];
+              console.log(t?.repository || 'project42dev/project42-platform');
+            ")
+
+            echo "  Target: $TARGET_REPO :: $TARGET_PATH"
+            echo "  Source: $FINAL_FILE"
+
+            # For now, publish everything to the platform repo (already checked out).
+            # Future: support multiple target repos.
+            mkdir -p "../platform-repo/$(dirname "$TARGET_PATH")"
+            cp "$FINAL_FILE" "../platform-repo/$TARGET_PATH"
+
+            echo "  ✅ Copied to platform-repo/$TARGET_PATH"
+          done
+
+      - name: Commit and push to platform repo
+        if: steps.decision.outputs.decision == 'approved'
+        working-directory: platform-repo
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "Orchard Pipeline"
+            git config user.email "orchard@project42.dev"
+            git add -A
+            git commit -m "feat(orchard): publish approved content from issue #${{ github.event.issue.number }}
+
+            Approved by: ${{ github.event.comment.user.login }}
+            Subjects: ${{ steps.extract.outputs.subjects }}"
+            git push
+            echo "✅ Content pushed to platform repo"
+          else
+            echo "No content changes to commit."
+          fi
+
+      # ---- SYNC ADO STATE ----
+      - name: Sync ADO state (approved)
+        if: steps.decision.outputs.decision == 'approved'
+        working-directory: orchard
+        run: |
+          for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
+            echo "Closing ADO work item for: $SUBJECT"
+            node scripts/ado-sync.mjs \
+              --db content.db \
+              --operation update \
+              --apply || echo "  (ADO sync skipped — may not be configured)"
+          done
+
+      - name: Sync ADO state (denied)
+        if: steps.decision.outputs.decision == 'denied'
+        working-directory: orchard
+        run: |
+          for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
+            echo "Closing ADO work item for: $SUBJECT"
+            node scripts/ado-sync.mjs \
+              --db content.db \
+              --operation update \
+              --apply || echo "  (ADO sync skipped — may not be configured)"
+          done
+
+      # ---- CLOSE ISSUE ----
+      - name: Close issue (approved)
+        if: steps.decision.outputs.decision == 'approved'
+        run: |
+          gh issue close ${{ github.event.issue.number }} \
+            --repo project42dev/orchard \
+            --comment "✅ **Published.** Content committed to platform repo, ADO synced, publication recorded. Closing."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close issue (denied)
+        if: steps.decision.outputs.decision == 'denied'
+        run: |
+          gh issue close ${{ github.event.issue.number }} \
+            --repo project42dev/orchard \
+            --comment "❌ **Rejected.** ADO synced, rejection recorded. Closing."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

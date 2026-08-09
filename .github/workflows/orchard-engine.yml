@@ -16,188 +16,191 @@
 name: Orchard Engine
 
 on:
-    schedule:
-        # Run daily at 08:00 UTC (adjust to your review cadence)
-        - cron: "0 8 * * *"
-    workflow_dispatch:
-        inputs:
-            mode:
-                description: "Delivery mode (harness or engine)"
-                required: true
-                default: "harness"
-                type: choice
-                options:
-                    - harness
-                    - engine
-            offline:
-                description: "Run discovery in offline mode (no live fetches)"
-                default: true
-                type: boolean
+  schedule:
+    # Run daily at 08:00 UTC (adjust to your review cadence)
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Delivery mode (harness or engine)"
+        required: true
+        default: "harness"
+        type: choice
+        options:
+          - harness
+          - engine
+      offline:
+        description: "Run discovery in offline mode (no live fetches)"
+        default: true
+        type: boolean
 
 # Only one lifecycle run at a time. A new dispatch cancels an in-progress one.
 concurrency:
-    group: orchard-engine
-    cancel-in-progress: false
+  group: orchard-engine
+  cancel-in-progress: false
 
 permissions:
-    contents: read
-    issues: write
-    id-token: write
+  contents: read
+  issues: write
+  id-token: write
 
 env:
-    NODE_VERSION: "22"
+  NODE_VERSION: "22"
 
 jobs:
-    lifecycle:
-        runs-on: ubuntu-latest
-        timeout-minutes: 60
+  lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
 
-        # Only run scheduled on the default branch
-        # workflow_dispatch can run on any branch
-        if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
+    # Only run scheduled on the default branch
+    # workflow_dispatch can run on any branch
+    if: github.event_name != 'schedule' || github.ref == 'refs/heads/main'
 
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ env.NODE_VERSION }}
-                  cache: "npm"
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
 
-            - name: Install dependencies
-              run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-            # ---- Phase 0: Checkout platform repo for corpus ----
-            - name: Checkout project42-platform (corpus)
-              uses: actions/checkout@v4
-              with:
-                  repository: project42dev/project42-platform
-                  path: platform-corpus
+      # ---- Phase 0: Checkout platform repo for corpus ----
+      - name: Checkout project42-platform (corpus)
+        uses: actions/checkout@v4
+        with:
+          repository: project42dev/project42-platform
+          path: platform-corpus
 
-            # ---- Phase 1: Discovery ----
-            - name: Discover content opportunities
-              id: discover
-              run: |
-                  # Ensure probes.json exists (use example as starter if not present)
-                  if [ ! -f content/probes.json ]; then
-                    echo "No probes.json found; copying example as starter."
-                    cp content/opportunity-probes.example.json content/probes.json
-                  fi
-                  OFFLINE_FLAG=""
-                  if [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
-                    OFFLINE_FLAG="--offline"
-                  fi
-                  node scripts/discover-content-opportunities.mjs \
-                    --registry content/opportunity-registry.starter.json \
-                    --corpus platform-corpus/content \
-                    --probes content/probes.json \
-                    --out delivery/discovery-proposals.json \
-                    --gap-threshold 0 \
-                    --surface learn \
-                    --timeout 30 \
-                    $OFFLINE_FLAG
-              continue-on-error: false
+      # ---- Phase 1: Discovery ----
+      - name: Discover content opportunities
+        id: discover
+        run: |
+          # Ensure probes.json exists (use example as starter if not present)
+          if [ ! -f content/probes.json ]; then
+            echo "No probes.json found; copying example as starter."
+            cp content/opportunity-probes.example.json content/probes.json
+          fi
+          OFFLINE_FLAG=""
+          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
+            OFFLINE_FLAG="--offline"
+          fi
+          node scripts/discover-content-opportunities.mjs \
+            --registry content/opportunity-registry.starter.json \
+            --corpus platform-corpus/content \
+            --probes content/probes.json \
+            --out delivery/discovery-proposals.json \
+            --gap-threshold 0 \
+            --surface learn \
+            --timeout 30 \
+            $OFFLINE_FLAG
+        continue-on-error: false
 
-            # ---- Phase 2: Scoring ----
-            - name: Score opportunities
-              id: score
-              run: |
-                  node scripts/score-opportunities.mjs \
-                    --registry content/opportunity-registry.starter.json
-              continue-on-error: false
+      # ---- Phase 2: Scoring ----
+      - name: Score opportunities
+        id: score
+        run: |
+          node scripts/score-opportunities.mjs \
+            --registry content/opportunity-registry.starter.json
+        continue-on-error: false
 
-            # ---- Phase 3: Database ----
-            - name: Build content database
-              id: build-db
-              run: |
-                  node scripts/build-content-db.mjs \
-                    --content platform-corpus/content \
-                    --db content.db
-              continue-on-error: false
+      # ---- Phase 3: Database ----
+      - name: Build content database
+        id: build-db
+        run: |
+          node scripts/build-content-db.mjs \
+            --content platform-corpus/content \
+            --db content.db \
+            --ado-sync
+        continue-on-error: false
 
-            # ---- Phase 4: Briefs ----
-            - name: Generate delivery briefs
-              id: briefs
-              run: |
-                  node scripts/generate-briefs.mjs \
-                    --db content.db \
-                    --out briefs/queue.json \
-                    --inventory config/deployed-models.json
-              continue-on-error: false
+      # ---- Phase 4: Briefs ----
+      - name: Generate delivery briefs
+        id: briefs
+        run: |
+          node scripts/generate-briefs.mjs \
+            --db content.db \
+            --out briefs/queue.json \
+            --inventory config/deployed-models.json
+        continue-on-error: false
 
-            # ---- Phase 5: Delivery ----
-            # This step requires Azure authentication. The workflow uses OIDC to
-            # authenticate to Azure, then the delivery harness uses the resulting
-            # token to call the Foundry endpoint.
-            # Skipped when there are no briefs to deliver (queue.json is empty or
-            # has zero items).
-            - name: Check for briefs to deliver
-              id: check-briefs
-              run: |
-                  COUNT=$(node -e "const q=require('./briefs/queue.json'); console.log((q.items||[]).length)")
-                  echo "count=$COUNT" >> $GITHUB_OUTPUT
-                  if [ "$COUNT" -eq 0 ]; then
-                    echo "No briefs to deliver; skipping delivery, ingest, and notify."
-                  fi
+      # ---- Phase 5: Delivery ----
+      # This step requires Azure authentication. The workflow uses OIDC to
+      # authenticate to Azure, then the delivery harness uses the resulting
+      # token to call the Foundry endpoint.
+      # Skipped when there are no briefs to deliver (queue.json is empty or
+      # has zero items).
+      - name: Check for briefs to deliver
+        id: check-briefs
+        run: |
+          COUNT=$(node -e "const q=require('./briefs/queue.json'); console.log((q.items||[]).length)")
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No briefs to deliver; skipping delivery, ingest, and notify."
+          fi
 
-            - name: Azure login
-              if: steps.check-briefs.outputs.count != '0'
-              uses: azure/login@v2
-              with:
-                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
-                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure login
+        if: steps.check-briefs.outputs.count != '0'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-            - name: Run delivery ensemble
-              id: delivery
-              if: steps.check-briefs.outputs.count != '0'
-              run: |
-                  pwsh -NoProfile -File delivery/Invoke-Project42Delivery.ps1 \
-                    -Mode ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'harness' }} \
-                    -BriefPath briefs/queue.json \
-                    -Execute
-              env:
-                  FOUNDRY_ENDPOINT: ${{ secrets.FOUNDRY_ENDPOINT }}
-                  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-              continue-on-error: false
+      - name: Run delivery ensemble
+        id: delivery
+        if: steps.check-briefs.outputs.count != '0'
+        run: |
+          pwsh -NoProfile -File delivery/Invoke-Project42Delivery.ps1 \
+            -Mode ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'harness' }} \
+            -BriefPath briefs/queue.json \
+            -Execute
+        env:
+          FOUNDRY_ENDPOINT: ${{ secrets.FOUNDRY_ENDPOINT }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+        continue-on-error: false
 
-            # ---- Phase 6: Ingest ----
-            - name: Ingest proposals
-              id: ingest
-              if: steps.check-briefs.outputs.count != '0'
-              run: |
-                  node scripts/ingest-proposals.mjs \
-                    --db content.db \
-                    --run-records delivery/run-records \
-                    --apply
-              continue-on-error: false
+      # ---- Phase 6: Ingest ----
+      - name: Ingest proposals
+        id: ingest
+        if: steps.check-briefs.outputs.count != '0'
+        run: |
+          node scripts/ingest-proposals.mjs \
+            --db content.db \
+            --run-records delivery/run-records \
+            --apply \
+            --ado-sync
+        continue-on-error: false
 
-            # ---- Phase 7: Notify ----
-            - name: Notify review ready
-              id: notify
-              if: steps.check-briefs.outputs.count != '0'
-              run: |
-                  node scripts/notify-review-ready.mjs \
-                    --db content.db \
-                    --proposals delivery/proposals
-              env:
-                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              continue-on-error: false
+      # ---- Phase 7: Notify ----
+      - name: Notify review ready
+        id: notify
+        if: steps.check-briefs.outputs.count != '0'
+        run: |
+          node scripts/notify-review-ready.mjs \
+            --db content.db \
+            --proposals delivery/proposals \
+            --local-proposals delivery/private/local-proposals
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
 
-            # ---- Summary ----
-            - name: Summary
-              if: always()
-              run: |
-                  echo "## Orchard Engine Run" >> $GITHUB_STEP_SUMMARY
-                  echo "" >> $GITHUB_STEP_SUMMARY
-                  echo "| Phase | Status |" >> $GITHUB_STEP_SUMMARY
-                  echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-                  echo "| Discover | ${{ steps.discover.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Score | ${{ steps.score.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Build DB | ${{ steps.build-db.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Briefs | ${{ steps.briefs.outcome }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Delivery | ${{ steps.delivery.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Ingest | ${{ steps.ingest.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
-                  echo "| Notify | ${{ steps.notify.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+      # ---- Summary ----
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Orchard Engine Run" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Phase | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Discover | ${{ steps.discover.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Score | ${{ steps.score.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build DB | ${{ steps.build-db.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Briefs | ${{ steps.briefs.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Delivery | ${{ steps.delivery.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ingest | ${{ steps.ingest.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Notify | ${{ steps.notify.outcome || 'skipped' }} |" >> $GITHUB_STEP_SUMMARY

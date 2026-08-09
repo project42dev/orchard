@@ -17,6 +17,7 @@
 
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join, basename, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -213,6 +214,47 @@ export function ingest({ dbPath, runRecordDir, now = new Date().toISOString(), a
   return { applied, unmatched, protectedItems, unknownDisposition };
 }
 
+// ---------------------------------------------------------------------------
+// ADO state sync: after ingest moves work items, push state changes to ADO.
+// Called from main() when --ado-sync is passed.
+// ---------------------------------------------------------------------------
+function syncAdoStates({ dbPath, org, project, applied, apply }) {
+  if (applied.length === 0) return;
+
+  const adoIds = [];
+  const db2 = new DatabaseSync(dbPath);
+  try {
+    for (const a of applied) {
+      const row = db2.prepare('SELECT ado_id FROM work_item WHERE id = ?').get(a.subjectId)
+        || db2.prepare('SELECT ado_id FROM work_item WHERE subject_id = ?').get(a.subjectId);
+      if (row?.ado_id) adoIds.push({ adoId: row.ado_id, subjectId: a.subjectId, to: a.to });
+    }
+  } finally {
+    db2.close();
+  }
+
+  if (adoIds.length === 0) {
+    console.log('  (no ADO IDs to sync — items may not have been mirrored yet)');
+    return;
+  }
+
+  console.log(`  ADO sync: updating ${adoIds.length} work item(s)...`);
+  for (const { adoId, subjectId, to } of adoIds) {
+    const adoState = { queued: 'New', claimed: 'Active', 'in-progress': 'Active', blocked: 'Active' }[to] || 'Active';
+    try {
+      if (apply) {
+        execSync(
+          `az boards work-item update --id ${adoId} --org "https://dev.azure.com/${org}" --state "${adoState}" --output json`,
+          { encoding: 'utf-8', timeout: 15_000 }
+        );
+      }
+      console.log(`    ${apply ? '✅' : '[DRY RUN]'} ${subjectId} (ADO #${adoId}) -> ${adoState}`);
+    } catch (err) {
+      console.error(`    ❌ ${subjectId} (ADO #${adoId}): ${err.stderr || err.message}`);
+    }
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.db || !args['run-records']) {
@@ -244,6 +286,19 @@ function main() {
     console.log('  scripts/generate-briefs.mjs writes briefs that carry it.');
   }
   if (!args.apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
+
+  // Sync ADO states if requested
+  if (args['ado-sync'] && r.applied.length > 0) {
+    const org = args['ado-org'] || 'hybridcloudsolutions';
+    const project = args['ado-project'] || 'Project 42';
+    syncAdoStates({
+      dbPath: resolve(args.db),
+      org,
+      project,
+      applied: r.applied,
+      apply: Boolean(args.apply),
+    });
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
