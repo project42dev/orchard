@@ -243,6 +243,15 @@ jobs:
 
             echo "  Found: $FINAL_FILE"
 
+            # Determine the surface type from the subject ID
+            SURFACE=$(node -e "
+              const s = '$SUBJECT';
+              if (s.endsWith('-visual-guide')) console.log('visual-guide');
+              else if (s.endsWith('-learn')) console.log('learn');
+              else if (s.endsWith('-field-guide')) console.log('field-guide');
+              else console.log('learn');
+            ")
+
             # Determine target path from the proposal
             TARGET_PATH=$(node -e "
               const p = JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8'));
@@ -250,26 +259,36 @@ jobs:
               if (t && t.pathPrefixes && t.pathPrefixes[0]) {
                 console.log(t.pathPrefixes[0]);
               } else {
-                console.log('content/modules/' + p.subjectId + '.json');
+                // Fallback: derive from surface
+                const s = '$SURFACE';
+                if (s === 'visual-guide') console.log('content/diagrams/');
+                else if (s === 'learn') console.log('content/modules/' + p.subjectId + '/');
+                else console.log('content/resources/' + p.subjectId + '/');
               }
             ")
 
-            # Determine target repo (default to project42-platform)
-            TARGET_REPO=$(node -e "
-              const p = JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8'));
-              const t = (p.targets || [])[0];
-              console.log(t?.repository || 'project42dev/project42-platform');
-            ")
+            # Determine the output filename
+            if [ "$SURFACE" = "visual-guide" ]; then
+              OUTPUT_FILE="${TARGET_PATH}$(basename "$TARGET_PATH" .mmd).mmd"
+              # Ensure it ends with .mmd
+              if ! echo "$OUTPUT_FILE" | grep -q '\.mmd$'; then
+                OUTPUT_FILE="${OUTPUT_FILE}.mmd"
+              fi
+            else
+              OUTPUT_FILE="${TARGET_PATH}${SUBJECT}.json"
+            fi
 
-            echo "  Target: $TARGET_REPO :: $TARGET_PATH"
-            echo "  Source: $FINAL_FILE"
+            echo "  Surface: $SURFACE"
+            echo "  Target: $OUTPUT_FILE"
 
-            # For now, publish everything to the platform repo (already checked out).
-            # Future: support multiple target repos.
-            mkdir -p "../platform-repo/$(dirname "$TARGET_PATH")"
-            cp "$FINAL_FILE" "../platform-repo/$TARGET_PATH"
+            # Convert format: markdown → platform JSON or raw mermaid
+            node scripts/convert-delivery-format.mjs \
+              --input "$FINAL_FILE" \
+              --output "../platform-repo/$OUTPUT_FILE" \
+              --surface "$SURFACE" \
+              --subject "$SUBJECT"
 
-            echo "  ✅ Copied to platform-repo/$TARGET_PATH"
+            echo "  ✅ Converted and copied to platform-repo/$OUTPUT_FILE"
           done
 
       - name: Commit and push to platform repo
