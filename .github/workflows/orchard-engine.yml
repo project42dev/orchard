@@ -137,7 +137,7 @@ jobs:
       - name: Check for briefs to deliver
         id: check-briefs
         run: |
-          COUNT=$(node -e "const q=require('./briefs/queue.json'); console.log((q.items||[]).length)")
+          COUNT=$(node -e "const q=require('./briefs/queue.json'); console.log(Array.isArray(q) ? q.length : (q.items||[]).length)")
           echo "count=$COUNT" >> $GITHUB_OUTPUT
           if [ "$COUNT" -eq 0 ]; then
             echo "No briefs to deliver; skipping delivery, ingest, and notify."
