@@ -184,10 +184,27 @@ jobs:
           node scripts/notify-review-ready.mjs \
             --db content.db \
             --proposals delivery/proposals \
-            --local-proposals delivery/private/local-proposals
+            --local-proposals delivery/private/local-proposals \
+            --engine-run-id "${{ github.run_id }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: false
+
+      # ---- Upload delivery artifacts for human-review workflow ----
+      # delivery/private/ is gitignored, so the human-review workflow can't
+      # see 04-final.md files from a fresh checkout. Upload them as a workflow
+      # artifact so the human-review workflow can download and publish them.
+      # Also include content.db so record-publication.mjs changes persist.
+      - name: Upload delivery artifacts
+        if: steps.check-briefs.outputs.count != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: orchard-delivery-${{ github.run_id }}
+          path: |
+            delivery/private/
+            delivery/proposals/
+            content.db
+          retention-days: 30
 
       # ---- Summary ----
       - name: Summary

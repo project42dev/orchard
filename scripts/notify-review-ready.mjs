@@ -101,10 +101,13 @@ function matchToWorkItems(db, proposals) {
 // ---------------------------------------------------------------------------
 // issue body builder
 
-function buildIssueBody(matched, localProposalsDir) {
+function buildIssueBody(matched, localProposalsDir, engineRunId) {
     /** Builds a markdown issue body summarizing all proposals ready for review.
      *  When localProposalsDir is provided, includes the actual proposal content
-     *  in collapsible sections so reviewers can read it directly in the issue. */
+     *  in collapsible sections so reviewers can read it directly in the issue.
+     *  engineRunId is the GitHub Actions run ID of the engine workflow that
+     *  produced these proposals — embedded as an HTML comment so the
+     *  human-review workflow can find the right artifact. */
 
     const lines = [
         '## Orchard proposals ready for review',
@@ -117,6 +120,12 @@ function buildIssueBody(matched, localProposalsDir) {
         '---',
         '',
     ];
+
+    // Embed engine run ID for artifact download by human-review workflow
+    if (engineRunId) {
+        lines.push(`<!-- orchard-engine-run-id: ${engineRunId} -->`);
+        lines.push('');
+    }
 
     for (const m of matched) {
         const p = m.proposal;
@@ -322,6 +331,7 @@ function main() {
             'dry-run': { type: 'boolean', default: false },
             'tracker': { type: 'string' },  // path to issue-tracker.json
             'local-proposals': { type: 'string' },  // path to local-proposals dir with 04-final.md files
+            'engine-run-id': { type: 'string' },  // GITHUB_RUN_ID of the engine workflow
         },
     });
 
@@ -380,7 +390,8 @@ function main() {
     const localProposalsDir = args.values['local-proposals']
         ? resolve(args.values['local-proposals'])
         : resolve(proposalDir, '..', 'private', 'local-proposals');
-    const body = buildIssueBody(matched, existsSync(localProposalsDir) ? localProposalsDir : null);
+    const engineRunId = args.values['engine-run-id'] || null;
+    const body = buildIssueBody(matched, existsSync(localProposalsDir) ? localProposalsDir : null, engineRunId);
 
     // Derive a meaningful title from the dispositions present.
     const dispositions = [...new Set(matched.map(m => m.packet.disposition))].sort();

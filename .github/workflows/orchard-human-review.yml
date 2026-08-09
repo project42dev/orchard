@@ -163,8 +163,36 @@ jobs:
           done
 
       # ---- PUBLISH CONTENT TO PLATFORM REPO (APPROVED) ----
-      # Checks out the target repo(s), copies the proposal content into the
-      # right paths, commits, and pushes.
+      # Downloads the delivery artifacts from the engine workflow run that
+      # produced these proposals. delivery/private/ is gitignored, so a fresh
+      # checkout doesn't have the 04-final.md files.
+      # The engine run ID is embedded as an HTML comment in the issue body:
+      # <!-- orchard-engine-run-id: 1234567890 -->
+      - name: Extract engine run ID from issue body
+        id: engine-run
+        if: steps.decision.outputs.decision == 'approved'
+        run: |
+          ISSUE_BODY=$(cat <<'ISSUE_EOF'
+          ${{ github.event.issue.body }}
+          ISSUE_EOF
+          )
+          ENGINE_RUN=$(echo "$ISSUE_BODY" | grep -oP '<!-- orchard-engine-run-id: \K\d+' | head -1 || echo "")
+          if [ -n "$ENGINE_RUN" ]; then
+            echo "Engine run ID: $ENGINE_RUN"
+            echo "id=$ENGINE_RUN" >> $GITHUB_OUTPUT
+          else
+            echo "WARN: No engine run ID found in issue body. Artifact download will be skipped."
+            echo "id=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download delivery artifacts
+        if: steps.decision.outputs.decision == 'approved' && steps.engine-run.outputs.id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: orchard-delivery-${{ steps.engine-run.outputs.id }}
+          path: orchard/
+        continue-on-error: true
+
       - name: Checkout platform repo for publishing
         if: steps.decision.outputs.decision == 'approved'
         uses: actions/checkout@v4
@@ -184,26 +212,36 @@ jobs:
             echo "Publishing content for: $SUBJECT"
 
             # Find the local proposal directory for this subject
-            # The proposal JSON has the runId which matches the local-proposals directory
+            # The proposal JSON has the 8-char hex suffix that matches the
+            # first 8 chars of the run directory UUID in local-proposals/.
             PROPOSAL_FILE=$(ls delivery/proposals/proposal-*${SUBJECT}*.json 2>/dev/null | head -1 || echo "")
             if [ -z "$PROPOSAL_FILE" ]; then
               echo "  WARN: No proposal file found for $SUBJECT, skipping publish"
               continue
             fi
 
-            # Extract runId from the proposal
-            RUN_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8')).id.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1] || '')")
-            if [ -z "$RUN_ID" ]; then
-              echo "  WARN: No run ID in proposal, skipping publish"
+            # Extract the 8-char hex suffix from the proposal ID
+            # proposal ID format: proposal-p42-create-<subject>-<8hex>
+            HEX_SUFFIX=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$PROPOSAL_FILE','utf8')).id.match(/-([0-9a-f]{8})$/i)?.[1] || '')")
+            if [ -z "$HEX_SUFFIX" ]; then
+              echo "  WARN: No hex suffix in proposal ID, skipping publish"
               continue
             fi
 
-            LOCAL_DIR="delivery/private/local-proposals/$RUN_ID"
-            FINAL_FILE="$LOCAL_DIR/04-final.md"
+            # Find the run directory by prefix-matching the hex suffix
+            RUN_DIR=$(ls -d delivery/private/local-proposals/${HEX_SUFFIX}* 2>/dev/null | head -1 || echo "")
+            if [ -z "$RUN_DIR" ]; then
+              echo "  WARN: No run directory found for hex suffix $HEX_SUFFIX, skipping publish"
+              continue
+            fi
+
+            FINAL_FILE="$RUN_DIR/04-final.md"
             if [ ! -f "$FINAL_FILE" ]; then
               echo "  WARN: No 04-final.md at $FINAL_FILE, skipping publish"
               continue
             fi
+
+            echo "  Found: $FINAL_FILE"
 
             # Determine target path from the proposal
             TARGET_PATH=$(node -e "
@@ -250,6 +288,28 @@ jobs:
             echo "✅ Content pushed to platform repo"
           else
             echo "No content changes to commit."
+          fi
+
+      # ---- COMMIT UPDATED DB BACK TO ORCHARD ----
+      # record-publication.mjs updated content.db (work_item state → done,
+      # publication row inserted). Commit those changes back so the next
+      # engine run sees the updated state.
+      - name: Commit updated DB to orchard
+        if: steps.decision.outputs.decision == 'approved'
+        working-directory: orchard
+        run: |
+          if [ -f content.db ] && [ -n "$(git status --porcelain content.db 2>/dev/null || echo "")" ]; then
+            git config user.name "Orchard Pipeline"
+            git config user.email "orchard@project42.dev"
+            git add content.db
+            git commit -m "chore(orchard): update content.db after publishing issue #${{ github.event.issue.number }}
+
+            Approved by: ${{ github.event.comment.user.login }}
+            Subjects: ${{ steps.extract.outputs.subjects }}"
+            git push
+            echo "✅ content.db committed back to orchard"
+          else
+            echo "No content.db changes to commit (DB may not be tracked or unchanged)."
           fi
 
       # ---- SYNC ADO STATE ----
