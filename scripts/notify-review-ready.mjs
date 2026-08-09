@@ -109,6 +109,9 @@ function buildIssueBody(matched, localProposalsDir) {
     const lines = [
         '## Orchard proposals ready for review',
         '',
+        '> [!IMPORTANT]',
+        '> @kristopherjturner — please review and comment **`Approved`** or **`Denied`** to trigger publication.',
+        '',
         `**${matched.length} proposal(s)** emitted by the delivery ensemble and awaiting human decision.`,
         '',
         '---',
@@ -364,7 +367,7 @@ function main() {
 
     // 5. Check for existing issue
     const tracker = readIssueTracker(trackerPath);
-    const proposalDigests = matched.map(m => m.proposal.proposalDigest);
+    const proposalDigests = matched.map(m => digest(m.proposal.id || m.proposal.proposalId || JSON.stringify(m.proposal)));
     const existing = findExistingIssue(tracker, proposalDigests);
 
     if (existing) {
