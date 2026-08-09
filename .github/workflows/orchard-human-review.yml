@@ -97,8 +97,10 @@ jobs:
           )
 
           # Extract subject_ids from proposal IDs in the issue body
-          # Pattern: proposal-p42-create-<subject_id>-<hash>
-          SUBJECTS=$(echo "$ISSUE_BODY" | grep -oP 'proposal-(p42-create-)?[\w-]+-\w{8}' | sed -E 's/proposal-(p42-create-)?//; s/-[a-f0-9]{8}$//' | sort -u | head -20 | tr '\n' ' ' | sed 's/ *$//')
+          # Pattern: `proposal-p42-create-<subject_id>-<hash>` (backtick-wrapped in markdown)
+          # We match ONLY the p42-create- form to avoid matching HTML anchor names
+          # like proposal-content-... which are truncated and not real subjects.
+          SUBJECTS=$(echo "$ISSUE_BODY" | grep -oP 'proposal-p42-create-[\w-]+-\w{8}' | sed -E 's/proposal-p42-create-//; s/-[a-f0-9]{8}$//' | sort -u | head -20 | tr '\n' ' ' | sed 's/ *$//')
 
           if [ -z "$SUBJECTS" ]; then
             echo "No proposal IDs found in issue body. Falling back to claimed work items."
