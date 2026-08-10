@@ -173,6 +173,7 @@ jobs:
           FOUNDRY_ACCESS_TOKEN: ${{ steps.token.outputs.token }}
           WORST_CASE_INPUT_USD_PER_MTOK: "15"
           WORST_CASE_OUTPUT_USD_PER_MTOK: "60"
+          SCHEMA_ROOT: ${{ github.workspace }}/project42-platform/schemas/content-maintenance
         continue-on-error: false
 
       # ---- Phase 6: Ingest ----
