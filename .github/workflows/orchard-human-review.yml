@@ -97,10 +97,22 @@ jobs:
           )
 
           # Extract subject_ids from proposal IDs in the issue body
-          # Pattern: `proposal-p42-create-<subject_id>-<hash>` (backtick-wrapped in markdown)
-          # We match ONLY the p42-create- form to avoid matching HTML anchor names
+          # Pattern: `proposal-p42-create-<subject_id>-<hash>` or `proposal-p42-update-<subject_id>-<hash>`
+          # We match ONLY the p42-create- and p42-update- forms to avoid matching HTML anchor names
           # like proposal-content-... which are truncated and not real subjects.
-          SUBJECTS=$(echo "$ISSUE_BODY" | grep -oP 'proposal-p42-create-[\w-]+-\w{8}' | sed -E 's/proposal-p42-create-//; s/-[a-f0-9]{8}$//' | sort -u | head -20 | tr '\n' ' ' | sed 's/ *$//')
+          # Also extract the kind (create/update) for each subject.
+          SUBJECTS=$(echo "$ISSUE_BODY" | grep -oP 'proposal-p42-(create|update)-[\w-]+-\w{8}' | sed -E 's/proposal-p42-(create|update)-//; s/-[a-f0-9]{8}$//' | sort -u | head -20 | tr '\n' ' ' | sed 's/ *$//')
+
+          # Build a kind map: subject_id -> kind (create or update)
+          # We write it as a JSON file so downstream steps can look up the kind
+          echo "$ISSUE_BODY" | grep -oP 'proposal-p42-(create|update)-[\w-]+-\w{8}' \
+            | sed -E 's/proposal-p42-(create|update)-([\w-]+)-[a-f0-9]{8}$/\2 \1/' \
+            | sort -u \
+            | awk '{printf "{\"subject\":\"%s\",\"kind\":\"needs-%s\"}\n", $1, $2=="create"?"creating":"updating"}' \
+            | jq -s '.' > /tmp/subject-kinds.json
+
+          echo "Subject kinds:"
+          cat /tmp/subject-kinds.json
 
           if [ -z "$SUBJECTS" ]; then
             echo "No proposal IDs found in issue body. Falling back to claimed work items."
@@ -137,10 +149,12 @@ jobs:
         run: |
           ACCEPTED_BY="${{ github.event.comment.user.login }}"
           for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
-            echo "Recording publication for: $SUBJECT"
+            KIND=$(jq -r --arg s "$SUBJECT" '.[] | select(.subject==$s) | .kind' /tmp/subject-kinds.json)
+            echo "Recording publication for: $SUBJECT (kind: $KIND)"
             node scripts/record-publication.mjs \
               --db content.db \
               --subject "$SUBJECT" \
+              --kind "$KIND" \
               --accepted-by "$ACCEPTED_BY" \
               --note "Approved via issue #${{ github.event.issue.number }}" \
               --apply
@@ -153,10 +167,12 @@ jobs:
         run: |
           REJECTED_BY="${{ github.event.comment.user.login }}"
           for SUBJECT in ${{ steps.extract.outputs.subjects }}; do
-            echo "Recording rejection for: $SUBJECT"
+            KIND=$(jq -r --arg s "$SUBJECT" '.[] | select(.subject==$s) | .kind' /tmp/subject-kinds.json)
+            echo "Recording rejection for: $SUBJECT (kind: $KIND)"
             node scripts/reject-publication.mjs \
               --db content.db \
               --subject "$SUBJECT" \
+              --kind "$KIND" \
               --rejected-by "$REJECTED_BY" \
               --note "Denied via issue #${{ github.event.issue.number }}" \
               --apply

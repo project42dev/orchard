@@ -109,6 +109,26 @@ jobs:
             --registry content/opportunity-registry.starter.json
         continue-on-error: false
 
+      # ---- Phase 2.5: Source-change detection ----
+      # Detect changes to registered sources. Changed sources feed into
+      # needs-updating work items when the database is rebuilt next.
+      - name: Detect source changes
+        id: source-changes
+        run: |
+          mkdir -p delivery/private
+          pwsh -NoProfile -Command "
+            Import-Module '$(pwd)/delivery/Project42SourceChange.psm1' -Force
+            \$changes = @(Get-Project42SourceChangeSet \
+              -RegistryPath '$(pwd)/project42-platform/content/source-registry.json' \
+              -CheckpointPath '$(pwd)/delivery/private/source-detection.checkpoint.private.json' \
+              -DeferChangeCommit)
+            \$changed = (\$changes | Where-Object { \$_.state -eq 'changed' }).Count
+            \$unreachable = (\$changes | Where-Object { \$_.state -eq 'unreachable' }).Count
+            \$unchanged = (\$changes | Where-Object { \$_.state -eq 'unchanged' }).Count
+            Write-Host \"source-check: \$unchanged unchanged, \$changed changed, \$unreachable unreachable\"
+          "
+        continue-on-error: false
+
       # ---- Phase 3: Database ----
       - name: Build content database
         id: build-db

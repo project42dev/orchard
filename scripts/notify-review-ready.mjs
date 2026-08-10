@@ -83,13 +83,16 @@ function matchToWorkItems(db, proposals) {
         let workItem = null;
 
         // Packet ID format: packet-p42-create-<subject>-<runIdPrefix>
-        // Work item ID format: create:<subject>
+        // or: packet-p42-update-<subject>-<runIdPrefix>
+        // Work item ID format: create:<subject> or update:<subject>
         // Extract the subject by stripping "packet-p42-" prefix and the trailing "-<hash>"
-        const subjectMatch = packetId.match(/^packet-p42-(?:create-)?(.+?)-[0-9a-f]{8}$/);
+        const subjectMatch = packetId.match(/^packet-p42-(?:create|update)-(.+?)-[0-9a-f]{8}$/);
         if (subjectMatch) {
             const subject = subjectMatch[1];
-            const wiId = `create:${subject}`;
-            workItem = allItems.find(row => row.id === wiId) || null;
+            // Try both create: and update: prefixes
+            const wiIdCreate = `create:${subject}`;
+            const wiIdUpdate = `update:${subject}`;
+            workItem = allItems.find(row => row.id === wiIdCreate || row.id === wiIdUpdate) || null;
         }
 
         results.push({ ...p, workItem });
