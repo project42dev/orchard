@@ -1497,16 +1497,27 @@ try {
     $accessToken = Get-DeliveryAccessToken
 
     if (-not (Test-Path -LiteralPath $PricingPath -PathType Leaf)) {
-        throw (
-            "The pricing file is not present at $PricingPath. Without rates " +
-            'the USD ceiling cannot be enforced, and this run will not proceed ' +
-            'with an unenforceable spend cap. Set PRICING_PATH, or configure ' +
-            'WORST_CASE_INPUT_USD_PER_MTOK and WORST_CASE_OUTPUT_USD_PER_MTOK ' +
-            'deliberately.'
-        )
+        if ($null -eq $worstCaseRate) {
+            throw (
+                "The pricing file is not present at $PricingPath. Without rates " +
+                'the USD ceiling cannot be enforced, and this run will not proceed ' +
+                'with an unenforceable spend cap. Set PRICING_PATH, or configure ' +
+                'WORST_CASE_INPUT_USD_PER_MTOK and WORST_CASE_OUTPUT_USD_PER_MTOK ' +
+                'deliberately.'
+            )
+        }
+        Write-DeliveryLog WARN "Pricing file not found at $PricingPath; using worst-case rates (input=$($worstCaseRate.inputUsdPerMillionTokens)/Mtok, output=$($worstCaseRate.outputUsdPerMillionTokens)/Mtok) for all deployments."
+        $pricing = [pscustomobject]@{
+            schemaVersion = '1.0'
+            currency      = 'USD'
+            asOf          = [DateTimeOffset]::UtcNow.ToString('o')
+            rates         = @()
+        }
     }
-    $pricing = Get-Content -LiteralPath $PricingPath -Raw |
-    ConvertFrom-Json -Depth 30 -DateKind String
+    else {
+        $pricing = Get-Content -LiteralPath $PricingPath -Raw |
+        ConvertFrom-Json -Depth 30 -DateKind String
+    }
     $rateTable = Get-Project42FoundryRateTable -Pricing $pricing -RequiredAliases @()
 
     # Pre-flight the pricing of every deployment this run will touch, so an
