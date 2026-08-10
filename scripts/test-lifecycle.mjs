@@ -90,10 +90,12 @@ writeFileSync(inventoryPath, JSON.stringify({
 const mapPath = join(root, 'model-map.json');
 writeFileSync(mapPath, JSON.stringify({
   jobs: {
+    research: { model: 'model-draft' },
     drafting: { model: 'model-draft' },
     verification: { model: 'model-verify' },
     adversary: { model: 'model-attack' },
     arbiter: { model: 'model-arbitrate' },
+    finalization: { model: 'model-arbitrate' },
   },
 }));
 

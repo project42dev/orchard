@@ -23,7 +23,7 @@ flowchart TD
     B6 --> C1["generate-briefs.mjs pulls from the queue<br/>brief id carries the subject id<br/>work_item state: claimed"]
 
     subgraph PHASE3["Phase 3, creation and publication"]
-        C1 --> C2["Draft, verify, adversary, arbiter"]
+        C1 --> C2["Research, draft, verify, adversary, arbiter, finalize"]
         C2 --> C2a["Proposal written<br/>named after the brief"]
         C2a --> C2b["ingest-proposals.mjs<br/>reads the run record"]
         C2b --> C3{"Ensemble agrees?"}

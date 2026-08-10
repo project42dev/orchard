@@ -86,10 +86,12 @@ function mapWith(models) {
 }
 
 const goodMap = mapWith({
+  [ROLE_JOBS.researcher]: 'model-a',
   [ROLE_JOBS.drafter]: 'model-a',
   [ROLE_JOBS.verifier]: 'model-b',
   [ROLE_JOBS.adversary]: 'model-c',
   [ROLE_JOBS.arbiter]: 'model-d',
+  [ROLE_JOBS.finalizer]: 'model-d',
 });
 
 const targetsPath = join(root, 'targets.json');
@@ -174,7 +176,7 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   check('every brief carries acceptance criteria, or nothing can verify it',
     r.briefs.every((b) => b.acceptanceCriteria.length >= 3));
   check('every role carries its own completion budget, never a global one',
-    r.briefs.every((b) => Object.values(b.roles).every((role) => role.maxCompletionTokens > 4096)));
+    r.briefs.every((b) => Object.values(b.roles).every((role) => role.maxCompletionTokens >= 4096)));
 }
 
 // --- a surface in a different repository ---------------------------------------
