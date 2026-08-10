@@ -248,10 +248,20 @@ function Get-DeliveryAccessToken {
         Managed identity preferred; Azure CLI fallback for local dev.
         ADR-0007 decision 4 and threat model condition 2.
         No key is read from anywhere, and none is accepted as a parameter.
+
+        In GitHub Actions with OIDC, the workflow passes a pre-obtained token
+        via FOUNDRY_ACCESS_TOKEN. This avoids the az account get-access-token
+        round-trip that can fail when azure/login@v2 uses federated credentials.
     #>
     if ($Transport) {
         Write-DeliveryLog WARN 'TRANSPORT OVERRIDE: no managed-identity token is requested and no live endpoint is contacted. This path is for tests only and the run record is marked synthetic.'
         return 'synthetic-transport-no-credential'
+    }
+
+    # GitHub Actions OIDC: token obtained by the workflow and passed in
+    if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_ACCESS_TOKEN)) {
+        Write-DeliveryLog INFO 'Authenticated via FOUNDRY_ACCESS_TOKEN (GitHub Actions OIDC).'
+        return $env:FOUNDRY_ACCESS_TOKEN
     }
 
     $clientId = $env:AZURE_CLIENT_ID

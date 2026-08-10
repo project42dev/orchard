@@ -152,6 +152,14 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Get Foundry access token
+        id: token
+        if: steps.check-briefs.outputs.count != '0'
+        run: |
+          TOKEN=$(az account get-access-token --scope "https://cognitiveservices.azure.com/.default" --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
       - name: Run delivery ensemble
         id: delivery
         if: steps.check-briefs.outputs.count != '0'
@@ -162,7 +170,7 @@ jobs:
             -Execute
         env:
           FOUNDRY_ENDPOINT: ${{ secrets.FOUNDRY_ENDPOINT }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          FOUNDRY_ACCESS_TOKEN: ${{ steps.token.outputs.token }}
         continue-on-error: false
 
       # ---- Phase 6: Ingest ----
