@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: project42dev/project42-platform
-          path: platform-corpus
+          path: project42-platform
 
       # ---- Phase 1: Discovery ----
       - name: Discover content opportunities
@@ -92,7 +92,7 @@ jobs:
           fi
           node scripts/discover-content-opportunities.mjs \
             --registry content/opportunity-registry.starter.json \
-            --corpus platform-corpus/content \
+            --corpus project42-platform/content \
             --probes content/probes.json \
             --out delivery/discovery-proposals.json \
             --gap-threshold 0 \
@@ -114,7 +114,7 @@ jobs:
         id: build-db
         run: |
           node scripts/build-content-db.mjs \
-            --content platform-corpus/content \
+            --content project42-platform/content \
             --db content.db \
             --ado-sync
         continue-on-error: false
