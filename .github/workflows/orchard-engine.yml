@@ -51,6 +51,7 @@ jobs:
   lifecycle:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    environment: production
 
     # Only run scheduled on the default branch
     # workflow_dispatch can run on any branch
