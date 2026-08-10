@@ -126,7 +126,8 @@ jobs:
           node scripts/generate-briefs.mjs \
             --db content.db \
             --out briefs/queue.json \
-            --inventory config/deployed-models.json
+            --inventory config/deployed-models.json \
+            --apply
         continue-on-error: false
 
       # ---- Phase 5: Delivery ----
