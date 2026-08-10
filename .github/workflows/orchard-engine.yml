@@ -87,7 +87,11 @@ jobs:
             cp content/opportunity-probes.example.json content/probes.json
           fi
           OFFLINE_FLAG=""
-          if [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
+          # Scheduled runs always go online. Manual dispatches respect the
+          # offline input (defaults to true for safe local testing).
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            OFFLINE_FLAG=""
+          elif [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
             OFFLINE_FLAG="--offline"
           fi
           node scripts/discover-content-opportunities.mjs \

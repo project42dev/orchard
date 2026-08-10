@@ -15,11 +15,60 @@
   },
   "watchList": [
     {
-      "id": "example-source",
-      "label": "Replace this with a real catalogue page you want to measure demand against",
-      "url": "https://example.com/courses",
+      "id": "ms-learn-ai",
+      "label": "Microsoft Learn — AI and machine learning catalog",
+      "url": "https://learn.microsoft.com/en-us/training/browse/?products=ai-services",
       "kind": "catalog",
-      "note": "The watch list is what discovery surveys for DEMAND. Entries are evidence that a topic is taught in the market. They are never a content source. Expect some sites to refuse automated access; discovery names the ones it could not reach on every run."
+      "note": "Microsoft's own AI training catalog. Measures demand for Azure AI, Copilot, and Foundry topics."
+    },
+    {
+      "id": "ms-learn-data-ai",
+      "label": "Microsoft Learn — Data and AI engineer path",
+      "url": "https://learn.microsoft.com/en-us/training/browse/?roles=data-engineer&roles=ai-engineer",
+      "kind": "catalog",
+      "note": "Role-based AI engineer and data engineer learning paths."
+    },
+    {
+      "id": "coursera-ai",
+      "label": "Coursera — Artificial Intelligence courses",
+      "url": "https://www.coursera.org/browse/data-science/artificial-intelligence",
+      "kind": "catalog",
+      "note": "Broad AI course catalog from a major MOOC platform."
+    },
+    {
+      "id": "coursera-ml",
+      "label": "Coursera — Machine Learning courses",
+      "url": "https://www.coursera.org/browse/data-science/machine-learning",
+      "kind": "catalog",
+      "note": "ML-specific catalog for demand measurement."
+    },
+    {
+      "id": "aws-training-ai",
+      "label": "AWS Training — AI and ML",
+      "url": "https://aws.amazon.com/training/learn-about/machine-learning/",
+      "kind": "catalog",
+      "note": "AWS AI/ML training catalog for cross-cloud demand comparison."
+    },
+    {
+      "id": "google-cloud-ai",
+      "label": "Google Cloud — AI and ML training",
+      "url": "https://cloud.google.com/learn/training/machine-learning-ai",
+      "kind": "catalog",
+      "note": "GCP AI/ML training catalog for cross-cloud demand comparison."
+    },
+    {
+      "id": "udemy-ai",
+      "label": "Udemy — Artificial Intelligence courses",
+      "url": "https://www.udemy.com/topic/artificial-intelligence/",
+      "kind": "catalog",
+      "note": "Commercial course marketplace for broad demand signals."
+    },
+    {
+      "id": "pluralsight-ai",
+      "label": "Pluralsight — AI and ML path",
+      "url": "https://www.pluralsight.com/paths/artificial-intelligence",
+      "kind": "catalog",
+      "note": "Enterprise learning platform AI path."
     }
   ],
   "opportunities": []

@@ -29,7 +29,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
 
 const SUBSCRIPTION = process.env.ACA_SUBSCRIPTION || execSync(
-  'az account show --query id -o tsv', { encoding: 'utf8', timeout: 10000 }
+    'az account show --query id -o tsv', { encoding: 'utf8', timeout: 10000 }
 ).trim();
 const RESOURCE_GROUP = process.env.ACA_RESOURCE_GROUP || 'rg-p42-delivery-prod-eus-01';
 const JOB_NAME = process.env.ACA_JOB_NAME || 'caj-p42-harness-prod-eus-01';
@@ -40,34 +40,34 @@ let passed = 0;
 const failures = [];
 
 function check(label, condition) {
-  if (condition) { passed += 1; }
-  else { failures.push(label); }
+    if (condition) { passed += 1; }
+    else { failures.push(label); }
 }
 
 function equal(label, actual, expected) {
-  check(`${label} (got ${JSON.stringify(actual)}, wanted ${JSON.stringify(expected)})`,
-    actual === expected);
+    check(`${label} (got ${JSON.stringify(actual)}, wanted ${JSON.stringify(expected)})`,
+        actual === expected);
 }
 
 function az(args, timeoutMs = 30000) {
-  const fullArgs = ['az', ...args, '--subscription', SUBSCRIPTION, '-o', 'json'];
-  try {
-    const result = execSync(fullArgs.join(' '), {
-      encoding: 'utf8',
-      timeout: timeoutMs,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    return JSON.parse(result);
-  } catch (e) {
-    if (e.stderr) {
-      console.error(`  az error: ${e.stderr.toString().trim()}`);
+    const fullArgs = ['az', ...args, '--subscription', SUBSCRIPTION, '-o', 'json'];
+    try {
+        const result = execSync(fullArgs.join(' '), {
+            encoding: 'utf8',
+            timeout: timeoutMs,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        return JSON.parse(result);
+    } catch (e) {
+        if (e.stderr) {
+            console.error(`  az error: ${e.stderr.toString().trim()}`);
+        }
+        throw new Error(`az ${args[0]} ${args[1]} failed: ${e.message}`);
     }
-    throw new Error(`az ${args[0]} ${args[1]} failed: ${e.message}`);
-  }
 }
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // --- Verify prerequisites ----------------------------------------------------
@@ -76,27 +76,27 @@ console.log('1. Verifying prerequisites...');
 
 // Check az CLI is available
 try {
-  execSync('az version', { encoding: 'utf8', timeout: 10000, stdio: 'ignore' });
-  check('az CLI is available', true);
+    execSync('az version', { encoding: 'utf8', timeout: 10000, stdio: 'ignore' });
+    check('az CLI is available', true);
 } catch {
-  check('az CLI is available', false);
-  console.error('  Azure CLI is not available. Install it and log in with `az login`.');
-  process.exit(1);
+    check('az CLI is available', false);
+    console.error('  Azure CLI is not available. Install it and log in with `az login`.');
+    process.exit(1);
 }
 
 // Check the job exists
 let jobInfo;
 try {
-  jobInfo = az(['containerapp', 'job', 'show',
-    '--name', JOB_NAME,
-    '--resource-group', RESOURCE_GROUP,
-  ]);
-  check(`Job ${JOB_NAME} exists`, jobInfo?.name === JOB_NAME);
-  console.log(`  Job provisioning state: ${jobInfo?.properties?.provisioningState}`);
+    jobInfo = az(['containerapp', 'job', 'show',
+        '--name', JOB_NAME,
+        '--resource-group', RESOURCE_GROUP,
+    ]);
+    check(`Job ${JOB_NAME} exists`, jobInfo?.name === JOB_NAME);
+    console.log(`  Job provisioning state: ${jobInfo?.properties?.provisioningState}`);
 } catch (e) {
-  check(`Job ${JOB_NAME} exists`, false);
-  console.error(`  Cannot find job ${JOB_NAME} in ${RESOURCE_GROUP}: ${e.message}`);
-  process.exit(1);
+    check(`Job ${JOB_NAME} exists`, false);
+    console.error(`  Cannot find job ${JOB_NAME} in ${RESOURCE_GROUP}: ${e.message}`);
+    process.exit(1);
 }
 
 // --- Trigger the harness job -------------------------------------------------
@@ -104,77 +104,77 @@ try {
 let executionName = null;
 
 if (SKIP_TRIGGER) {
-  console.log('\n2. Skipping trigger (ACA_SKIP_TRIGGER=1). Verifying existing records...');
+    console.log('\n2. Skipping trigger (ACA_SKIP_TRIGGER=1). Verifying existing records...');
 } else {
-  console.log('\n2. Triggering harness job...');
-
-  try {
-    const startResult = az(['containerapp', 'job', 'start',
-      '--name', JOB_NAME,
-      '--resource-group', RESOURCE_GROUP,
-    ], 60000);
-
-    // The start command returns the execution name
-    executionName = startResult?.name;
-    check('Job start returned an execution name', !!executionName);
-    console.log(`  Execution: ${executionName}`);
-  } catch (e) {
-    check('Job start succeeded', false);
-    console.error(`  Failed to start job: ${e.message}`);
-    process.exit(1);
-  }
-
-  // --- Poll for completion -----------------------------------------------------
-
-  console.log('\n3. Polling for completion...');
-  const startTime = Date.now();
-  let status = 'Running';
-  let pollCount = 0;
-
-  while (status === 'Running' || status === 'Processing' || status === 'Pending') {
-    if (Date.now() - startTime > POLL_TIMEOUT_MS) {
-      check('Job completed within timeout', false);
-      console.error(`  Timed out after ${POLL_TIMEOUT_MS}ms. Last status: ${status}`);
-      process.exit(1);
-    }
-
-    await sleep(15000); // Poll every 15 seconds
-    pollCount++;
+    console.log('\n2. Triggering harness job...');
 
     try {
-      const execList = az(['containerapp', 'job', 'execution', 'list',
-        '--name', JOB_NAME,
-        '--resource-group', RESOURCE_GROUP,
-      ]);
+        const startResult = az(['containerapp', 'job', 'start',
+            '--name', JOB_NAME,
+            '--resource-group', RESOURCE_GROUP,
+        ], 60000);
 
-      const ourExecution = execList?.find(e => e.name === executionName);
-      if (ourExecution) {
-        status = ourExecution.properties?.status || 'Unknown';
-        console.log(`  Poll ${pollCount}: ${status}`);
-      } else {
-        console.log(`  Poll ${pollCount}: execution not yet visible`);
-      }
+        // The start command returns the execution name
+        executionName = startResult?.name;
+        check('Job start returned an execution name', !!executionName);
+        console.log(`  Execution: ${executionName}`);
     } catch (e) {
-      console.log(`  Poll ${pollCount}: error fetching status (${e.message})`);
+        check('Job start succeeded', false);
+        console.error(`  Failed to start job: ${e.message}`);
+        process.exit(1);
     }
-  }
 
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  check('Job completed successfully', status === 'Succeeded');
-  console.log(`  Final status: ${status} (after ${elapsed}s, ${pollCount} polls)`);
+    // --- Poll for completion -----------------------------------------------------
 
-  if (status !== 'Succeeded') {
-    // Try to get logs
-    try {
-      console.log('\n  Recent job logs:');
-      execSync(
-        `az containerapp job logs show --name ${JOB_NAME} --resource-group ${RESOURCE_GROUP} --subscription ${SUBSCRIPTION} --tail 30`,
-        { encoding: 'utf8', timeout: 30000, stdio: 'inherit' }
-      );
-    } catch {
-      // Logs may not be available
+    console.log('\n3. Polling for completion...');
+    const startTime = Date.now();
+    let status = 'Running';
+    let pollCount = 0;
+
+    while (status === 'Running' || status === 'Processing' || status === 'Pending') {
+        if (Date.now() - startTime > POLL_TIMEOUT_MS) {
+            check('Job completed within timeout', false);
+            console.error(`  Timed out after ${POLL_TIMEOUT_MS}ms. Last status: ${status}`);
+            process.exit(1);
+        }
+
+        await sleep(15000); // Poll every 15 seconds
+        pollCount++;
+
+        try {
+            const execList = az(['containerapp', 'job', 'execution', 'list',
+                '--name', JOB_NAME,
+                '--resource-group', RESOURCE_GROUP,
+            ]);
+
+            const ourExecution = execList?.find(e => e.name === executionName);
+            if (ourExecution) {
+                status = ourExecution.properties?.status || 'Unknown';
+                console.log(`  Poll ${pollCount}: ${status}`);
+            } else {
+                console.log(`  Poll ${pollCount}: execution not yet visible`);
+            }
+        } catch (e) {
+            console.log(`  Poll ${pollCount}: error fetching status (${e.message})`);
+        }
     }
-  }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    check('Job completed successfully', status === 'Succeeded');
+    console.log(`  Final status: ${status} (after ${elapsed}s, ${pollCount} polls)`);
+
+    if (status !== 'Succeeded') {
+        // Try to get logs
+        try {
+            console.log('\n  Recent job logs:');
+            execSync(
+                `az containerapp job logs show --name ${JOB_NAME} --resource-group ${RESOURCE_GROUP} --subscription ${SUBSCRIPTION} --tail 30`,
+                { encoding: 'utf8', timeout: 30000, stdio: 'inherit' }
+            );
+        } catch {
+            // Logs may not be available
+        }
+    }
 }
 
 // --- Verify run records ------------------------------------------------------
@@ -183,31 +183,31 @@ console.log('\n4. Verifying run records...');
 
 // List recent executions
 const recentExecutions = az(['containerapp', 'job', 'execution', 'list',
-  '--name', JOB_NAME,
-  '--resource-group', RESOURCE_GROUP,
+    '--name', JOB_NAME,
+    '--resource-group', RESOURCE_GROUP,
 ]);
 
 check('Execution list is an array', Array.isArray(recentExecutions));
 
 if (recentExecutions && recentExecutions.length > 0) {
-  const succeeded = recentExecutions.filter(
-    e => e.properties?.status === 'Succeeded'
-  );
-  console.log(`  Total executions: ${recentExecutions.length}`);
-  console.log(`  Succeeded: ${succeeded.length}`);
+    const succeeded = recentExecutions.filter(
+        e => e.properties?.status === 'Succeeded'
+    );
+    console.log(`  Total executions: ${recentExecutions.length}`);
+    console.log(`  Succeeded: ${succeeded.length}`);
 
-  check('At least one successful execution exists', succeeded.length > 0);
+    check('At least one successful execution exists', succeeded.length > 0);
 
-  // Show the most recent 3
-  const recent = recentExecutions.slice(0, 3);
-  for (const exec of recent) {
-    const name = exec.name || 'unknown';
-    const status = exec.properties?.status || 'unknown';
-    const startTime = exec.properties?.startTime || 'unknown';
-    console.log(`  ${name}: ${status} (started: ${startTime})`);
-  }
+    // Show the most recent 3
+    const recent = recentExecutions.slice(0, 3);
+    for (const exec of recent) {
+        const name = exec.name || 'unknown';
+        const status = exec.properties?.status || 'unknown';
+        const startTime = exec.properties?.startTime || 'unknown';
+        console.log(`  ${name}: ${status} (started: ${startTime})`);
+    }
 } else {
-  check('Execution list is non-empty', false);
+    check('Execution list is non-empty', false);
 }
 
 // --- Verify content database (if accessible) ---------------------------------
@@ -218,42 +218,42 @@ console.log('\n5. Verifying content database...');
 // and has recent content.
 const dbPath = join(ROOT, 'content.db');
 if (existsSync(dbPath)) {
-  try {
-    // Dynamic import for sqlite
-    const { DatabaseSync } = await import('node:sqlite');
-    const db = new DatabaseSync(dbPath);
+    try {
+        // Dynamic import for sqlite
+        const { DatabaseSync } = await import('node:sqlite');
+        const db = new DatabaseSync(dbPath);
 
-    // Check work_item table
-    const workItemCount = db.prepare('SELECT COUNT(*) as cnt FROM work_item').get();
-    check('Content database has work items', workItemCount?.cnt > 0);
-    console.log(`  Work items: ${workItemCount?.cnt}`);
+        // Check work_item table
+        const workItemCount = db.prepare('SELECT COUNT(*) as cnt FROM work_item').get();
+        check('Content database has work items', workItemCount?.cnt > 0);
+        console.log(`  Work items: ${workItemCount?.cnt}`);
 
-    // Check publication table
-    const pubCount = db.prepare('SELECT COUNT(*) as cnt FROM publication').get();
-    console.log(`  Publications: ${pubCount?.cnt}`);
+        // Check publication table
+        const pubCount = db.prepare('SELECT COUNT(*) as cnt FROM publication').get();
+        console.log(`  Publications: ${pubCount?.cnt}`);
 
-    // Check for recent publications (last 7 days)
-    const recentPubs = db.prepare(
-      "SELECT COUNT(*) as cnt FROM publication WHERE published_at > datetime('now', '-7 days')"
-    ).get();
-    console.log(`  Recent publications (7d): ${recentPubs?.cnt}`);
+        // Check for recent publications (last 7 days)
+        const recentPubs = db.prepare(
+            "SELECT COUNT(*) as cnt FROM publication WHERE published_at > datetime('now', '-7 days')"
+        ).get();
+        console.log(`  Recent publications (7d): ${recentPubs?.cnt}`);
 
-    // Check item table
-    const itemCount = db.prepare('SELECT COUNT(*) as cnt FROM item').get();
-    console.log(`  Items: ${itemCount?.cnt}`);
+        // Check item table
+        const itemCount = db.prepare('SELECT COUNT(*) as cnt FROM item').get();
+        console.log(`  Items: ${itemCount?.cnt}`);
 
-    // Check candidate table
-    const candidateCount = db.prepare('SELECT COUNT(*) as cnt FROM candidate').get();
-    console.log(`  Candidates: ${candidateCount?.cnt}`);
+        // Check candidate table
+        const candidateCount = db.prepare('SELECT COUNT(*) as cnt FROM candidate').get();
+        console.log(`  Candidates: ${candidateCount?.cnt}`);
 
-    db.close();
-  } catch (e) {
-    console.log(`  Could not query content database: ${e.message}`);
-    check('Content database is queryable', false);
-  }
+        db.close();
+    } catch (e) {
+        console.log(`  Could not query content database: ${e.message}`);
+        check('Content database is queryable', false);
+    }
 } else {
-  console.log(`  Content database not found at ${dbPath}`);
-  console.log('  (This is expected if running in CI — the DB is in Azure Storage)');
+    console.log(`  Content database not found at ${dbPath}`);
+    console.log('  (This is expected if running in CI — the DB is in Azure Storage)');
 }
 
 // --- Summary -----------------------------------------------------------------
@@ -262,10 +262,10 @@ console.log(`\n${'='.repeat(60)}`);
 console.log(`ACA Integration Test: ${failures.length === 0 ? 'PASS' : 'FAIL'}`);
 console.log(`Assertions: ${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) {
-  console.log('\nFailures:');
-  for (const f of failures) {
-    console.log(`  - ${f}`);
-  }
+    console.log('\nFailures:');
+    for (const f of failures) {
+        console.log(`  - ${f}`);
+    }
 }
 console.log('='.repeat(60));
 
