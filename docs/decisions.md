@@ -8,6 +8,12 @@ contributors need**. This is that summary.
 Nothing here is a preference. Each one exists because the alternative failed, and
 the failure is recorded with it.
 
+> **Hosting note (2026-08-11):** The delivery pipeline runs as Azure Container
+> Apps Jobs in the reference deployment. The container image is the portable
+> artifact — any adopter can run it on any container platform against their own
+> OpenAI-compatible endpoint. See [ADR-0007](https://github.com/project42dev/project42dev-ops/blob/main/docs/adrs/0007-foundry-delivery-platform-boundary.md)
+> for the hosting decision.
+
 ---
 
 ## Orchard is a separate repository, and the model layer is read only

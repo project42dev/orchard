@@ -20,6 +20,7 @@ produce reviewed, evidence-backed content proposals.
 - **Model map:** `config/model-map.json`
 - **Brief generator:** `scripts/generate-briefs.mjs`
 - **Delivery platform:** `delivery/Invoke-Project42Delivery.ps1`
+- **Hosting:** Azure Container Apps Jobs (reference deployment). Container image is portable — runs on any container platform against any OpenAI-compatible endpoint.
 
 ## Lifecycle at a glance
 

@@ -26,6 +26,22 @@ author's accounts, and wants Orchard running against their own estate.
 You do **not** need the author's Foundry, the author's cloud, or any account you
 do not already own.
 
+## Deploying the delivery pipeline
+
+The delivery pipeline (`delivery/Invoke-Project42Delivery.ps1`) runs in a
+container. The reference deployment uses **Azure Container Apps Jobs**, but the
+container image is portable — it runs on any container platform:
+
+- **Azure Container Apps Jobs** (reference deployment — Bicep in `project42dev-ops/deployment/infra/`)
+- **AKS CronJobs** (Kubernetes `CronJob` with the same image)
+- **Docker Compose** (one-off `docker compose run`)
+- **Any Kubernetes distribution** (Deployment or CronJob)
+
+The image is `mcr.microsoft.com/powershell:7.5-ubuntu-22.04` plus three
+PowerShell modules. See the [delivery platform README](https://github.com/project42dev/project42dev-ops/blob/main/deployment/infra/README.md)
+for the full environment contract (19 variables, two storage mounts, managed
+identity).
+
 ## 1. Describe what you have deployed
 
 Orchard validates its model map against a list of what actually exists. Write
