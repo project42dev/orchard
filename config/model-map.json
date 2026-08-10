@@ -78,6 +78,16 @@
       "model": "text-embedding-3-small",
       "dialect": "n/a",
       "why": "Cheaper embedding arm for bulk or draft indexing."
+    },
+    "research": {
+      "model": "gpt-5-6-sol",
+      "dialect": "max_completion_tokens",
+      "why": "Gathers primary sources before drafting. Runs once per work item, before the drafter, so it contends with the drafter for the same deployment. The researcher does not write prose; 4096 tokens is ample for structured evidence gathering."
+    },
+    "finalization": {
+      "model": "gpt-5-6-luna",
+      "dialect": "max_completion_tokens",
+      "why": "Reviews the complete proposal package for completeness and consistency before human handoff. Runs last, after all other roles. Does not re-draft or re-judge; checks that every acceptance criterion is addressed and role reports are consistent. 4096 tokens is ample for a structured review."
     }
   },
   "voices": {
@@ -92,10 +102,21 @@
   },
   "avatars": {
     "default": "Camila",
-    "roster": ["Faris", "Clara", "Camila"],
+    "roster": [
+      "Faris",
+      "Clara",
+      "Camila"
+    ],
     "why": "Standard talking heads on the existing resource. All three verified photographic and sharing one house style, so they read as a single faculty. No Limited Access, no deployment, no new vendor. Clara reads lighter and suits beginner material; Faris and Camila read more formal and suit the executive track.",
     "excluded": {
-      "models": ["Harry", "Jeff", "Lisa", "Lori", "Max", "Meg"],
+      "models": [
+        "Harry",
+        "Jeff",
+        "Lisa",
+        "Lori",
+        "Max",
+        "Meg"
+      ],
       "why": "Actor-licensed and withdrawable. Jeff is withdrawn from December 2026. A content library fronted by one of these breaks when the contract lapses."
     },
     "rule": "The content database records which avatar rendered each module, so a withdrawal produces a re-render list rather than a hunt."

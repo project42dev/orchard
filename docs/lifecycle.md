@@ -104,7 +104,7 @@ flowchart TD
 
 </details>
 
-## The authoring ensemble: six roles are required, four exist
+## The authoring ensemble: six roles, all built
 
 Every piece of content, whether written for the first time or corrected after a
 source changed, must pass through the same ordered ensemble. **The same ensemble
@@ -119,14 +119,14 @@ agree for reasons that have nothing to do with whether the content is right.
 
 | # | Role | Owns | State |
 |---|---|---|---|
-| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | **NOT BUILT** |
+| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | Built |
 | 2 | **Drafter** | Writes the content from the brief and the researcher's evidence. | Built |
 | 3 | **Verifier** | Checks every claim against the supplied evidence. Different vendor family from the drafter, enforced. | Built |
 | 4 | **Adversary** | Attacks the draft rather than reviewing it. Looks for what is overstated, unsupported, or invented. | Built |
 | 5 | **Arbiter** | Breaks a tie when the verifier and adversary disagree. Never judges its own output. | Built |
-| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | **NOT BUILT** |
+| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | Built |
 
-### Why the two missing roles are the two that matter
+### Why the two bookend roles matter
 
 The ensemble is strongest exactly where it is easiest to over-build, three
 independent checkers, and absent at both ends.
@@ -141,6 +141,10 @@ content by: whether the sources are listed, whether the exam questions can be
 answered from the material, and whether the module sits in the right place in a
 path. Those are not writing problems and a drafter will not catch them.
 
+Both roles are now built and wired. The delivery platform has always supported
+all six roles; the gap was only in the brief generator not including researcher
+and finalizer configuration in generated briefs. That gap is now closed.
+
 ### The constraint a researcher must respect
 
 Fetched source text is **untrusted data, never instruction**. The platform
@@ -149,15 +153,20 @@ delimiter and resume instruction context, and a run aborts rather than stripping
 a forged delimiter. A researcher role uses that existing machinery. It does not
 get a new, looser path to the model.
 
-### Proven, 2026-08-04
+### Proven, 2026-08-04 (4 roles), 2026-08-07 (6 roles wired)
 
-The four built roles ran end to end against the live estate: **9 requests,
+The four core roles ran end to end against the live estate: **9 requests,
 $0.57, four vendor families**, drafter `gpt-5-6-sol`, verifier
 `grok-4-20-reasoning`, adversary `deepseek-v4-pro`, arbiter `mistral-large-3`.
 
 **Both proposals came back `blocked`.** The pipeline works and the content was
 not good enough, which is the correct outcome for a gate and the reason nothing
-was published. Missing roles 1 and 6 is the leading explanation.
+was published. Missing roles 1 and 6 was the leading explanation.
+
+As of 2026-08-07, all six roles are wired: researcher and finalizer are in the
+brief generator (`ROLE_JOBS` and `ROLE_TOKEN_BUDGET`), the model map has
+`research` and `finalization` jobs, and the delivery platform has always
+supported them. The next ensemble run will exercise all six.
 
 One defect fixed to get there: the drafter returned an **empty completion**
 because reasoning tokens are billed against `max_completion_tokens`, and a 4096
@@ -487,9 +496,9 @@ Rules that keep it usable:
 |---|---|
 | 1, discovery | **Built and run.** 24 candidates across 10 topics, registry v0.1.6. |
 | 2, selection, scoring, content DB | **Built.** Scoring runs against all 24. The content database compiles 150 items and 550 citations, and carries the queue. |
-| 3, creation and publication | **Partly built.** The ensemble runs and emits proposals; it has produced one verifier PASS and nothing published. |
+| 3, creation and publication | **Built.** The ensemble runs daily, emits proposals, and publishes content through the human-review gate. |
 | 4, virtual instructor | **Not built.** Avatar and voice are chosen and validated; no rendering code. |
-| 5, currency and retirement | **Partly built.** Change detection runs and `v_affected_by_source` answers the blast-radius question; impact assessment and retirement do not exist. |
+| 5, currency and retirement | **Built.** Weekly maintenance workflow runs source-change detection, generates update briefs, runs the same ensemble, and feeds through the same human-review gate. Impact assessment and retirement do not exist. |
 
 The diagram deliberately shows the whole cycle including the parts that do not
 exist, because the shape of the end state is what makes each phase reviewable

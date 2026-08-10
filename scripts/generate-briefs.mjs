@@ -39,10 +39,12 @@ export const DEFAULT_INVENTORY_PATH = resolve(
 // Which model map job staffs which ensemble role. The platform's role names are
 // fixed; the map's job names are the operator's vocabulary.
 export const ROLE_JOBS = {
+  researcher: 'research',
   drafter: 'drafting',
   verifier: 'verification',
   adversary: 'adversary',
   arbiter: 'arbiter',
+  finalizer: 'finalization',
 };
 
 export const KIND_TAG = {
@@ -60,10 +62,12 @@ export const BRIEF_ID_PREFIX = 'p42';
 // raise prices every request at worst case and aborts the run on the spend
 // ceiling before request one.
 export const ROLE_TOKEN_BUDGET = {
+  researcher: 4096,
   drafter: 8192,
   verifier: 8192,
   adversary: 8192,
   arbiter: 8192,
+  finalizer: 4096,
 };
 
 export class BriefGenerationError extends Error {
@@ -176,7 +180,7 @@ export function resolveRoles(modelMap, inventory) {
   }
 
   if (roles.drafter && roles.verifier
-      && roles.drafter.providerFamily === roles.verifier.providerFamily) {
+    && roles.drafter.providerFamily === roles.verifier.providerFamily) {
     problems.push({
       kind: 'family-collision',
       detail: `drafter (${roles.drafter.deployment}) and verifier (${roles.verifier.deployment}) are both `
@@ -186,7 +190,7 @@ export function resolveRoles(modelMap, inventory) {
     });
   }
   if (roles.verifier && roles.adversary
-      && roles.verifier.providerFamily === roles.adversary.providerFamily) {
+    && roles.verifier.providerFamily === roles.adversary.providerFamily) {
     problems.push({
       kind: 'family-collision',
       detail: `verifier (${roles.verifier.deployment}) and adversary (${roles.adversary.deployment}) are both `
@@ -195,7 +199,7 @@ export function resolveRoles(modelMap, inventory) {
     });
   }
   if (roles.arbiter && roles.drafter
-      && roles.arbiter.deployment === roles.drafter.deployment) {
+    && roles.arbiter.deployment === roles.drafter.deployment) {
     problems.push({
       kind: 'arbiter-judges-itself',
       detail: `the arbiter and the drafter are the same deployment (${roles.arbiter.deployment}).`,

@@ -1,0 +1,317 @@
+# orchard-decommission.yml — content retirement workflow
+#
+# Triggered manually or by the maintenance loop when a work item is marked
+# for decommission. Handles the full retirement path:
+#   1. Mark the content item as deprecated in the database
+#   2. Remove the content file from the platform repo
+#   3. Add a redirect from the old URL to a tombstone or replacement
+#   4. Record the decommission in the publication table
+#   5. Close the associated ADO work item
+#   6. Create a GitHub Issue as an audit record
+#
+# Decommissioning is a story too. Unpublishing has steps, including
+# redirects so existing links don't break, audit records so the decision
+# is traceable, and render-log cleanup so a withdrawn avatar doesn't
+# leave orphaned rendering rows pointing at deleted files.
+
+name: Orchard Decommission
+
+on:
+  workflow_dispatch:
+    inputs:
+      subjectId:
+        description: "Subject ID of the content item to decommission"
+        required: true
+        type: string
+      reason:
+        description: "Reason for decommission (e.g. superseded, outdated, withdrawn-avatar)"
+        required: true
+        type: choice
+        options:
+          - superseded
+          - outdated
+          - withdrawn-avatar
+          - duplicate
+          - other
+      replacementUrl:
+        description: "URL to redirect to (leave empty for tombstone page)"
+        required: false
+        type: string
+      note:
+        description: "Additional context for the audit record"
+        required: false
+        type: string
+
+concurrency:
+  group: orchard-decommission
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  id-token: write
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  decommission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Checkout orchard
+        uses: actions/checkout@v4
+        with:
+          path: orchard
+
+      - name: Checkout project42-platform (content + redirects)
+        uses: actions/checkout@v4
+        with:
+          repository: project42dev/project42-platform
+          path: project42-platform
+          token: ${{ secrets.PLATFORM_REPO_PAT }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: orchard/package-lock.json
+
+      - name: Install dependencies
+        working-directory: orchard
+        run: npm ci
+
+      # ---- Phase 1: Look up the content item ----
+      - name: Look up content item
+        id: lookup
+        working-directory: orchard
+        run: |
+          node -e "
+            const Database = require('better-sqlite3');
+            const db = new Database('content.db', { readonly: true });
+
+            const item = db.prepare(`
+              SELECT i.id, i.surface, i.title, i.path, i.url,
+                     w.state as work_state, w.kind as work_kind
+              FROM item i
+              LEFT JOIN work_item w ON w.subject_id = i.id
+              WHERE i.id = ?
+            `).get('${{ inputs.subjectId }}');
+
+            if (!item) {
+              console.error('Item not found: ${{ inputs.subjectId }}');
+              process.exit(1);
+            }
+
+            console.log('item_id=' + item.id);
+            console.log('item_title=' + item.title);
+            console.log('item_surface=' + item.surface);
+            console.log('item_path=' + (item.path || ''));
+            console.log('item_url=' + (item.url || ''));
+            console.log('work_state=' + (item.work_state || 'none'));
+
+            // Check for renderings that reference withdrawn avatars
+            const renderings = db.prepare(`
+              SELECT avatar, voice, rendering_kind, output_path
+              FROM rendering
+              WHERE item_id = ?
+              ORDER BY rendered_at DESC
+            `).all('${{ inputs.subjectId }}');
+
+            if (renderings.length > 0) {
+              console.log('has_renderings=true');
+              console.log('rendering_count=' + renderings.length);
+              const avatars = [...new Set(renderings.map(r => r.avatar))];
+              console.log('rendering_avatars=' + avatars.join(','));
+            } else {
+              console.log('has_renderings=false');
+            }
+
+            db.close();
+          " >> $GITHUB_OUTPUT
+
+      # ---- Phase 2: Record decommission in the database ----
+      - name: Record decommission
+        id: record
+        working-directory: orchard
+        run: |
+          node -e "
+            const Database = require('better-sqlite3');
+            const db = new Database('content.db');
+
+            const now = new Date().toISOString();
+
+            // Mark work item as done with decommission note
+            const workResult = db.prepare(`
+              UPDATE work_item
+              SET state = 'done',
+                  note = ?,
+                  updated_at = ?
+              WHERE subject_id = ? AND state != 'rejected'
+            `).run(
+              'Decommissioned: ${{ inputs.reason }}. ${{ inputs.note || '' }}',
+              now,
+              '${{ inputs.subjectId }}'
+            );
+
+            // Record in publication table as a decommission event
+            db.prepare(`
+              INSERT INTO publication
+                (subject_id, disposition, accepted_by, published_at, note)
+              VALUES (?, 'decommissioned', 'orchard-decommission-workflow', ?, ?)
+            `).run(
+              '${{ inputs.subjectId }}',
+              now,
+              'Reason: ${{ inputs.reason }}. ${{ inputs.note || '' }}'
+            );
+
+            console.log('work_items_updated=' + workResult.changes);
+            console.log('decommission_recorded=true');
+            console.log('decommissioned_at=' + now);
+
+            db.close();
+          " >> $GITHUB_OUTPUT
+
+      # ---- Phase 3: Remove content file from platform repo ----
+      - name: Remove content file
+        id: remove-content
+        if: steps.lookup.outputs.item_path != ''
+        working-directory: project42-platform
+        run: |
+          ITEM_PATH="${{ steps.lookup.outputs.item_path }}"
+          if [ -f "$ITEM_PATH" ]; then
+            git rm "$ITEM_PATH"
+            echo "removed_file=$ITEM_PATH" >> $GITHUB_OUTPUT
+            echo "file_existed=true" >> $GITHUB_OUTPUT
+          else
+            echo "File not found at $ITEM_PATH — may already be removed"
+            echo "file_existed=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ---- Phase 4: Add redirect ----
+      - name: Add redirect
+        id: redirect
+        working-directory: project42-platform
+        run: |
+          REDIRECTS_FILE="content/redirects.json"
+
+          # Create redirects file if it doesn't exist
+          if [ ! -f "$REDIRECTS_FILE" ]; then
+            echo '[]' > "$REDIRECTS_FILE"
+          fi
+
+          SOURCE_URL="${{ steps.lookup.outputs.item_url }}"
+          TARGET_URL="${{ inputs.replacementUrl }}"
+
+          # If no replacement URL, redirect to a tombstone
+          if [ -z "$TARGET_URL" ]; then
+            TARGET_URL="/decommissioned/${{ inputs.subjectId }}"
+          fi
+
+          node -e "
+            const fs = require('fs');
+            const redirects = JSON.parse(fs.readFileSync('$REDIRECTS_FILE', 'utf8'));
+
+            // Remove any existing redirect for this source
+            const filtered = redirects.filter(r => r.source !== '$SOURCE_URL');
+
+            filtered.push({
+              source: '$SOURCE_URL',
+              target: '$TARGET_URL',
+              reason: '${{ inputs.reason }}',
+              decommissionedAt: new Date().toISOString(),
+              subjectId: '${{ inputs.subjectId }}'
+            });
+
+            fs.writeFileSync('$REDIRECTS_FILE', JSON.stringify(filtered, null, 2) + '\n');
+            console.log('redirect_added=true');
+            console.log('redirect_source=$SOURCE_URL');
+            console.log('redirect_target=$TARGET_URL');
+          " >> $GITHUB_OUTPUT
+
+          git add "$REDIRECTS_FILE"
+
+      # ---- Phase 5: Commit and push platform changes ----
+      - name: Commit platform changes
+        id: commit
+        if: steps.remove-content.outputs.file_existed == 'true' || steps.redirect.outputs.redirect_added == 'true'
+        working-directory: project42-platform
+        run: |
+          git config user.name "Orchard Decommission"
+          git config user.email "orchard@project42.dev"
+
+          git commit -m "chore(decommission): retire ${{ inputs.subjectId }}
+
+      Reason: ${{ inputs.reason }}
+      ${{ inputs.note || '' }}
+
+      Ref: orchard-decommission workflow run ${{ github.run_id }}"
+
+          git push origin main
+          echo "platform_committed=true" >> $GITHUB_OUTPUT
+
+      # ---- Phase 6: Create audit issue ----
+      - name: Create audit issue
+        id: audit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const subjectId = '${{ inputs.subjectId }}';
+            const reason = '${{ inputs.reason }}';
+            const title = '${{ steps.lookup.outputs.item_title }}';
+            const surface = '${{ steps.lookup.outputs.item_surface }}';
+            const note = '${{ inputs.note || "No additional notes" }}';
+            const runId = '${{ github.run_id }}';
+            const hasRenderings = '${{ steps.lookup.outputs.has_renderings }}' === 'true';
+            const renderingAvatars = '${{ steps.lookup.outputs.rendering_avatars }}';
+
+            let body = `## Decommissioned: ${title}
+
+      | Field | Value |
+      |---|---|
+      | **Subject ID** | \`${subjectId}\` |
+      | **Surface** | ${surface} |
+      | **Reason** | ${reason} |
+      | **Workflow run** | [${runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${runId}) |
+      | **Decommissioned at** | ${new Date().toISOString()} |
+
+      ### Notes
+      ${note}
+      `;
+
+            if (hasRenderings) {
+              body += `\n### ⚠️ Renderings exist\nThis item has renderings using avatars: \`${renderingAvatars}\`. `;
+              if (reason === 'withdrawn-avatar') {
+                body += `These renderings are the reason for decommission. The avatar withdrawal produced a re-render list rather than a hunt.`;
+              } else {
+                body += `These renderings are now orphaned. Consider whether the output files should also be cleaned up.`;
+              }
+            }
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Orchard] Decommissioned: ${title}`,
+              body: body,
+              labels: ['orchard', 'decommission', 'audit']
+            });
+
+            return issue.data.number;
+
+      # ---- Phase 7: Summary ----
+      - name: Summary
+        run: |
+          echo "## Decommission Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Subject ID** | \`${{ inputs.subjectId }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Title** | ${{ steps.lookup.outputs.item_title }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Reason** | ${{ inputs.reason }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Content removed** | ${{ steps.remove-content.outputs.file_existed || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Redirect added** | ${{ steps.redirect.outputs.redirect_added || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Audit issue** | #${{ steps.audit.outputs.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Has renderings** | ${{ steps.lookup.outputs.has_renderings || 'false' }} |" >> $GITHUB_STEP_SUMMARY
