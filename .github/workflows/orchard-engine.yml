@@ -29,10 +29,6 @@ on:
         options:
           - harness
           - engine
-      offline:
-        description: "Run discovery in offline mode (no live fetches)"
-        default: true
-        type: boolean
 
 # Only one lifecycle run at a time. A new dispatch cancels an in-progress one.
 concurrency:
@@ -86,14 +82,6 @@ jobs:
             echo "No probes.json found; copying example as starter."
             cp content/opportunity-probes.example.json content/probes.json
           fi
-          OFFLINE_FLAG=""
-          # Scheduled runs always go online. Manual dispatches respect the
-          # offline input (defaults to true for safe local testing).
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            OFFLINE_FLAG=""
-          elif [ "${{ github.event_name == 'workflow_dispatch' && inputs.offline || true }}" = "true" ]; then
-            OFFLINE_FLAG="--offline"
-          fi
           node scripts/discover-content-opportunities.mjs \
             --registry content/opportunity-registry.starter.json \
             --corpus project42-platform/content \
@@ -101,8 +89,7 @@ jobs:
             --out delivery/discovery-proposals.json \
             --gap-threshold 0 \
             --surface learn \
-            --timeout 30 \
-            $OFFLINE_FLAG
+            --timeout 30
         continue-on-error: false
 
       # ---- Phase 2: Scoring ----
