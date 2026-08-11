@@ -17,8 +17,8 @@ name: Orchard Engine
 
 on:
   schedule:
-    # Run daily at 08:00 UTC (adjust to your review cadence)
-    - cron: "0 8 * * *"
+    # Run weekly on Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
   workflow_dispatch:
     inputs:
       mode:
