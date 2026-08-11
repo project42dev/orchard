@@ -1,34 +1,32 @@
-# orchard-engine.yml — scheduled content lifecycle engine
+# orchard-engine.yml — SUPERSEDED 2026-08-11
 #
-# Runs the full Orchard lifecycle on a schedule:
-#   1. Discovery: find content opportunities
-#   2. Scoring: rank them
-#   3. Database: rebuild the content index
-#   4. Briefs: generate briefs for the delivery ensemble
-#   5. Delivery: run the ensemble against Azure AI Foundry
-#   6. Ingest: record results in the database
-#   7. Notify: create a GitHub Issue for human review
+# This workflow has been replaced by the Azure Container Apps engine job
+# caj-p42-engine-prod-eus-01, which runs the same 7-phase pipeline inside
+# a container via Invoke-Project42Engine.ps1 on a weekly cron (Sunday 06:00 UTC).
 #
-# Each step is independent and fails the workflow if it fails, so a failure in
-# discovery does not silently skip delivery, and a failure in delivery does not
-# silently skip notification.
+# This file is retained as a historical reference and emergency fallback.
+# The schedule and workflow_dispatch triggers are disabled to prevent
+# accidental dual-execution with the ACA job.
+#
+# See: project42dev-ops/pmo/plans/delivery-platform-hosting-comparison.md
+# See: project42dev-ops/docs/adrs/0007-foundry-delivery-platform-boundary.md
 
-name: Orchard Engine
+name: Orchard Engine (SUPERSEDED — DO NOT USE)
 
 on:
-  schedule:
-    # Run weekly on Monday at 08:00 UTC
-    - cron: "0 8 * * 1"
-  workflow_dispatch:
-    inputs:
-      mode:
-        description: "Delivery mode (harness or engine)"
-        required: true
-        default: "harness"
-        type: choice
-        options:
-          - harness
-          - engine
+  # schedule: DISABLED — ACA engine job handles this
+  #   - cron: "0 8 * * 1"
+  # workflow_dispatch: DISABLED — use ACA harness job for manual runs
+  # workflow_dispatch:
+  #   inputs:
+  #     mode:
+  #       description: "Delivery mode (harness or engine)"
+  #       required: true
+  #       default: "harness"
+  #       type: choice
+  #       options:
+  #         - harness
+  #         - engine
 
 # Only one lifecycle run at a time. A new dispatch cancels an in-progress one.
 concurrency:

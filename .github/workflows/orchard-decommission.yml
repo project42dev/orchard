@@ -17,30 +17,31 @@
 name: Orchard Decommission
 
 on:
-  workflow_dispatch:
-    inputs:
-      subjectId:
-        description: "Subject ID of the content item to decommission"
-        required: true
-        type: string
-      reason:
-        description: "Reason for decommission (e.g. superseded, outdated, withdrawn-avatar)"
-        required: true
-        type: choice
-        options:
-          - superseded
-          - outdated
-          - withdrawn-avatar
-          - duplicate
-          - other
-      replacementUrl:
-        description: "URL to redirect to (leave empty for tombstone page)"
-        required: false
-        type: string
-      note:
-        description: "Additional context for the audit record"
-        required: false
-        type: string
+  # workflow_dispatch: DISABLED — decommissioning is handled by the ACA engine job
+  # workflow_dispatch:
+  #   inputs:
+  #     subjectId:
+  #       description: "Subject ID of the content item to decommission"
+  #       required: true
+  #       type: string
+  #     reason:
+  #       description: "Reason for decommission (e.g. superseded, outdated, withdrawn-avatar)"
+  #       required: true
+  #       type: choice
+  #       options:
+  #         - superseded
+  #         - outdated
+  #         - withdrawn-avatar
+  #         - duplicate
+  #         - other
+  #     replacementUrl:
+  #       description: "URL to redirect to (leave empty for tombstone page)"
+  #       required: false
+  #       type: string
+  #     note:
+  #       description: "Additional context for the audit record"
+  #       required: false
+  #       type: string
 
 concurrency:
   group: orchard-decommission

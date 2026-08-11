@@ -1,32 +1,28 @@
-# orchard-maintenance.yml — weekly content maintenance loop
+# orchard-maintenance.yml — SUPERSEDED 2026-08-11
 #
-# Runs every Sunday at 08:00 UTC. This is the currency half of the orchard:
-#   1. Source-change detection: fetch every registered source, detect changes
-#   2. Database rebuild: index content, create needs-updating work items
-#   3. Briefs: generate update briefs for stale/changed content
-#   4. Delivery: run the same 4-model ensemble against Azure AI Foundry
-#   5. Ingest: record results in the database
-#   6. Notify: create a GitHub Issue for human review
+# This workflow has been replaced by the Azure Container Apps engine job
+# caj-p42-engine-prod-eus-01, which handles source-change detection and
+# staleness-driven maintenance as part of its 7-phase pipeline.
 #
-# This uses the SAME agents, SAME approval gates, and SAME publish flow as
-# the creation pipeline. The only difference is the trigger: source changes
-# and staleness instead of discovery gaps.
+# This file is retained as a historical reference and emergency fallback.
+# The schedule and workflow_dispatch triggers are disabled to prevent
+# accidental dual-execution with the ACA job.
 #
-# The daily orchard-engine.yml handles net-new content creation. This handles
-# existing content maintenance. Together they form the full lifecycle.
+# See: project42dev-ops/pmo/plans/delivery-platform-hosting-comparison.md
+# See: project42dev-ops/docs/adrs/0007-foundry-delivery-platform-boundary.md
 
-name: Orchard Maintenance
+name: Orchard Maintenance (SUPERSEDED — DO NOT USE)
 
 on:
-    schedule:
-        # Run weekly on Sunday at 08:00 UTC
-        - cron: "0 8 * * 0"
-    workflow_dispatch:
-        inputs:
-            forceSourceRefresh:
-                description: "Check all sources regardless of fetch interval"
-                default: false
-                type: boolean
+    # schedule: DISABLED — ACA engine job handles this
+    #     - cron: "0 8 * * 0"
+    # workflow_dispatch: DISABLED — use ACA harness job for manual runs
+    # workflow_dispatch:
+    #     inputs:
+    #         forceSourceRefresh:
+    #             description: "Check all sources regardless of fetch interval"
+    #             default: false
+    #             type: boolean
 
 concurrency:
     group: orchard-maintenance
