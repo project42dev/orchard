@@ -56,6 +56,10 @@ env:
 
 jobs:
   decommission:
+    # Only run on explicit workflow_dispatch, never on push.
+    # (GitHub sometimes fires push events for dispatch-only workflows
+    # when the workflow file itself is changed.)
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
