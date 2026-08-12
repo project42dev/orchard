@@ -1,0 +1,688 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/state-transition/1.0.0",
+    "title": "Orchard item state transition",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "transition_id",
+        "run_id",
+        "item_id",
+        "item_revision",
+        "from_state",
+        "to_state",
+        "cause",
+        "actor",
+        "occurred_at",
+        "correlation_id"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "transition_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_revision": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "from_state": {
+            "$ref": "#/$defs/state"
+        },
+        "to_state": {
+            "$ref": "#/$defs/state"
+        },
+        "cause": {
+            "enum": [
+                "observation-recorded",
+                "proposal-ready",
+                "decision-approved",
+                "decision-denied",
+                "decision-deferred",
+                "decision-requested-changes",
+                "approval-stale",
+                "ado-reconciled",
+                "execution-started",
+                "artifact-ready",
+                "publication-started",
+                "validation-passed",
+                "pr-reconciled",
+                "merge-started",
+                "publication-acknowledged",
+                "closure-evidence-ready",
+                "closure-accepted",
+                "policy-block",
+                "integrity-block",
+                "security-block",
+                "cost-block",
+                "revision-created",
+                "review-resumed",
+                "superseded",
+                "no-change-reviewed"
+            ]
+        },
+        "actor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+        },
+        "reason": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "maxLength": 2000
+        },
+        "superseding_item_id": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/uuid"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "successor_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Revision created by this transition. It must exceed item_revision; implementation validation enforces the monotonic comparison."
+        },
+        "predecessor_decision_event_id": {
+            "$ref": "#/$defs/uuid",
+            "description": "Append-only denied decision event that the linked successor revision responds to. The denied revision itself remains denied."
+        },
+        "recovery_gate": {
+            "enum": [
+                "gate-1",
+                "gate-2"
+            ],
+            "description": "Gate whose negative or stale state is being resumed. This prevents recovery from crossing lifecycle stages."
+        },
+        "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "correlation_id": {
+            "$ref": "#/$defs/uuid"
+        }
+    },
+    "oneOf": [
+        {
+            "properties": {
+                "from_state": {
+                    "const": "observed"
+                },
+                "to_state": {
+                    "const": "proposed"
+                },
+                "cause": {
+                    "const": "observation-recorded"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "deferred"
+                },
+                "cause": {
+                    "const": "review-resumed"
+                }
+            },
+            "required": [
+                "recovery_gate"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "recovery_gate": {
+                                "const": "gate-1"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "to_state": {
+                                "const": "gate1-pending"
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "to_state": {
+                                "const": "gate2-pending"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "denied"
+                },
+                "cause": {
+                    "const": "revision-created"
+                },
+                "successor_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "recovery_gate": {
+                    "enum": [
+                        "gate-1",
+                        "gate-2"
+                    ]
+                },
+                "predecessor_decision_event_id": {
+                    "$ref": "#/$defs/uuid"
+                }
+            },
+            "required": [
+                "successor_revision",
+                "recovery_gate",
+                "predecessor_decision_event_id"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "recovery_gate": {
+                                "const": "gate-1"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "to_state": {
+                                "const": "proposed"
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "to_state": {
+                                "const": "executing"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": [
+                        "changes-requested",
+                        "stale-approval"
+                    ]
+                },
+                "cause": {
+                    "const": "revision-created"
+                }
+            },
+            "required": [
+                "recovery_gate"
+            ],
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "recovery_gate": {
+                                "const": "gate-1"
+                            }
+                        }
+                    },
+                    "then": {
+                        "properties": {
+                            "to_state": {
+                                "enum": [
+                                    "proposed",
+                                    "gate1-pending"
+                                ]
+                            }
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "to_state": {
+                                "enum": [
+                                    "executing",
+                                    "gate2-ready",
+                                    "gate2-pending"
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "proposed"
+                },
+                "to_state": {
+                    "const": "gate1-pending"
+                },
+                "cause": {
+                    "const": "proposal-ready"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "gate1-pending"
+                },
+                "to_state": {
+                    "const": "gate1-approved"
+                },
+                "cause": {
+                    "const": "decision-approved"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "gate1-approved"
+                },
+                "to_state": {
+                    "const": "ado-linked"
+                },
+                "cause": {
+                    "const": "ado-reconciled"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "ado-linked"
+                },
+                "to_state": {
+                    "const": "executing"
+                },
+                "cause": {
+                    "const": "execution-started"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "executing"
+                },
+                "to_state": {
+                    "const": "gate2-ready"
+                },
+                "cause": {
+                    "const": "artifact-ready"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "gate2-ready"
+                },
+                "to_state": {
+                    "const": "gate2-pending"
+                },
+                "cause": {
+                    "const": "proposal-ready"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "gate2-pending"
+                },
+                "to_state": {
+                    "const": "gate2-approved"
+                },
+                "cause": {
+                    "const": "decision-approved"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "gate2-approved"
+                },
+                "to_state": {
+                    "const": "publication-preparing"
+                },
+                "cause": {
+                    "const": "publication-started"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "publication-preparing"
+                },
+                "to_state": {
+                    "const": "publication-validating"
+                },
+                "cause": {
+                    "const": "validation-passed"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "publication-validating"
+                },
+                "to_state": {
+                    "const": "publication-pr-open"
+                },
+                "cause": {
+                    "const": "pr-reconciled"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "publication-pr-open"
+                },
+                "to_state": {
+                    "const": "publication-merging"
+                },
+                "cause": {
+                    "const": "merge-started"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "publication-merging"
+                },
+                "to_state": {
+                    "const": "published"
+                },
+                "cause": {
+                    "const": "publication-acknowledged"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "published"
+                },
+                "to_state": {
+                    "const": "ado-closure-ready"
+                },
+                "cause": {
+                    "const": "closure-evidence-ready"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "ado-closure-ready"
+                },
+                "to_state": {
+                    "const": "closed"
+                },
+                "cause": {
+                    "const": "closure-accepted"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": [
+                        "gate1-pending",
+                        "gate2-pending"
+                    ]
+                },
+                "to_state": {
+                    "const": "denied"
+                },
+                "cause": {
+                    "const": "decision-denied"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": [
+                        "gate1-pending",
+                        "gate2-pending"
+                    ]
+                },
+                "to_state": {
+                    "const": "deferred"
+                },
+                "cause": {
+                    "const": "decision-deferred"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": [
+                        "gate1-pending",
+                        "gate2-pending"
+                    ]
+                },
+                "to_state": {
+                    "const": "changes-requested"
+                },
+                "cause": {
+                    "const": "decision-requested-changes"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": [
+                        "gate1-approved",
+                        "gate2-approved"
+                    ]
+                },
+                "to_state": {
+                    "const": "stale-approval"
+                },
+                "cause": {
+                    "const": "approval-stale"
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "not": {
+                        "enum": [
+                            "closed",
+                            "denied",
+                            "superseded"
+                        ]
+                    }
+                },
+                "to_state": {
+                    "const": "blocked"
+                },
+                "cause": {
+                    "enum": [
+                        "policy-block",
+                        "integrity-block",
+                        "security-block",
+                        "cost-block"
+                    ]
+                }
+            }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "not": {
+                        "enum": [
+                            "closed",
+                            "superseded"
+                        ]
+                    }
+                },
+                "to_state": {
+                    "const": "superseded"
+                },
+                "cause": {
+                    "const": "superseded"
+                },
+                "superseding_item_id": {
+                    "$ref": "#/$defs/uuid"
+                }
+            },
+            "required": [
+                "superseding_item_id"
+            ]
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "observed"
+                },
+                "to_state": {
+                    "const": "closed"
+                },
+                "cause": {
+                    "const": "no-change-reviewed"
+                }
+            }
+        }
+    ],
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "cause": {
+                        "const": "revision-created"
+                    }
+                },
+                "required": [
+                    "cause"
+                ]
+            },
+            "then": {
+                "required": [
+                    "successor_revision",
+                    "recovery_gate"
+                ],
+                "properties": {
+                    "successor_revision": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "to_state": {
+                        "enum": [
+                            "denied",
+                            "deferred",
+                            "changes-requested",
+                            "blocked"
+                        ]
+                    }
+                },
+                "required": [
+                    "to_state"
+                ]
+            },
+            "then": {
+                "required": [
+                    "reason"
+                ],
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "to_state": {
+                        "const": "superseded"
+                    }
+                },
+                "required": [
+                    "to_state"
+                ]
+            },
+            "then": {
+                "required": [
+                    "superseding_item_id"
+                ],
+                "properties": {
+                    "superseding_item_id": {
+                        "$ref": "#/$defs/uuid"
+                    }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "state": {
+            "enum": [
+                "observed",
+                "proposed",
+                "gate1-pending",
+                "gate1-approved",
+                "ado-linked",
+                "executing",
+                "gate2-ready",
+                "gate2-pending",
+                "gate2-approved",
+                "publication-preparing",
+                "publication-validating",
+                "publication-pr-open",
+                "publication-merging",
+                "published",
+                "ado-closure-ready",
+                "closed",
+                "denied",
+                "deferred",
+                "changes-requested",
+                "stale-approval",
+                "blocked",
+                "superseded"
+            ]
+        }
+    }
+}

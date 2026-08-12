@@ -1,0 +1,55 @@
+{
+    "schema_version": "1.0.0",
+    "gate": "gate-2",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "track": "track-1",
+    "batch": {
+        "ordinal": 1,
+        "count": 1,
+        "item_count": 1,
+        "total_item_count": 1,
+        "maximum_size": 20
+    },
+    "full_manifest_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "batch_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "idempotency_key": "github:gate-2:018f0000-0000-7000-8000-000000000001:sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "items": [
+        {
+            "item_id": "018f1000-0000-7000-8000-000000000001",
+            "item_revision": 1,
+            "artifact_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+            "proposal_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "displayed_diff_digest": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+            "prepared_tree_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+            "target": {
+                "repository": "project42dev/project42-platform",
+                "path": "content/learning/example-module.json"
+            },
+            "base_commit": "1111111111111111111111111111111111111111",
+            "diff_ref": "evidence/diff/track-1-item-1",
+            "artifact_ref": "evidence/artifact/track-1-item-1",
+            "ado_external_key": "orchard:track-1:018f1000-0000-7000-8000-000000000001:r1",
+            "handoff_chain_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+            "tests": [
+                {
+                    "name": "content validation",
+                    "status": "passed",
+                    "evidence_ref": "evidence/tests/content"
+                }
+            ],
+            "factual_review": {
+                "status": "passed",
+                "evidence_ref": "evidence/review/factual"
+            },
+            "accessibility_review": {
+                "status": "passed",
+                "evidence_ref": "evidence/review/accessibility"
+            },
+            "cost": {
+                "currency": "USD",
+                "amount": 3.9
+            },
+            "decision_state": "pending"
+        }
+    ]
+}

@@ -39,14 +39,21 @@ The arrows only point up. Nothing below Orchard knows Orchard exists.
 
 ## Status
 
-Early. The discovery half runs end to end today: it surveys a configured set of
-market sources, measures what your own corpus already covers, proposes only
-topics with both market demand and a real gap, merges proposals under rules that
-never resurrect something you rejected, and scores the result so a human can rank
-it. The scorer never filters and never gates. A person decides.
+The two evidence tracks and the gated delivery lifecycle are implemented.
 
-The authoring and currency halves are being assembled from an existing delivery
-platform.
+- **Track 1** performs bounded discovery against a versioned approved-source
+   registry. A completed full run requires at least 50 distinct approved and
+   enabled sources and at least 50 attempts.
+- **Track 2** inspects every canonical item at one exact content commit. A
+   completed full run requires 100 percent inspection, exact reconciliation, and
+   zero gaps.
+- **Delivery** requires an item-bound first approval, linked tracker work,
+   qualified role handoffs, immutable artifact binding, a second approval, a
+   protected-main pull request, protected-main acknowledgement, and explicit
+   owner acceptance before tracker closure.
+
+The weekly tracks are independent. Manual runs default to dry-run. Neither
+track treats generated evidence as approval or publication.
 
 ## The model map
 
@@ -107,11 +114,15 @@ Cloudflare D1 database at the edge, and a plain file for anyone self-hosting.
 
 **Two halves, and the split is the whole design.** Derived tables (`item`,
 `citation`, `source`, `candidate`) are dropped and rebuilt every time, so losing
-the database costs nothing. Two tables are authoritative and survive every
+the database costs nothing. Three legacy tables are authoritative and survive every
 rebuild: `work_item`, which carries what a human decided, `rendering`, which
 records what was actually produced, and `publication`, which records which
 ensemble run wrote a published item and who accepted it. None of the three can be
 reproduced from a checkout.
+
+The lifecycle state store adds the exact run, decision, handoff, artifact,
+publication-transaction, acknowledgement, and closure evidence needed for safe
+replay and external reconciliation.
 
 The test for which half a table belongs in: **if a git checkout can reproduce
 it, it is derived. If it records a decision or an event, it is authoritative.**
@@ -146,7 +157,12 @@ verdict comes back to the queue.
 node scripts/generate-briefs.mjs --db content.db --inventory <models.json> --out briefs/queue-backlog.json
 # ... a delivery run happens, and writes run records ...
 node scripts/ingest-proposals.mjs   --db content.db --run-records <dir> --apply
-node scripts/record-publication.mjs --db content.db --run-records <dir> --subject <id> --accepted-by "you" --apply
+# ... a trust administrator provisions the exact publication adapter once ...
+node scripts/provision-trust-anchor.mjs --db content.db --input <publication-anchor.json>
+# ... record Gate 2 for the exact immutable artifact ...
+node scripts/publish-approved-item.mjs --input <gate2-reference.json> --apply --db content.db
+# ... after the pull request merges to protected main ...
+node scripts/record-publication.mjs --apply --db content.db --key <publication-idempotency-key>
 ```
 
 **A brief must carry the subject id of the queue item it serves.** The delivery
@@ -155,9 +171,9 @@ channel back. So the generator encodes the subject id in the brief id and refuse
 to emit one that would not survive the trip. Without that rule the ensemble runs,
 spends money, and its verdict cannot be attached to anything.
 
-Two behaviours nothing here will ever have: **it never publishes**, because a
-proposal is inert until a person accepts it, and **it never overrides a person**,
-because `rejected` and `done` are theirs.
+Two behaviours nothing here will ever have: **it never publishes without both
+item-bound human gates and protected-main acknowledgement**, and **it never
+overrides a person**, because a recorded rejection remains authoritative.
 
 ## Design rules that are not negotiable
 
@@ -179,6 +195,7 @@ because `rejected` and `done` are theirs.
 |---|---|
 | [docs/install.md](docs/install.md) | Connect Orchard to your own models. Start here. |
 | [docs/lifecycle.md](docs/lifecycle.md) | The whole content lifecycle, discovery through retirement. |
+| [docs/workflow-orchestration.md](docs/workflow-orchestration.md) | Independent weekly/manual tracks, configuration pins, and retired workflow audit. |
 | [docs/decisions.md](docs/decisions.md) | Why it works the way it does, and what failed first. |
 | [REPO-BOUNDARY.md](REPO-BOUNDARY.md) | What belongs here and what does not. |
 

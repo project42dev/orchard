@@ -1,0 +1,413 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/run-manifest/1.0.0",
+    "title": "Orchard run manifest",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "run_id",
+        "track",
+        "trigger",
+        "status",
+        "configuration_digest",
+        "source_registry_digest",
+        "content_commit",
+        "implementation_commit",
+        "model_role_map_digest",
+        "started_at",
+        "actor",
+        "scope",
+        "coverage",
+        "item_count",
+        "manifest_digest"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "replay_of": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/uuid"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "track": {
+            "enum": [
+                "track-1",
+                "track-2"
+            ]
+        },
+        "trigger": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "type",
+                "reference"
+            ],
+            "properties": {
+                "type": {
+                    "enum": [
+                        "weekly",
+                        "manual",
+                        "replay"
+                    ]
+                },
+                "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                }
+            }
+        },
+        "status": {
+            "enum": [
+                "created",
+                "running",
+                "incomplete",
+                "blocked",
+                "failed",
+                "completed"
+            ]
+        },
+        "configuration_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "source_registry_digest": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/digest"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "content_commit": {
+            "$ref": "#/$defs/gitsha"
+        },
+        "implementation_commit": {
+            "$ref": "#/$defs/gitsha"
+        },
+        "model_role_map_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "started_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "completed_at": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "actor": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "kind",
+                "reference"
+            ],
+            "properties": {
+                "kind": {
+                    "enum": [
+                        "scheduler",
+                        "operator"
+                    ]
+                },
+                "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                }
+            }
+        },
+        "scope": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "mode",
+                "expected_count"
+            ],
+            "properties": {
+                "mode": {
+                    "enum": [
+                        "full",
+                        "subset",
+                        "dry-run"
+                    ]
+                },
+                "expected_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "partition_size": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "minimum": 1
+                },
+                "concurrency_cap": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
+        "coverage": {
+            "type": "object",
+            "description": "Track-specific coverage accounting selected by the track field."
+        },
+        "item_count": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "manifest_digest": {
+            "$ref": "#/$defs/digest"
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "track": {
+                        "const": "track-1"
+                    }
+                },
+                "required": [
+                    "track"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "coverage": {
+                        "$ref": "#/$defs/track1Coverage"
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "track": {
+                        "const": "track-2"
+                    }
+                },
+                "required": [
+                    "track"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "coverage": {
+                        "$ref": "#/$defs/track2Coverage"
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "track": {
+                        "const": "track-1"
+                    },
+                    "status": {
+                        "const": "completed"
+                    },
+                    "scope": {
+                        "type": "object",
+                        "properties": {
+                            "mode": {
+                                "const": "full"
+                            }
+                        },
+                        "required": [
+                            "mode"
+                        ]
+                    }
+                },
+                "required": [
+                    "track",
+                    "status",
+                    "scope"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "coverage": {
+                        "type": "object",
+                        "properties": {
+                            "approved_enabled_source_count": {
+                                "type": "integer",
+                                "minimum": 50
+                            },
+                            "attempted": {
+                                "type": "integer",
+                                "minimum": 50
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "track": {
+                        "const": "track-2"
+                    },
+                    "status": {
+                        "const": "completed"
+                    },
+                    "scope": {
+                        "type": "object",
+                        "properties": {
+                            "mode": {
+                                "const": "full"
+                            }
+                        },
+                        "required": [
+                            "mode"
+                        ]
+                    }
+                },
+                "required": [
+                    "track",
+                    "status",
+                    "scope"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "coverage": {
+                        "type": "object",
+                        "properties": {
+                            "gaps": {
+                                "const": 0
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "gitsha": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+        },
+        "track1Coverage": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "approved_enabled_source_count",
+                "attempted",
+                "successfully_evaluated",
+                "redirected",
+                "rate_limited",
+                "failed",
+                "skipped",
+                "stale",
+                "exception_count"
+            ],
+            "properties": {
+                "approved_enabled_source_count": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "attempted": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "successfully_evaluated": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "redirected": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "rate_limited": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "failed": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "skipped": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "blocked": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "unevaluated": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "stale": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "exception_count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Count of accepted run-specific coverage exceptions; implementation policy validates each exception record."
+                }
+            }
+        },
+        "track2Coverage": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "expected",
+                "enumerated",
+                "inspected",
+                "gaps"
+            ],
+            "properties": {
+                "expected": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "enumerated": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "inspected": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "gaps": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            },
+            "description": "Implementation validation requires expected, enumerated, and inspected to be equal before a full Track 2 run completes; JSON Schema validates shape and zero gaps only."
+        }
+    }
+}

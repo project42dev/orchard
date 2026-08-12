@@ -9,12 +9,25 @@
 #>
 param(
     [string] $OrchardRoot = 'D:\git\project42dev\orchard',
+    [string] $BindingReferencesPath,
     [switch] $SkipIngest,
     [switch] $SkipNotify
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+$resolvedRoot = Resolve-Path -LiteralPath $OrchardRoot -ErrorAction Stop
+$OrchardRoot = [System.IO.Path]::GetFullPath($resolvedRoot.Path)
+$requiredRootFiles = @(
+    (Join-Path $OrchardRoot 'scripts\ingest-proposals.mjs'),
+    (Join-Path $OrchardRoot 'package.json')
+)
+foreach ($requiredFile in $requiredRootFiles) {
+    if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+        throw "OrchardRoot is not an Orchard checkout: required file is missing: $requiredFile"
+    }
+}
 
 $localProposalsDir = Join-Path $OrchardRoot 'delivery\private\local-proposals'
 $runRecordsDir = Join-Path $OrchardRoot 'delivery\run-records'
@@ -166,13 +179,29 @@ Write-Host "[INFO] Created $newProposals new proposal/packet pairs"
 
 # Step 5: Run ingest
 if (-not $SkipIngest) {
+    if ([string]::IsNullOrWhiteSpace($BindingReferencesPath)) {
+        throw 'Ingest requires -BindingReferencesPath containing immutable queue_work_item_id and gate1_decision_event_id references.'
+    }
+    $resolvedBindings = Resolve-Path -LiteralPath $BindingReferencesPath -ErrorAction Stop
+    $BindingReferencesPath = [System.IO.Path]::GetFullPath($resolvedBindings.Path)
+    if (-not (Test-Path -LiteralPath $BindingReferencesPath -PathType Leaf)) {
+        throw "Binding reference file does not exist: $BindingReferencesPath"
+    }
     Write-Host "[INFO] Running ingest-proposals.mjs..."
-    $ingestCmd = "node --experimental-sqlite `"$OrchardRoot\scripts\ingest-proposals.mjs`" --db `"$dbPath`" --run-records `"$runRecordsDir`" --apply"
-    Write-Host "[CMD] $ingestCmd"
-    $result = cmd /c $ingestCmd 2>&1
-    Write-Host $result
+    $node = Get-Command node -CommandType Application -ErrorAction Stop
+    $ingestScript = Join-Path $OrchardRoot 'scripts\ingest-proposals.mjs'
+    $ingestArguments = @(
+        '--experimental-sqlite',
+        $ingestScript,
+        '--db', $dbPath,
+        '--run-records', $runRecordsDir,
+        '--bindings', $BindingReferencesPath,
+        '--apply'
+    )
+    Write-Host "[CMD] $($node.Source) $($ingestArguments -join ' ')"
+    & $node.Source @ingestArguments
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] Ingest failed with exit code $LASTEXITCODE"
+        throw "Ingest failed with exit code $LASTEXITCODE"
     }
     else {
         Write-Host "[INFO] Ingest complete"
@@ -184,17 +213,7 @@ else {
 
 # Step 6: Run notify
 if (-not $SkipNotify) {
-    Write-Host "[INFO] Running notify-review-ready.mjs..."
-    $notifyCmd = "node --experimental-sqlite `"$OrchardRoot\scripts\notify-review-ready.mjs`" --db `"$dbPath`" --proposals `"$proposalsDir`""
-    Write-Host "[CMD] $notifyCmd"
-    $result = cmd /c $notifyCmd 2>&1
-    Write-Host $result
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] Notify failed with exit code $LASTEXITCODE"
-    }
-    else {
-        Write-Host "[INFO] Notify complete"
-    }
+    Write-Host "[SKIP] Legacy whole-issue notification is retired. Generate item-bound Gate 1 manifests with scripts/notify-review-ready.mjs --input <gate-input.json>."
 }
 else {
     Write-Host "[SKIP] Notify skipped (--SkipNotify)"

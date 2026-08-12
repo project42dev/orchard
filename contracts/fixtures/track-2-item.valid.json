@@ -1,0 +1,28 @@
+{
+    "schema_version": "1.0.0",
+    "item_id": "018f1000-0000-7000-8000-000000000002",
+    "run_id": "018f0000-0000-7000-8000-000000000002",
+    "track": "track-2",
+    "item_revision": 2,
+    "semantic_identity": "sid:v1:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "canonical_content_id": "example-existing-module",
+    "surface": "learning",
+    "outcome": "correction",
+    "state": "gate2-pending",
+    "proposal_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "artifact_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "target": {
+        "repository": "project42dev/project42-platform",
+        "path": "content/learning/example-existing-module.json"
+    },
+    "evidence": [
+        {
+            "reference": "evidence/claim/example",
+            "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+        }
+    ],
+    "supersedes_item_id": null,
+    "superseded_by_item_id": null,
+    "created_at": "2026-08-11T07:30:00Z",
+    "updated_at": "2026-08-11T08:45:00Z"
+}

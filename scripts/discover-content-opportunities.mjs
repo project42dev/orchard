@@ -28,10 +28,11 @@
  * Usage:
  *   node discover-content-opportunities.mjs \
  *     --registry <path> --corpus <dir> --probes <path> --out <path> \
- *     [--gap-threshold 0] [--surface learn] [--timeout 30] [--offline]
+ *     [--gap-threshold 0] [--surface learn] --offline
  *
- * --offline skips the network survey and measures the corpus only, which is
- * how the coverage half is tested without depending on anyone's uptime.
+ * --offline skips the network survey and measures the corpus only. Legacy
+ * network survey mode is disabled; use --track track-1 for approved, bounded,
+ * SSRF-resistant source discovery.
  *
  * Exit codes: 0 proposals emitted, 1 usage or read error, 3 survey reached no
  * source at all (measurement still written, but demand is unverified).
@@ -40,12 +41,29 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, extname, basename, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { openStateStore } from './lib/state-store.mjs';
+import { runTrack1 } from './lib/track-1-controller.mjs';
+
+const TRACK_1_HELP = `Track 1 new-content discovery
+
+usage: discover-content-opportunities.mjs --track track-1 --mode <full|subset|dry-run>
+  --source-registry <path> [--source-ids id,id] [--state-db <path>]
+  [--registry-digest sha256:...] [--content-commit SHA] [--implementation-commit SHA]
+  [--trigger-type weekly|manual|replay] [--trigger-reference <text>]
+  [--actor-kind scheduler|operator] [--actor-reference <text>]
+  [--max-sources N] [--max-failures N] [--max-redirects N]
+  [--max-bytes N] [--timeout-ms N] [--max-retries N] [--out <path>]
+
+dry-run validates and deterministically selects sources without fetching, opening
+the state store, writing an output file, or invoking any external integration.
+
+Legacy proposal measurement remains available without --track; use --legacy-help.`;
 
 function usage(message) {
   if (message) console.error(`error: ${message}`);
   console.error(
     'usage: discover-content-opportunities.mjs --registry <path> --corpus <dir> --probes <path> --out <path>\n' +
-    '       [--gap-threshold N] [--surface NAME] [--timeout SECONDS] [--offline]'
+    '       [--gap-threshold N] [--surface NAME] --offline'
   );
   process.exit(1);
 }
@@ -62,6 +80,62 @@ function parseArgs(argv) {
     i += 1;
   }
   return args;
+}
+
+function parseTrackArgs(argv) {
+  const args = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const key = argv[index];
+    if (!key.startsWith('--')) throw new TypeError(`unexpected argument ${key}`);
+    const value = argv[index + 1];
+    if (value === undefined || value.startsWith('--')) throw new TypeError(`${key} needs a value`);
+    args[key.slice(2)] = value;
+    index += 1;
+  }
+  return args;
+}
+
+async function track1Main(argv) {
+  const args = parseTrackArgs(argv);
+  if (args.track !== 'track-1') throw new TypeError('--track must be track-1');
+  if (!['full', 'subset', 'dry-run'].includes(args.mode)) throw new TypeError('--mode must be full, subset, or dry-run');
+  if (args['trigger-type'] && !['weekly', 'manual', 'replay'].includes(args['trigger-type'])) throw new TypeError('--trigger-type must be weekly, manual, or replay');
+  if (args['actor-kind'] && !['scheduler', 'operator'].includes(args['actor-kind'])) throw new TypeError('--actor-kind must be scheduler or operator');
+  if (!args['source-registry']) throw new TypeError('--source-registry is required');
+  if (args.mode !== 'dry-run' && !args['state-db']) throw new TypeError('--state-db is required except in dry-run mode');
+  const registry = JSON.parse(readFileSync(args['source-registry'], 'utf8'));
+  const integer = (name, fallback) => args[name] === undefined ? fallback : Number.parseInt(args[name], 10);
+  const store = args.mode === 'dry-run' ? null : openStateStore(args['state-db']);
+  try {
+    const result = await runTrack1({
+      mode: args.mode,
+      registry,
+      registryDigest: args['registry-digest'],
+      subsetIds: (args['source-ids'] ?? '').split(',').map((value) => value.trim()).filter(Boolean),
+      stateStore: store,
+      contentCommit: args['content-commit'],
+      implementationCommit: args['implementation-commit'],
+      triggerType: args['trigger-type'],
+      triggerReference: args['trigger-reference'],
+      actorKind: args['actor-kind'],
+      actorReference: args['actor-reference'],
+      limits: {
+        maxSources: integer('max-sources', Number.MAX_SAFE_INTEGER),
+        maxFailures: integer('max-failures', Number.MAX_SAFE_INTEGER),
+        maxRedirects: integer('max-redirects', 3),
+        maxBytes: integer('max-bytes', 1_000_000),
+        timeoutMs: integer('timeout-ms', 15_000),
+        maxRetries: integer('max-retries', 1),
+      },
+    });
+    const output = `${JSON.stringify(result, null, 2)}\n`;
+    if (args.mode !== 'dry-run' && args.out) writeFileSync(args.out, output, 'utf8');
+    else process.stdout.write(output);
+    if (result.status === 'failed') process.exitCode = 2;
+    else if (args.mode !== 'dry-run' && result.status !== 'completed') process.exitCode = 3;
+  } finally {
+    store?.close();
+  }
 }
 
 /**
@@ -115,33 +189,6 @@ export function toPlainText(html) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/&[a-z]+;/gi, ' ')
     .replace(/\s+/g, ' ');
-}
-
-async function survey(watchList, timeoutSeconds) {
-  const results = [];
-  for (const source of watchList) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
-    try {
-      const response = await fetch(source.url, {
-        redirect: 'follow',
-        signal: controller.signal,
-        headers: {
-          // Identify honestly. A survey that disguises itself as a browser is
-          // not a survey a publisher agreed to.
-          'User-Agent': 'HomesteadFoundry-ContentDiscovery/1.0 (+read-only topic survey)',
-          Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9',
-        },
-      });
-      const body = response.ok ? toPlainText(await response.text()) : '';
-      results.push({ id: source.id, status: response.status, text: body, url: source.url });
-    } catch (error) {
-      results.push({ id: source.id, status: 0, text: '', url: source.url, error: error.message });
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  return results;
 }
 
 /**
@@ -243,6 +290,9 @@ async function main() {
   for (const required of ['registry', 'corpus', 'probes', 'out']) {
     if (!args[required]) usage(`--${required} is required`);
   }
+  if (!args.offline) {
+    usage('legacy network survey mode is disabled; use --track track-1 or pass --offline');
+  }
 
   let registry;
   let probes;
@@ -267,18 +317,8 @@ async function main() {
     `(${skipped} file(s) excluded: ${[...selfNames, ...extraExcludes].join(', ')})`
   );
 
-  const watchList = registry.watchList ?? [];
-  let surveyed = [];
-  if (args.offline) {
-    console.log('offline: skipping the survey, measuring corpus coverage only');
-  } else {
-    surveyed = await survey(watchList, Number.parseInt(args.timeout, 10));
-    const reached = surveyed.filter((s) => s.text).length;
-    console.log(`survey: ${reached} of ${surveyed.length} sources returned content`);
-    for (const source of surveyed.filter((s) => !s.text)) {
-      console.log(`  unreachable: ${source.id} -> HTTP ${source.status}${source.error ? ` (${source.error})` : ''}`);
-    }
-  }
+  const surveyed = [];
+  console.log('offline: skipping the survey, measuring corpus coverage only');
 
   // --surfaces id:subdir[:Label],... measures each publishing surface against
   // its own subtree. Without it everything is measured as one corpus and every
@@ -319,20 +359,25 @@ async function main() {
   const proposals = surfaces.length
     ? buildProposalsPerSurface({ probes: probes.probes, surfaces, surveyed, gapThreshold, now })
     : buildProposals({
-        probes: probes.probes,
-        corpusText,
-        surveyed,
-        gapThreshold,
-        surface: args.surface,
-        now,
-      });
+      probes: probes.probes,
+      corpusText,
+      surveyed,
+      gapThreshold,
+      surface: args.surface,
+      now,
+    });
 
   writeFileSync(args.out, `${JSON.stringify({ generatedOn: now, opportunities: proposals }, null, 2)}\n`, 'utf8');
   console.log(`\nproposed ${proposals.length} opportunit${proposals.length === 1 ? 'y' : 'ies'} -> ${args.out}`);
   for (const proposal of proposals) console.log(`  ${proposal.id}: ${proposal.gapEvidence}`);
   console.log('\nNothing was written to the registry. Merge with merge-opportunity-proposals.mjs.');
 
-  if (!args.offline && !surveyed.some((s) => s.text)) process.exit(3);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const argv = process.argv.slice(2);
+  if (argv.includes('--help')) console.log(TRACK_1_HELP);
+  else if (argv.includes('--legacy-help')) usage();
+  else if (argv.includes('--track')) await track1Main(argv);
+  else await main();
+}

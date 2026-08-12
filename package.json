@@ -6,10 +6,18 @@
     "private": true,
     "scripts": {
         "build:db": "node scripts/build-content-db.mjs",
-        "test": "node scripts/test-build-content-db.mjs"
+        "migrate:db": "node scripts/migrate-content-db.mjs",
+        "test": "node scripts/test-build-content-db.mjs && node --test tests/*.test.mjs",
+        "discover:track-1": "node scripts/discover-content-opportunities.mjs --help",
+        "digest:source-registry": "node scripts/digest-approved-source-registry.mjs",
+        "inspect:track-2": "node scripts/inspect-canonical-corpus.mjs --help",
+        "publish:approved": "node scripts/publish-approved-item.mjs",
+        "publish:record": "node scripts/record-publication.mjs"
     },
     "dependencies": {
-        "@project42/platform": "github:project42dev/project42-platform#v0.72.0"
+        "@project42/platform": "github:project42dev/project42-platform#v0.72.0",
+        "ajv": "8.20.0",
+        "ipaddr.js": "2.2.0"
     },
     "engines": {
         "node": ">=22.5.0"

@@ -1,0 +1,206 @@
+name: Track 2 Corpus Inspection
+
+on:
+    schedule:
+        - cron: "0 12 * * 1"
+    workflow_dispatch:
+        inputs:
+            mode:
+                description: Run mode. Weekly runs always use full.
+                required: true
+                default: dry-run
+                type: choice
+                options:
+                    - dry-run
+                    - subset
+                    - full
+            platform_commit:
+                description: Optional dry-run-only project42-platform commit. Evidence-bearing runs use the protected repository variable.
+                required: false
+                type: string
+            item_ids:
+                description: Comma-separated canonical stable IDs. Required only for subset mode.
+                required: false
+                type: string
+
+concurrency:
+    group: orchard-track-2-${{ github.ref }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    NODE_VERSION: "22"
+    PLATFORM_REPOSITORY: ${{ vars.ORCHARD_PLATFORM_REPOSITORY || 'project42dev/project42-platform' }}
+
+jobs:
+    inspect:
+        name: Inspect pinned canonical corpus
+        runs-on: ubuntu-latest
+        timeout-minutes: 360
+
+        steps:
+            - name: Resolve and validate immutable inputs
+              id: config
+              shell: pwsh
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  REQUESTED_MODE: ${{ inputs.mode }}
+                  REQUESTED_PLATFORM_COMMIT: ${{ inputs.platform_commit }}
+                  SCHEDULED_PLATFORM_COMMIT: ${{ vars.ORCHARD_PLATFORM_COMMIT }}
+                  REQUESTED_ITEM_IDS: ${{ inputs.item_ids }}
+                  INSPECTOR_REPOSITORY: ${{ vars.ORCHARD_INSPECTOR_REPOSITORY }}
+                  INSPECTOR_COMMIT: ${{ vars.ORCHARD_INSPECTOR_COMMIT }}
+                  INSPECTOR_MODULE: ${{ vars.ORCHARD_INSPECTOR_MODULE }}
+                  RUN_REFERENCE: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = 'Stop'
+
+                  $scheduled = $env:EVENT_NAME -eq 'schedule'
+                  $mode = if ($scheduled) { 'full' } else { $env:REQUESTED_MODE }
+                  if ($mode -notin @('full', 'subset', 'dry-run')) {
+                    throw 'mode must be full, subset, or dry-run'
+                  }
+                  if ($scheduled -and $mode -ne 'full') {
+                    throw 'scheduled Track 2 runs must use full mode'
+                  }
+
+                  if ($mode -ne 'dry-run' -and $env:REQUESTED_PLATFORM_COMMIT) {
+                    throw 'platform_commit override is allowed only for dry-run mode'
+                  }
+                  $platformCommit = if ($mode -eq 'dry-run' -and $env:REQUESTED_PLATFORM_COMMIT) { $env:REQUESTED_PLATFORM_COMMIT } else { $env:SCHEDULED_PLATFORM_COMMIT }
+                  if ($platformCommit -cnotmatch '^[a-f0-9]{40}$') {
+                    throw 'an exact lowercase ORCHARD_PLATFORM_COMMIT is required'
+                  }
+
+                  $itemIds = $env:REQUESTED_ITEM_IDS.Trim()
+                  if ($mode -eq 'subset' -and -not $itemIds) {
+                    throw 'item_ids is required for subset mode'
+                  }
+                  if ($itemIds -and $itemIds -cnotmatch '^[a-z0-9._:-]+(?:,[a-z0-9._:-]+)*$') {
+                    throw 'item_ids contains an invalid canonical stable identifier'
+                  }
+                  if ($mode -ne 'subset' -and $itemIds) {
+                    throw 'item_ids is allowed only in subset mode'
+                  }
+
+                  if ($mode -ne 'dry-run') {
+                    if ($env:INSPECTOR_REPOSITORY -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
+                      throw 'ORCHARD_INSPECTOR_REPOSITORY must name one protected repository'
+                    }
+                    if ($env:INSPECTOR_COMMIT -cnotmatch '^[a-f0-9]{40}$') {
+                      throw 'ORCHARD_INSPECTOR_COMMIT must be an exact lowercase commit'
+                    }
+                    if ($env:INSPECTOR_MODULE -cnotmatch '^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*\.mjs$' -or $env:INSPECTOR_MODULE.Contains('..')) {
+                      throw 'ORCHARD_INSPECTOR_MODULE must be a safe relative .mjs path'
+                    }
+                  }
+
+                  "mode=$mode" >> $env:GITHUB_OUTPUT
+                  "platform_commit=$platformCommit" >> $env:GITHUB_OUTPUT
+                  "item_ids=$itemIds" >> $env:GITHUB_OUTPUT
+                  "trigger_type=$(if ($scheduled) { 'weekly' } else { 'manual' })" >> $env:GITHUB_OUTPUT
+                  "actor_kind=$(if ($scheduled) { 'scheduler' } else { 'operator' })" >> $env:GITHUB_OUTPUT
+                  "run_reference=$($env:RUN_REFERENCE)" >> $env:GITHUB_OUTPUT
+
+            - name: Checkout Orchard
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  path: orchard
+                  persist-credentials: false
+
+            - name: Checkout canonical platform pin
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  repository: ${{ env.PLATFORM_REPOSITORY }}
+                  ref: ${{ steps.config.outputs.platform_commit }}
+                  path: platform
+                  persist-credentials: false
+
+            - name: Checkout protected inspector pin
+              if: ${{ steps.config.outputs.mode != 'dry-run' }}
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  repository: ${{ vars.ORCHARD_INSPECTOR_REPOSITORY }}
+                  ref: ${{ vars.ORCHARD_INSPECTOR_COMMIT }}
+                  path: inspector
+                  token: ${{ secrets.ORCHARD_INSPECTOR_TOKEN || github.token }}
+                  persist-credentials: false
+
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: orchard/package-lock.json
+
+            - name: Install locked dependencies
+              working-directory: orchard
+              shell: pwsh
+              run: npm ci --ignore-scripts
+
+            - name: Run Track 2
+              working-directory: orchard
+              shell: pwsh
+              env:
+                  MODE: ${{ steps.config.outputs.mode }}
+                  PLATFORM_COMMIT: ${{ steps.config.outputs.platform_commit }}
+                  ITEM_IDS: ${{ steps.config.outputs.item_ids }}
+                  INSPECTOR_MODULE: ${{ vars.ORCHARD_INSPECTOR_MODULE }}
+                  TRIGGER_TYPE: ${{ steps.config.outputs.trigger_type }}
+                  ACTOR_KIND: ${{ steps.config.outputs.actor_kind }}
+                  RUN_REFERENCE: ${{ steps.config.outputs.run_reference }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = 'Stop'
+
+                  $implementationCommit = (git rev-parse HEAD).Trim()
+                  $arguments = @(
+                    'scripts/inspect-canonical-corpus.mjs',
+                    '--track', 'track-2',
+                    '--mode', $env:MODE,
+                    '--platform-root', '../platform',
+                    '--content-commit', $env:PLATFORM_COMMIT,
+                    '--implementation-commit', $implementationCommit,
+                    '--trigger-type', $env:TRIGGER_TYPE,
+                    '--trigger-reference', $env:RUN_REFERENCE,
+                    '--actor-kind', $env:ACTOR_KIND,
+                    '--actor-reference', $env:RUN_REFERENCE,
+                    '--partition-size', '50',
+                    '--concurrency', '4'
+                  )
+
+                  if ($env:MODE -eq 'subset') {
+                    $arguments += @('--item-ids', $env:ITEM_IDS)
+                  }
+                  if ($env:MODE -ne 'dry-run') {
+                    $inspectorPath = Join-Path '../inspector' $env:INSPECTOR_MODULE
+                    $resolvedRoot = [System.IO.Path]::GetFullPath((Join-Path $PWD '../inspector'))
+                    $resolvedInspector = [System.IO.Path]::GetFullPath((Join-Path $PWD $inspectorPath))
+                    if (-not $resolvedInspector.StartsWith($resolvedRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::Ordinal)) {
+                      throw 'inspector module escaped its protected checkout'
+                    }
+                    if (-not (Test-Path -LiteralPath $resolvedInspector -PathType Leaf)) {
+                      throw 'protected inspector module does not exist at the configured commit'
+                    }
+                    New-Item -ItemType Directory -Path 'delivery/private/track-2' -Force | Out-Null
+                    $arguments += @(
+                      '--inspector', $resolvedInspector,
+                      '--state-db', 'delivery/private/track-2/workflow-state.db',
+                      '--out', 'delivery/private/track-2/result.json'
+                    )
+                  }
+
+                  & node @arguments
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            - name: Upload immutable Track 2 evidence
+              if: ${{ always() && steps.config.outputs.mode != 'dry-run' }}
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: orchard-track-2-${{ github.run_id }}-${{ github.run_attempt }}
+                  path: orchard/delivery/private/track-2/
+                  if-no-files-found: error
+                  retention-days: 90

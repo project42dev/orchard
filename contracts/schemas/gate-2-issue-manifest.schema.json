@@ -1,0 +1,324 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/gate-2-issue-manifest/1.0.0",
+    "title": "Orchard Gate 2 issue manifest",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "gate",
+        "run_id",
+        "track",
+        "batch",
+        "full_manifest_digest",
+        "batch_digest",
+        "idempotency_key",
+        "items"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "gate": {
+            "const": "gate-2"
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "track": {
+            "enum": [
+                "track-1",
+                "track-2"
+            ]
+        },
+        "batch": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "ordinal",
+                "count",
+                "item_count",
+                "total_item_count",
+                "maximum_size"
+            ],
+            "properties": {
+                "ordinal": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "item_count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 20
+                },
+                "total_item_count": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "maximum_size": {
+                    "const": 20
+                }
+            }
+        },
+        "full_manifest_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "batch_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "idempotency_key": {
+            "type": "string",
+            "pattern": "^github:gate-2:[0-9a-fA-F-]{36}:sha256:[a-f0-9]{64}$"
+        },
+        "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+                "$ref": "#/$defs/item"
+            }
+        }
+    },
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "gitsha": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+        },
+        "item": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "item_id",
+                "item_revision",
+                "artifact_digest",
+                "proposal_digest",
+                "displayed_diff_digest",
+                "prepared_tree_digest",
+                "target",
+                "base_commit",
+                "diff_ref",
+                "artifact_ref",
+                "ado_external_key",
+                "handoff_chain_digest",
+                "tests",
+                "factual_review",
+                "accessibility_review",
+                "cost",
+                "decision_state"
+            ],
+            "properties": {
+                "item_id": {
+                    "$ref": "#/$defs/uuid"
+                },
+                "item_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "artifact_digest": {
+                    "$ref": "#/$defs/digest"
+                },
+                "proposal_digest": {
+                    "$ref": "#/$defs/digest"
+                },
+                "displayed_diff_digest": {
+                    "$ref": "#/$defs/digest",
+                    "description": "Digest of the exact human-readable diff displayed for Gate 2 review."
+                },
+                "prepared_tree_digest": {
+                    "$ref": "#/$defs/digest",
+                    "description": "Digest of the exact prepared target tree displayed for Gate 2 review."
+                },
+                "target": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "repository",
+                        "path"
+                    ],
+                    "properties": {
+                        "repository": {
+                            "const": "project42dev/project42-platform"
+                        },
+                        "path": {
+                            "type": "string",
+                            "pattern": "^(?!\\.{1,2}(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.{1,2}(?:/|$))[A-Za-z0-9._-]+)*$"
+                        }
+                    }
+                },
+                "base_commit": {
+                    "$ref": "#/$defs/gitsha"
+                },
+                "diff_ref": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "artifact_ref": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "ado_external_key": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "handoff_chain_digest": {
+                    "$ref": "#/$defs/digest"
+                },
+                "tests": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                            "name",
+                            "status",
+                            "evidence_ref"
+                        ],
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "status": {
+                                "enum": [
+                                    "passed",
+                                    "failed"
+                                ]
+                            },
+                            "evidence_ref": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
+                },
+                "factual_review": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "status",
+                        "evidence_ref"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "passed",
+                                "failed",
+                                "human-review"
+                            ]
+                        },
+                        "evidence_ref": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "accessibility_review": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "status",
+                        "evidence_ref"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "passed",
+                                "failed",
+                                "human-review"
+                            ]
+                        },
+                        "evidence_ref": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                },
+                "cost": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "currency",
+                        "amount"
+                    ],
+                    "properties": {
+                        "currency": {
+                            "const": "USD"
+                        },
+                        "amount": {
+                            "type": "number",
+                            "minimum": 0
+                        }
+                    }
+                },
+                "decision_state": {
+                    "enum": [
+                        "pending",
+                        "approved",
+                        "denied",
+                        "deferred",
+                        "changes-requested"
+                    ]
+                }
+            },
+            "allOf": [
+                {
+                    "if": {
+                        "properties": {
+                            "decision_state": {
+                                "const": "approved"
+                            }
+                        },
+                        "required": [
+                            "decision_state"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "tests": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "const": "passed"
+                                        }
+                                    }
+                                }
+                            },
+                            "factual_review": {
+                                "type": "object",
+                                "properties": {
+                                    "status": {
+                                        "const": "passed"
+                                    }
+                                }
+                            },
+                            "accessibility_review": {
+                                "type": "object",
+                                "properties": {
+                                    "status": {
+                                        "const": "passed"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-42.dev/config/orchard/qualification-registry/1.0.0",
+  "title": "Orchard model qualification registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "entries"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "role": {
+      "enum": [
+        "evidence-researcher",
+        "writer",
+        "editor",
+        "factual-verifier",
+        "accessibility-reviewer",
+        "assessment-reviewer",
+        "diagram-reviewer",
+        "final-reviewer"
+      ]
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_identity",
+        "provider_family",
+        "role",
+        "qualification_digest",
+        "qualified_at",
+        "expires_at",
+        "status",
+        "prompt_version",
+        "criteria"
+      ],
+      "properties": {
+        "model_identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "provider_family": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "role": {
+          "$ref": "#/$defs/role"
+        },
+        "qualification_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "qualified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "enum": [
+            "qualified",
+            "suspended",
+            "revoked",
+            "expired"
+          ]
+        },
+        "prompt_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "measured_value",
+              "threshold",
+              "passed",
+              "evidence_ref"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "measured_value": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "threshold": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "evidence_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

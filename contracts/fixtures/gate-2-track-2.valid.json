@@ -1,0 +1,55 @@
+{
+    "schema_version": "1.0.0",
+    "gate": "gate-2",
+    "run_id": "018f0000-0000-7000-8000-000000000002",
+    "track": "track-2",
+    "batch": {
+        "ordinal": 1,
+        "count": 1,
+        "item_count": 1,
+        "total_item_count": 1,
+        "maximum_size": 20
+    },
+    "full_manifest_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+    "batch_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "idempotency_key": "github:gate-2:018f0000-0000-7000-8000-000000000002:sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "items": [
+        {
+            "item_id": "018f1000-0000-7000-8000-000000000002",
+            "item_revision": 2,
+            "artifact_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+            "proposal_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "displayed_diff_digest": "sha256:5656565656565656565656565656565656565656565656565656565656565656",
+            "prepared_tree_digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+            "target": {
+                "repository": "project42dev/project42-platform",
+                "path": "content/learning/example-existing-module.json"
+            },
+            "base_commit": "3333333333333333333333333333333333333333",
+            "diff_ref": "evidence/diff/track-2-item-2",
+            "artifact_ref": "evidence/artifact/track-2-item-2",
+            "ado_external_key": "orchard:track-2:018f1000-0000-7000-8000-000000000002:r2",
+            "handoff_chain_digest": "sha256:abababababababababababababababababababababababababababababababab",
+            "tests": [
+                {
+                    "name": "content and assessment validation",
+                    "status": "passed",
+                    "evidence_ref": "evidence/tests/maintenance"
+                }
+            ],
+            "factual_review": {
+                "status": "passed",
+                "evidence_ref": "evidence/review/factual-2"
+            },
+            "accessibility_review": {
+                "status": "human-review",
+                "evidence_ref": "evidence/review/accessibility-2"
+            },
+            "cost": {
+                "currency": "USD",
+                "amount": 3.4
+            },
+            "decision_state": "pending"
+        }
+    ]
+}

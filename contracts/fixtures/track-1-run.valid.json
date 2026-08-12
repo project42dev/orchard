@@ -1,0 +1,42 @@
+{
+    "schema_version": "1.0.0",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "replay_of": null,
+    "track": "track-1",
+    "trigger": {
+        "type": "weekly",
+        "reference": "track-1-weekly"
+    },
+    "status": "completed",
+    "configuration_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "source_registry_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "content_commit": "1111111111111111111111111111111111111111",
+    "implementation_commit": "2222222222222222222222222222222222222222",
+    "model_role_map_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "started_at": "2026-08-11T06:00:00Z",
+    "completed_at": "2026-08-11T06:30:00Z",
+    "actor": {
+        "kind": "scheduler",
+        "reference": "track-1-scheduler"
+    },
+    "scope": {
+        "mode": "full",
+        "expected_count": 50,
+        "partition_size": null,
+        "concurrency_cap": 4
+    },
+    "coverage": {
+        "approved_enabled_source_count": 54,
+        "attempted": 50,
+        "successfully_evaluated": 48,
+        "redirected": 2,
+        "failed": 1,
+        "rate_limited": 1,
+        "skipped": 4,
+        "unevaluated": 0,
+        "stale": 0,
+        "exception_count": 0
+    },
+    "item_count": 1,
+    "manifest_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+}

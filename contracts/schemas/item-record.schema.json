@@ -1,0 +1,241 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/item-record/1.0.0",
+    "title": "Orchard item record",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "item_id",
+        "run_id",
+        "track",
+        "item_revision",
+        "semantic_identity",
+        "surface",
+        "outcome",
+        "state",
+        "proposal_digest",
+        "target",
+        "evidence",
+        "created_at"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "item_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "track": {
+            "enum": [
+                "track-1",
+                "track-2"
+            ]
+        },
+        "item_revision": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "semantic_identity": {
+            "type": "string",
+            "pattern": "^sid:v1:[a-f0-9]{64}$"
+        },
+        "canonical_content_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "maxLength": 200
+        },
+        "surface": {
+            "enum": [
+                "learning",
+                "guide",
+                "guide-diagram"
+            ]
+        },
+        "outcome": {
+            "enum": [
+                "new-course",
+                "new-module",
+                "addition",
+                "update",
+                "correction",
+                "replacement",
+                "removal",
+                "no-change"
+            ]
+        },
+        "state": {
+            "enum": [
+                "observed",
+                "proposed",
+                "gate1-pending",
+                "gate1-approved",
+                "ado-linked",
+                "executing",
+                "gate2-ready",
+                "gate2-pending",
+                "gate2-approved",
+                "publication-preparing",
+                "publication-validating",
+                "publication-pr-open",
+                "publication-merging",
+                "published",
+                "ado-closure-ready",
+                "closed",
+                "denied",
+                "deferred",
+                "changes-requested",
+                "stale-approval",
+                "blocked",
+                "superseded"
+            ]
+        },
+        "proposal_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "artifact_digest": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/digest"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "repository",
+                "path"
+            ],
+            "properties": {
+                "repository": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                },
+                "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+                }
+            }
+        },
+        "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "reference",
+                    "digest"
+                ],
+                "properties": {
+                    "reference": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000
+                    },
+                    "digest": {
+                        "$ref": "#/$defs/digest"
+                    }
+                }
+            }
+        },
+        "supersedes_item_id": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/uuid"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "superseded_by_item_id": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/uuid"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "updated_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "outcome": {
+                        "const": "no-change"
+                    }
+                },
+                "required": [
+                    "outcome"
+                ]
+            },
+            "then": {
+                "properties": {
+                    "track": {
+                        "const": "track-2"
+                    },
+                    "state": {
+                        "enum": [
+                            "closed",
+                            "blocked"
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "state": {
+                        "const": "superseded"
+                    }
+                },
+                "required": [
+                    "state"
+                ]
+            },
+            "then": {
+                "required": [
+                    "superseded_by_item_id"
+                ],
+                "properties": {
+                    "superseded_by_item_id": {
+                        "$ref": "#/$defs/uuid"
+                    }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+    }
+}

@@ -1,9 +1,29 @@
 #!/usr/bin/env node
-// ado-sync.mjs — mirror orchard work items to Azure DevOps User Stories.
+import { readFileSync as readGateInput } from 'node:fs';
+import { resolve as resolveGateInput } from 'node:path';
+import { pathToFileURL as gateFileUrl } from 'node:url';
+import {
+    adoExternalKey,
+    adoWorkItemFields,
+    assertCurrentGate1Approval,
+    createSqliteExternalLinkPersister,
+    reconcileApprovedItem,
+} from './lib/ado-reconciliation.mjs';
+
+export {
+    adoExternalKey,
+    adoWorkItemFields,
+    assertCurrentGate1Approval,
+    createSqliteExternalLinkPersister,
+    reconcileApprovedItem,
+};
+export { reconcileApprovedItem as syncCreate };
+
+// ado-sync.mjs: mirror Orchard work items to Azure DevOps User Stories.
 //
 // Two operations:
-//   create  — creates ADO User Stories for work_item rows that have no ado_id
-//   update  — updates ADO User Story state to match work_item.state
+//   create: creates ADO User Stories for work_item rows that have no ado_id
+//   update: updates ADO User Story state to match work_item.state
 //
 // Both are idempotent. create skips rows that already have an ado_id.
 // update only touches rows that have an ado_id.
@@ -15,7 +35,6 @@
 //   node scripts/ado-sync.mjs --db <content.db> --org <org> --project <project> --operation update [--apply]
 
 import { DatabaseSync } from 'node:sqlite';
-import { execSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -44,12 +63,12 @@ const ADO_STATE_MAP = {
 };
 
 // ---------------------------------------------------------------------------
-// ADO area path — where User Stories live under the project
+// ADO area path where User Stories live under the project
 // ---------------------------------------------------------------------------
 const DEFAULT_AREA_PATH = 'Project 42\\Content Intelligence';
 
 // ---------------------------------------------------------------------------
-// ADO config — org and project are required
+// ADO config; org and project are required
 // ---------------------------------------------------------------------------
 const ADO_ORG = 'hybridcloudsolutions';
 const ADO_PROJECT = 'Project 42';
@@ -74,13 +93,8 @@ function parseArgs(argv) {
  * Run an az boards command and return stdout. Throws on failure.
  */
 function azBoards(cmd, description) {
-    try {
-        const result = execSync(cmd, { encoding: 'utf-8', timeout: 30_000 });
-        return result.trim();
-    } catch (err) {
-        const stderr = err.stderr || err.message;
-        throw new Error(`${description}: ${stderr}`);
-    }
+    void cmd;
+    throw new Error(`${description}: legacy direct ADO commands are disabled; use an injected ADO adapter`);
 }
 
 /**
@@ -111,24 +125,14 @@ function createAdoUserStory(row, org, project, areaPath) {
         `| **Subject** | \`${row.subject_id}\` |`,
         `| **Surface** | \`${row.surface}\` |`,
         `| **State** | \`${row.state}\` |`,
-        `| **Priority** | ${row.priority ?? '—'} |`,
+        `| **Priority** | ${row.priority ?? 'not set'} |`,
         `| **First seen** | ${row.first_seen} |`,
         '',
         `This User Story was created automatically by the Orchard content pipeline.`,
         `It tracks a content proposal that needs human review.`,
     ].join('\n');
 
-    // az boards work-item create returns JSON with the created item
-    const cmd = [
-        'az boards work-item create',
-        `--org "https://dev.azure.com/${org}"`,
-        `--project "${project}"`,
-        '--type "User Story"',
-        `--title ${azEscape(title)}`,
-        `--description ${azEscape(description)}`,
-        `--area "${areaPath}"`,
-        '--output json',
-    ].join(' ');
+    const cmd = { operation: 'create', organization: org, project, type: 'User Story', title, description, areaPath };
 
     const output = azBoards(cmd, `Create ADO User Story for ${row.id}`);
     const created = JSON.parse(output);
@@ -139,7 +143,7 @@ function createAdoUserStory(row, org, project, areaPath) {
  * Create ADO User Stories for all work_item rows that don't have an ado_id.
  * Updates the ado_id column in the database for each created story.
  */
-export function syncCreate({ dbPath, org, project, areaPath, now = new Date().toISOString(), apply = false }) {
+function legacySyncCreate({ dbPath, org, project, areaPath, now = new Date().toISOString(), apply = false }) {
     const db = new DatabaseSync(dbPath);
 
     // Find rows that need ADO mirroring: have no ado_id and aren't in a terminal state
@@ -197,17 +201,10 @@ export function syncCreate({ dbPath, org, project, areaPath, now = new Date().to
 function updateAdoUserStory(adoId, orchardState, org, project) {
     const adoState = ADO_STATE_MAP[orchardState];
     if (!adoState) {
-        throw new Error(`Unknown orchard state "${orchardState}" — cannot map to ADO state`);
+        throw new Error(`Unknown Orchard state "${orchardState}"; cannot map to ADO state`);
     }
 
-    const cmd = [
-        'az boards work-item update',
-        `--id ${adoId}`,
-        `--org "https://dev.azure.com/${org}"`,
-        `--state "${adoState}"`,
-        '--output json',
-    ].join(' ');
-
+    const cmd = { operation: 'update', organization: org, project, id: adoId, state: adoState };
     azBoards(cmd, `Update ADO #${adoId} to ${adoState}`);
     return adoState;
 }
@@ -283,7 +280,7 @@ function main() {
 
     let result;
     if (args.operation === 'create') {
-        result = syncCreate({ dbPath, org, project, areaPath, apply });
+        result = legacySyncCreate({ dbPath, org, project, areaPath, apply });
         console.log(`\nCreated: ${result.created}, Skipped: ${result.skipped}`);
     } else if (args.operation === 'update') {
         result = syncUpdate({ dbPath, org, project, apply });
@@ -296,4 +293,22 @@ function main() {
     if (!apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+async function gateBoundMain() {
+    const args = parseArgs(process.argv.slice(2));
+    if (!args.input) throw new Error('usage: ado-sync.mjs --input <approved-item.json> [--db <content.db>] [--apply --adapter-module <module>]');
+    const input = JSON.parse(readGateInput(resolveGateInput(args.input), 'utf8'));
+    let adoAdapter;
+    let persistLink;
+    if (args.apply) {
+        if (!args['adapter-module'] || !args.db) throw new Error('--apply requires --adapter-module and --db');
+        ({ adoAdapter } = await import(gateFileUrl(resolveGateInput(args['adapter-module'])).href));
+        persistLink = createSqliteExternalLinkPersister({ dbPath: resolveGateInput(args.db) });
+    }
+    const result = await reconcileApprovedItem({ ...input, adoAdapter, persistLink, apply: Boolean(args.apply) });
+    console.log(JSON.stringify(result, null, 2));
+    if (!args.apply) console.error('DRY RUN. No ADO or local state writes performed.');
+}
+
+if (import.meta.url === gateFileUrl(process.argv[1]).href) {
+    gateBoundMain().catch((error) => { console.error(error.message); process.exitCode = 1; });
+}

@@ -18,9 +18,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync, existsSync, mkdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import { join, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { migrateContentDb } from './migrate-content-db.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = resolve(HERE, '..', 'schema', 'content-db.sql');
@@ -203,6 +203,10 @@ function loadVisualGuideItems(contentRoot) {
 
 export function buildContentDb({ contentRoot, dbPath, surfaces = DEFAULT_SURFACES, now = new Date().toISOString() }) {
   mkdirSync(dirname(resolve(dbPath)), { recursive: true });
+  // Authoritative workflow tables are migration-managed and are never part of
+  // the drop/rebuild cycle below. Migration is a deterministic no-op once the
+  // database is current.
+  migrateContentDb(dbPath);
   const db = new DatabaseSync(dbPath);
   db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
 
@@ -403,32 +407,6 @@ function main() {
     process.exit(1);
   }
 
-  // Mirror new work items to Azure DevOps if --ado-sync is passed.
-  // This is optional: local dev builds skip it, CI builds include it.
-  if (args['ado-sync'] && r.workItemsCreated > 0) {
-    const org = args['ado-org'] || 'hybridcloudsolutions';
-    const project = args['ado-project'] || 'Project 42';
-    const area = args['ado-area'] || 'Project 42\\Content Intelligence';
-    console.log(`\nADO sync: mirroring ${r.workItemsCreated} new work item(s) to Azure DevOps...`);
-    try {
-      const adoArgs = [
-        `--db`, `"${resolve(dbPath)}"`,
-        `--operation`, `create`,
-        `--org`, org,
-        `--project`, `"${project}"`,
-        `--area`, `"${area}"`,
-        `--apply`,
-      ];
-      execSync(`node "${resolve(HERE, 'ado-sync.mjs')}" ${adoArgs.join(' ')}`, {
-        encoding: 'utf-8',
-        stdio: 'inherit',
-        timeout: 60_000,
-      });
-    } catch (err) {
-      console.error('ADO sync failed (non-fatal — database is still valid):');
-      console.error(err.stderr || err.message);
-    }
-  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) main();

@@ -1,0 +1,28 @@
+{
+    "schema_version": "1.0.0",
+    "item_id": "018f1000-0000-7000-8000-000000000001",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "track": "track-1",
+    "item_revision": 1,
+    "semantic_identity": "sid:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "canonical_content_id": null,
+    "surface": "learning",
+    "outcome": "new-module",
+    "state": "gate1-pending",
+    "proposal_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "artifact_digest": null,
+    "target": {
+        "repository": "project42dev/project42-platform",
+        "path": "content/learning/example-module.json"
+    },
+    "evidence": [
+        {
+            "reference": "evidence/source/example",
+            "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+        }
+    ],
+    "supersedes_item_id": null,
+    "superseded_by_item_id": null,
+    "created_at": "2026-08-11T06:20:00Z",
+    "updated_at": "2026-08-11T06:20:00Z"
+}

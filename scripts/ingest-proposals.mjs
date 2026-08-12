@@ -8,18 +8,21 @@
 // 'queued' forever and a human has to reconcile two lists by hand.
 //
 // What this does NOT do, on purpose:
-//   - It never publishes. A proposal is inert until a human accepts it
-//     (ADR-0004). This only records that a proposal exists and what its
-//     reviewers concluded.
+//   - It never publishes. A proposal is inert until both item-bound gates
+//     approve the exact revision and artifact. This only records that a
+//     proposal exists, what its reviewers concluded, and Gate 2 readiness.
 //   - It never overrides a human. A work item a person moved to 'rejected' or
 //     'done' stays there. Automation may propose a state change and may not
 //     perform one.
 
 import { DatabaseSync } from 'node:sqlite';
+import { StateStore } from './lib/state-store.mjs';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { execSync } from 'node:child_process';
 import { join, basename, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { canonicalJson } from './lib/identity.mjs';
+import { prepareGate2Item } from './lib/handoffs.mjs';
+import { validateDispatchAuthority } from './generate-briefs.mjs';
 
 // A reviewer's verdict maps to a queue state. 'blocked' is the interesting one:
 // the ensemble did the work and its own reviewers refused it, which is a
@@ -75,19 +78,13 @@ export function readProposals(runRecordDir) {
       out.push({
         file: basename(p.proposalPath ?? ''),
         runRecord: f,
-        runId: run.runId,
+        runId: run.run_id ?? run.runId,
+        binding: p.orchardBinding ?? p.binding,
+        handoffs: p.handoffs,
+        artifact: p.artifact,
         doc: {
-          // The brief id is embedded in the proposal filename the platform
-          // wrote, which is the only link back to what asked for the work.
-          // When the run record carries an explicit briefId or workItemId
-          // (e.g. local delivery runs), prefer those over the filename.
-          briefId: p.briefId
-            ?? basename(p.proposalPath ?? '')
-              .replace(/^proposal-/, '')
-              .replace(/-[0-9a-f]{8}\.json$/, ''),
           workItemId: p.workItemId,
           disposition: p.disposition,
-          proposalDigest: p.proposalDigest,
         },
       });
     }
@@ -95,44 +92,15 @@ export function readProposals(runRecordDir) {
   return out;
 }
 
-// A proposal names the brief it came from, not a queue row. Matching is by the
-// brief id, so a brief authored for a queue item must carry that item's id.
-// When it does not, the proposal is reported as unmatched rather than guessed
-// at: a wrong match writes a real state change onto the wrong content.
-//
-// Suffix matching takes the LONGEST match. Taking the first match out of a Set
-// meant the answer depended on insertion order: given both 'embeddings-learn'
-// and 'vector-embeddings-learn', a brief for the second resolved to whichever
-// was inserted first. That is exactly the wrong-content state change the
-// unmatched report exists to avoid, arrived at silently.
-//
-// The longest match is unique and needs no tie-break. Two different strings
-// that are both suffixes of one string cannot be the same length.
-export function matchToWorkItem(proposal, subjectIds) {
-  const candidates = proposalIdentifiers(proposal);
-
-  for (const c of candidates) {
-    if (subjectIds.has(c)) return { subjectId: c, via: 'exact' };
-  }
-  // A brief id that embeds a subject id, e.g. p42-create-<subject>.
-  for (const c of candidates) {
-    let best = null;
-    for (const s of subjectIds) {
-      if (!c.endsWith(s)) continue;
-      if (best === null || s.length > best.length) best = s;
-    }
-    if (best !== null) return { subjectId: best, via: 'suffix' };
-  }
-  return null;
+// A proposal must carry the exact queue work-item ID from its dispatch binding.
+// Filenames, brief suffixes, and prose are evidence only and never authority.
+export function matchToWorkItem(proposal, workItemIds) {
+  const id = proposal.doc?.workItemId;
+  return typeof id === 'string' && workItemIds.has(id) ? { workItemId: id, via: 'exact' } : null;
 }
 
 function proposalIdentifiers(proposal) {
-  return [
-    proposal.doc?.workItemId,
-    proposal.doc?.briefId,
-    proposal.doc?.id,
-    proposal.doc?.subjectId,
-  ].filter((v) => typeof v === 'string');
+  return [proposal.doc?.workItemId].filter((v) => typeof v === 'string');
 }
 
 // A subject id is not, on its own, a queue row.
@@ -153,26 +121,18 @@ export const KIND_MARKERS = [
 ];
 
 export function resolveWorkItemRow(proposal, rows) {
-  if (rows.length === 1) return { row: rows[0] };
-  const ids = proposalIdentifiers(proposal);
-  for (const { marker, kind } of KIND_MARKERS) {
-    if (!ids.some((c) => c.includes(marker))) continue;
-    const matched = rows.filter((r) => r.kind === kind);
-    if (matched.length === 1) return { row: matched[0] };
-  }
-  return {
-    ambiguous: `subject has ${rows.length} work items (${rows.map((r) => r.kind).join(', ')}) `
-      + 'and the brief id does not say which one it serves',
-  };
+  const matches = rows.filter((row) => row.id === proposal.doc?.workItemId);
+  return matches.length === 1 ? { row: matches[0] } : { ambiguous: `exact work item ID resolved ${matches.length} rows` };
 }
 
-export function ingest({ dbPath, runRecordDir, now = new Date().toISOString(), apply = false }) {
+export async function ingest({ dbPath, runRecordDir, authorities = [], now = new Date().toISOString(), apply = false }) {
   const db = new DatabaseSync(dbPath);
-  const subjectIds = new Set(
-    db.prepare('SELECT DISTINCT subject_id FROM work_item').all().map((r) => r.subject_id),
+  const authorityStore = new StateStore(db, { migrate: false });
+  const workItemIds = new Set(
+    db.prepare('SELECT id FROM work_item').all().map((r) => r.id),
   );
-
-  const getRows = db.prepare('SELECT id, kind, state, subject_id FROM work_item WHERE subject_id = ?');
+  const authorityByWorkItem = new Map(authorities.map((authority) => [authority.queue_work_item_id, authority]));
+  const getRows = db.prepare('SELECT id, kind, state, subject_id FROM work_item WHERE id = ?');
   const update = db.prepare(
     'UPDATE work_item SET state = ?, note = ?, updated_at = ? WHERE id = ?',
   );
@@ -181,22 +141,33 @@ export function ingest({ dbPath, runRecordDir, now = new Date().toISOString(), a
   const unmatched = [];
   const protectedItems = [];
   const unknownDisposition = [];
+  const gate2Items = [];
 
   for (const p of readProposals(runRecordDir)) {
     const disposition = p.doc?.disposition ?? p.doc?.status;
-    const match = matchToWorkItem(p, subjectIds);
+    const match = matchToWorkItem(p, workItemIds);
 
     if (!match) { unmatched.push({ file: p.file, disposition }); continue; }
 
     const next = DISPOSITION_STATE[disposition];
     if (!next) { unknownDisposition.push({ file: p.file, disposition }); continue; }
 
-    const resolved = resolveWorkItemRow(p, getRows.all(match.subjectId));
+    const resolved = resolveWorkItemRow(p, getRows.all(match.workItemId));
     if (resolved.ambiguous) {
       unmatched.push({ file: p.file, disposition, reason: resolved.ambiguous });
       continue;
     }
     const { row } = resolved;
+
+    const authority = authorityByWorkItem.get(row.id);
+    const authorized = validateDispatchAuthority(row, authority, authorityStore);
+    if (authorized.error) { unmatched.push({ file: p.file, disposition, reason: authorized.error }); continue; }
+    if (p.runId !== authorized.binding.run_id || canonicalJson(p.binding) !== canonicalJson(authorized.binding)) {
+      unmatched.push({ file: p.file, disposition, reason: 'run or exact proposal binding mismatch' }); continue;
+    }
+    let gate2Item;
+    try { gate2Item = await prepareGate2Item({ binding: authorized.binding, handoffs: p.handoffs, artifact: p.artifact }); }
+    catch (error) { unmatched.push({ file: p.file, disposition, reason: error.message }); continue; }
 
     if (TERMINAL_STATES.has(row.state)) {
       protectedItems.push({ subjectId: row.subject_id, kind: row.kind, state: row.state, file: p.file });
@@ -206,65 +177,26 @@ export function ingest({ dbPath, runRecordDir, now = new Date().toISOString(), a
     const note = `${disposition} by the authoring ensemble, ${p.file}`;
     if (apply) update.run(next, note, now, row.id);
     applied.push({
-      subjectId: match.subjectId, kind: row.kind, from: row.state, to: next, via: match.via, file: p.file,
+      workItemId: row.id, subjectId: row.subject_id, kind: row.kind, from: row.state, to: next, via: match.via, file: p.file,
     });
+    gate2Items.push(gate2Item);
   }
 
   db.close();
-  return { applied, unmatched, protectedItems, unknownDisposition };
+  return { applied, unmatched, protectedItems, unknownDisposition, gate2Items };
 }
 
-// ---------------------------------------------------------------------------
-// ADO state sync: after ingest moves work items, push state changes to ADO.
-// Called from main() when --ado-sync is passed.
-// ---------------------------------------------------------------------------
-function syncAdoStates({ dbPath, org, project, applied, apply }) {
-  if (applied.length === 0) return;
-
-  const adoIds = [];
-  const db2 = new DatabaseSync(dbPath);
-  try {
-    for (const a of applied) {
-      const row = db2.prepare('SELECT ado_id FROM work_item WHERE id = ?').get(a.subjectId)
-        || db2.prepare('SELECT ado_id FROM work_item WHERE subject_id = ?').get(a.subjectId);
-      if (row?.ado_id) adoIds.push({ adoId: row.ado_id, subjectId: a.subjectId, to: a.to });
-    }
-  } finally {
-    db2.close();
-  }
-
-  if (adoIds.length === 0) {
-    console.log('  (no ADO IDs to sync — items may not have been mirrored yet)');
-    return;
-  }
-
-  console.log(`  ADO sync: updating ${adoIds.length} work item(s)...`);
-  for (const { adoId, subjectId, to } of adoIds) {
-    const adoState = { queued: 'New', claimed: 'Active', 'in-progress': 'Active', blocked: 'Active' }[to] || 'Active';
-    try {
-      if (apply) {
-        execSync(
-          `az boards work-item update --id ${adoId} --org "https://dev.azure.com/${org}" --state "${adoState}" --output json`,
-          { encoding: 'utf-8', timeout: 15_000 }
-        );
-      }
-      console.log(`    ${apply ? '✅' : '[DRY RUN]'} ${subjectId} (ADO #${adoId}) -> ${adoState}`);
-    } catch (err) {
-      console.error(`    ❌ ${subjectId} (ADO #${adoId}): ${err.stderr || err.message}`);
-    }
-  }
-}
-
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.db || !args['run-records']) {
-    console.error('usage: ingest-proposals.mjs --db <content.db> --run-records <dir> [--apply]');
+  if (!args.db || !args['run-records'] || !args.bindings) {
+    console.error('usage: ingest-proposals.mjs --db <content.db> --run-records <dir> --bindings <approved-dispatch-bindings.json> [--apply]');
     process.exit(2);
   }
-  const r = ingest({
+  const r = await ingest({
     dbPath: resolve(args.db),
     runRecordDir: resolve(args['run-records']),
     apply: Boolean(args.apply),
+    authorities: args.bindings ? JSON.parse(readFileSync(resolve(args.bindings), 'utf8')) : [],
   });
 
   console.log(`${r.applied.length} work item(s) ${args.apply ? 'moved' : 'would move'}`);
@@ -287,18 +219,7 @@ function main() {
   }
   if (!args.apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
 
-  // Sync ADO states if requested
-  if (args['ado-sync'] && r.applied.length > 0) {
-    const org = args['ado-org'] || 'hybridcloudsolutions';
-    const project = args['ado-project'] || 'Project 42';
-    syncAdoStates({
-      dbPath: resolve(args.db),
-      org,
-      project,
-      applied: r.applied,
-      apply: Boolean(args.apply),
-    });
-  }
+  console.log(`${r.gate2Items.length} exact item(s) prepared for Gate 2 manifest generation.`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((error) => { console.error(error.message); process.exitCode = 1; });

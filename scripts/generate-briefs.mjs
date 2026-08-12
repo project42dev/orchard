@@ -26,6 +26,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { StateStore } from './lib/state-store.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MAP_PATH = resolve(HERE, '..', 'config', 'model-map.json');
@@ -76,6 +77,17 @@ export class BriefGenerationError extends Error {
     this.name = 'BriefGenerationError';
     this.problems = problems;
   }
+}
+
+export function validateDispatchAuthority(queueItem, authorityReference, authorityStore) {
+  if (!authorityStore || typeof authorityStore.getDispatchBinding !== 'function') {
+    return { error: 'dispatch authority must be loaded from the Orchard authority store' };
+  }
+  if (!authorityReference || authorityReference.queue_work_item_id !== queueItem.id) {
+    return { error: 'no exact dispatch authority reference for this queue work item' };
+  }
+  try { return { binding: authorityStore.getDispatchBinding(authorityReference) }; }
+  catch (error) { return { error: error.message }; }
 }
 
 // The delivery platform normalizes a brief id into a filename slug before it
@@ -371,7 +383,9 @@ export function buildAcceptanceCriteria(item, evidence) {
 
 // Build one brief for one queue item, and refuse if the link back to that item
 // would not survive the round trip through the delivery platform.
-export function briefFor({ item, roles, targets, evidence, citations }) {
+export function briefFor({ item, roles, targets, evidence, citations, authority, authorityStore }) {
+  const authorized = validateDispatchAuthority(item, authority, authorityStore);
+  if (authorized.error) return { error: authorized.error };
   const briefId = briefIdFor(item.kind, item.subject_id);
   if (!briefId) {
     return { error: `work item kind "${item.kind}" has no brief id form` };
@@ -400,6 +414,7 @@ export function briefFor({ item, roles, targets, evidence, citations }) {
       // the platform round trip; this is the one a human reads.
       subjectId: item.subject_id,
       workItemId: item.id,
+      orchardBinding: authorized.binding,
       kind: item.kind,
       surface: item.surface,
       title: item.title,
@@ -424,14 +439,17 @@ export function generateBriefs({
   claimedBy = 'orchard/generate-briefs',
   apply = false,
   now = new Date().toISOString(),
+  authorities = [],
 }) {
   const modelMap = readJson(mapPath);
   const targets = readJson(targetsPath);
   const inventory = loadInventory(inventoryPath);
   const roles = resolveRoles(modelMap, inventory);
   const evidenceById = loadCandidateEvidence(registryPath);
+  const authorityByQueueItem = new Map(authorities.map((entry) => [entry.queue_work_item_id, entry]));
 
   const db = new DatabaseSync(dbPath);
+  const authorityStore = new StateStore(db, { migrate: false });
 
   // Only queued work is eligible. A claimed or in-progress item already has a
   // brief somewhere, and re-issuing one produces two proposals racing for the
@@ -471,6 +489,8 @@ export function generateBriefs({
       targets,
       evidence: evidenceById.get(item.subject_id),
       citations: item.kind === 'needs-updating' ? citationEvidence(db, item.subject_id) : [],
+      authority: authorityByQueueItem.get(item.id),
+      authorityStore,
     });
     if (built.error) {
       skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: built.error });
@@ -514,6 +534,7 @@ function main() {
   if (!args.db || !args.out) {
     console.error('usage: generate-briefs.mjs --db <content.db> --out <briefs.json>');
     console.error('       [--inventory <deployed-models.json>] [--registry <opportunity-registry.json>]');
+    console.error('       --bindings <approved-dispatch-bindings.json>');
     console.error('       [--limit N] [--kind needs-creating] [--surface learn] [--subject <id>] [--apply]');
     process.exit(2);
   }
@@ -538,6 +559,7 @@ function main() {
       surfaces: list(args.surface),
       subjects: list(args.subject),
       apply: Boolean(args.apply),
+      authorities: args.bindings ? readJson(resolve(args.bindings)) : [],
     });
   } catch (err) {
     if (err instanceof BriefGenerationError) {

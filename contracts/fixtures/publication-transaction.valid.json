@@ -1,0 +1,52 @@
+{
+    "schema_version": "1.0.0",
+    "transaction_id": "018f4000-0000-7000-8000-000000000001",
+    "idempotency_key": "publication:track-1:018f1000-0000-7000-8000-000000000001:r1:sha256:6666666666666666666666666666666666666666666666666666666666666666",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "item_id": "018f1000-0000-7000-8000-000000000001",
+    "item_revision": 1,
+    "gate2_decision_event_id": "018f3000-0000-7000-8000-000000000003",
+    "artifact_digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+    "proposal_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "displayed_diff_digest": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+    "prepared_tree_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+    "ado_external_key": "orchard:track-1:018f1000-0000-7000-8000-000000000001:r1",
+    "handoff_chain_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+    "full_manifest_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "gate2_batch_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "target": {
+        "repository": "project42dev/project42-platform",
+        "path": "content/learning/example-module.json",
+        "protected_branch": "main",
+        "branch": "orchard/item-example-r1"
+    },
+    "base_commit": "1111111111111111111111111111111111111111",
+    "pull_request": {
+        "number": 102,
+        "head_commit": "2222222222222222222222222222222222222222",
+        "displayed_diff_digest": "sha256:7878787878787878787878787878787878787878787878787878787878787878",
+        "prepared_tree_digest": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+        "reconciled_at": "2026-08-11T11:05:00Z"
+    },
+    "result_commit": null,
+    "push_acknowledgement": null,
+    "state": "pr-open",
+    "history": [
+        {
+            "state": "created",
+            "occurred_at": "2026-08-11T11:00:00Z",
+            "actor": "publication-coordinator",
+            "correlation_id": "018f4000-0000-7000-8000-000000000002",
+            "evidence_digest": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+        },
+        {
+            "state": "pr-open",
+            "occurred_at": "2026-08-11T11:05:00Z",
+            "actor": "publication-coordinator",
+            "correlation_id": "018f4000-0000-7000-8000-000000000003",
+            "evidence_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+        }
+    ],
+    "created_at": "2026-08-11T11:00:00Z",
+    "updated_at": "2026-08-11T11:05:00Z"
+}

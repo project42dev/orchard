@@ -1,0 +1,45 @@
+{
+    "schema_version": "1.0.0",
+    "gate": "gate-1",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "track": "track-1",
+    "batch": {
+        "ordinal": 1,
+        "count": 1,
+        "item_count": 1,
+        "total_item_count": 1,
+        "maximum_size": 20
+    },
+    "full_manifest_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "batch_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "idempotency_key": "github:gate-1:018f0000-0000-7000-8000-000000000001:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "items": [
+        {
+            "item_id": "018f1000-0000-7000-8000-000000000001",
+            "item_revision": 1,
+            "proposal_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "category": "new-module",
+            "title": "Example new module proposal",
+            "rationale": "Approved sources show a distinct learner need not covered by the pinned corpus.",
+            "evidence_refs": [
+                "evidence/source/example"
+            ],
+            "score": {
+                "formula_version": "1.0.0",
+                "value": 72
+            },
+            "target": {
+                "repository": "project42dev/project42-platform",
+                "path": "content/learning/example-module.json"
+            },
+            "risks": [
+                "Primary evidence requires human confirmation."
+            ],
+            "estimated_cost": {
+                "currency": "USD",
+                "amount": 4.25
+            },
+            "decision_state": "pending"
+        }
+    ]
+}

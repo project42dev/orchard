@@ -7,3 +7,4 @@ scores*.json
 
 # Operator-local runtime state. Never committed, in any repository.
 delivery/private/
+delivery/.orchard-issue-body.tmp
