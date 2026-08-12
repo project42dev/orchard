@@ -6,7 +6,9 @@
 - Branch: `feat/orchard-two-track-lifecycle`
 - Base commit: `80e2f6251e2e4fafe02218a7ef47ccf7ecc1b530`
 - Project42 platform pin: `38178e39fb2a68fda7400bb6390c9c271621ef9d`
-- Commit, push, PR, merge, deployment, publication, owner acceptance, and ADO closure: not performed
+- Implementation commit: `05bab9edd82ca83d17752a73114744077036b475`
+- Central branch: `origin/feat/orchard-two-track-lifecycle`, live-verified at the exact implementation commit
+- PR, merge, deployment, protected-main publication acknowledgement, owner acceptance, and ADO closure: not performed
 
 ## Implemented
 
@@ -40,7 +42,8 @@
 - Review round 1 found a legacy global-fetch SSRF path and incomplete handoff. The path was removed and the formal handoff supplied.
 - Review round 2 found caller-selected authorization, publication reconciliation, shell injection, restore atomicity, and disabled-source accounting defects.
 - A coder agent fixed every reported defect and added regression coverage. Full tests pass.
-- Repository policy permits at most two revision rounds before human escalation. A final post-fix review now requires human approval.
+- Repository policy permits at most two revision rounds before human escalation.
+- The owner supplied the required second approval after final validation, authorizing commit and push.
 
 ## Live ADO verification
 
@@ -61,4 +64,4 @@ No exact pre-existing work item contained the full two-track acceptance criteria
 
 ## Next gated action
 
-Obtain the required second explicit owner approval. Then commit with `AB#7342`, push branch `feat/orchard-two-track-lifecycle`, live-verify the remote branch, and update work item 7342 with the resulting commit and push evidence. PR merge, protected-main acknowledgement, owner acceptance, and ADO closure remain separate later gates and must not be fabricated.
+Create and review a pull request only when explicitly directed. Merge, protected-main acknowledgement, owner acceptance, and ADO closure remain separate later gates and must not be fabricated. Keep work item 7342 Active until those exact conditions are satisfied.
