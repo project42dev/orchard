@@ -322,7 +322,8 @@ test("Foundry producer validates endpoint, source containment, digest, bounds, a
     const sourcePath = join(root, "content.json");
     writeFileSync(sourcePath, "canonical");
     const item = { stableId: "kind:one", sourcePath: "content.json", digest: sha256Digest("item"), sourceDigest: sha256Digest(Buffer.from("canonical")) };
-    const client = { responses: { create: async () => ({ id: "response-1", status: "completed", usage: { input_tokens: 10, output_tokens: 5 }, output_text: JSON.stringify({ classification: "evidence-backed-no-change", evidence: ["verified"] }) }) } };
+    let request;
+    const client = { responses: { create: async (value) => { request = value; return { id: "response-1", status: "completed", usage: { input_tokens: 10, output_tokens: 5 }, output_text: JSON.stringify({ classification: "evidence-backed-no-change", evidence: ["verified"] }) }; } } };
     try {
         assert.throws(() => createFoundryInspectionProducer({ endpoint: "http://example.test", deployment: "model", policy: "policy", client }), /HTTPS/);
         assert.throws(() => createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "policy" }), /approved Azure AI hostname/);
@@ -330,6 +331,7 @@ test("Foundry producer validates endpoint, source containment, digest, bounds, a
         const produced = await producer(item, root);
         assert.equal(produced.providerResponseId, "response-1");
         assert.deepEqual([produced.inputTokens, produced.outputTokens], [10, 5]);
+        assert.deepEqual(request.reasoning, { effort: "low" });
         await assert.rejects(() => producer({ ...item, sourcePath: "../outside" }, root), /escaped/);
         await assert.rejects(() => producer({ ...item, sourceDigest: sha256Digest("wrong") }, root), /digest changed/);
         const malformed = createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "policy", client: { responses: { create: async () => ({ status: "completed", usage: { input_tokens: 1, output_tokens: 1 }, output_text: "{}" }) } } });

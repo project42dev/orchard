@@ -8,6 +8,12 @@ import { TRACK_2_CLASSIFICATIONS } from "./track-2-controller.mjs";
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
 const FOUNDRY_HOST = /(?:^|\.)(?:services\.ai\.azure\.com|cognitiveservices\.azure\.com)$/i;
 
+function foundryError(code, message) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+}
+
 const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     additionalProperties: false,
@@ -105,6 +111,7 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
                 instructions,
                 input,
                 max_output_tokens: maxOutputTokens,
+                reasoning: { effort: "low" },
                 text: { format: { type: "json_schema", name: "orchard_inspection", strict: true, schema: RESPONSE_SCHEMA } },
             });
         } catch (error) {
@@ -112,7 +119,7 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
             usage.reservedOutputTokens -= maxOutputTokens;
             throw error;
         }
-        if (response.status !== "completed" || !response.output_text) throw new Error(`Foundry inspection did not complete: ${item.stableId}`);
+        if (response.status !== "completed" || !response.output_text) throw foundryError("ERR_FOUNDRY_INCOMPLETE", `Foundry inspection did not complete: ${item.stableId}`);
         const inputTokens = response.usage?.input_tokens;
         const outputTokens = response.usage?.output_tokens;
         if (!Number.isSafeInteger(inputTokens) || inputTokens < 0 || !Number.isSafeInteger(outputTokens) || outputTokens < 0) throw new Error(`Foundry inspection omitted valid token usage: ${item.stableId}`);
@@ -129,7 +136,7 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
         if (!TRACK_2_CLASSIFICATIONS.includes(result.classification)
             || !Array.isArray(result.evidence) || result.evidence.length < 1 || result.evidence.length > 8
             || result.evidence.some((entry) => typeof entry !== "string" || entry.length < 1 || entry.length > 500)) {
-            throw new Error(`Foundry inspection returned an invalid result: ${item.stableId}`);
+            throw foundryError("ERR_FOUNDRY_RESULT_INVALID", `Foundry inspection returned an invalid result: ${item.stableId}`);
         }
         return { stableId: item.stableId, itemDigest: item.digest, sourceDigest: item.sourceDigest, inspectorDigest, providerResponseId: response.id ?? null, inputTokens, outputTokens, classification: result.classification, evidence: result.evidence };
     };
