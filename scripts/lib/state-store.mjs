@@ -24,8 +24,10 @@ export class StateConflictError extends Error {
     }
 }
 
-function transaction(db, operation) {
+function transaction(db, operation, options = {}) {
+    options.onStage?.("transaction-beginning");
     db.exec("BEGIN IMMEDIATE");
+    options.onStage?.("transaction-begun");
     try {
         const result = operation();
         db.exec("COMMIT");
@@ -160,9 +162,13 @@ export class StateStore {
     }
 
     async recordRun(record, options = {}) {
+        options.onStage?.("validation-starting");
         await assertValidRecord("run-manifest", record);
+        options.onStage?.("validation-completed");
+        options.onStage?.("serialization-starting");
         const json = canonicalJson(record);
         const key = record.idempotency_key ?? `run:${record.run_id}:${record.manifest_digest}`;
+        options.onStage?.("serialization-completed");
         return transaction(this.db, () => {
             options.onStage?.("replay-checking");
             const replay = exactReplay(this.db, "workflow_run", "run_id", record.run_id, key, json);
@@ -183,7 +189,7 @@ export class StateStore {
             for (const [metric, value] of Object.entries(record.coverage)) coverage.run(record.run_id, metric, value);
             options.onStage?.("coverage-inserted");
             return record;
-        });
+        }, options);
     }
 
     async finalizeRun(record) {

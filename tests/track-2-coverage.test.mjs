@@ -106,7 +106,11 @@ test("a preflight run manifest replays exactly when the controller starts", asyn
     assert.equal(result.status, "completed");
     assert.equal(result.run.run_id, runId);
     assert.equal(result.run.started_at, startedAt);
-    assert.deepEqual(stages, ["replay-checking", "replay-checked", "manifest-inserting", "manifest-inserted", "coverage-inserting", "coverage-inserted"]);
+    assert.deepEqual(stages, [
+        "validation-starting", "validation-completed", "serialization-starting", "serialization-completed",
+        "transaction-beginning", "transaction-begun", "replay-checking", "replay-checked",
+        "manifest-inserting", "manifest-inserted", "coverage-inserting", "coverage-inserted",
+    ]);
 });
 
 test("state persistence failure propagates without retrying the partition", async (t) => {
