@@ -207,7 +207,11 @@ export async function runTrack2(options) {
     let stopped = false;
     let drift = false;
     const initialCoverage = { expected: items.length, enumerated: items.length, inspected: 0, gaps: items.length };
-    if (options.mode !== "dry-run" && options.stateStore) await options.stateStore.recordRun(runRecord(normalized, initialCoverage, "running", startedAt, null));
+    if (options.mode !== "dry-run" && options.stateStore) {
+        options.onStage?.("track2.state.run-recording");
+        await options.stateStore.recordRun(runRecord(normalized, initialCoverage, "running", startedAt, null));
+        options.onStage?.("track2.state.run-recorded");
+    }
 
     for (let ordinal = 0; ordinal < partitions.length; ordinal += 1) {
         const partition = partitions[ordinal];
@@ -236,6 +240,7 @@ export async function runTrack2(options) {
                 outcomes.push(result);
                 if (options.stateStore) await persistItemResult(options.stateStore, runId, item, result, (options.now?.() ?? new Date()).toISOString());
             }
+            options.onStage?.("track2.state.partition-persisted", { partition: ordinal + 1, partitionCount: partitions.length, outcomeCount: outcomes.length });
         } catch (error) {
             stopped = true;
             for (const item of partition) {
@@ -256,6 +261,10 @@ export async function runTrack2(options) {
     const status = drift || stopped || inspectionFailed || !reconciliation.ok ? "failed" : fullSuccess ? "completed" : "incomplete";
     const completedAt = (options.now?.() ?? new Date()).toISOString();
     const run = runRecord(normalized, coverage, status, startedAt, completedAt);
-    if (options.mode !== "dry-run" && options.stateStore) await options.stateStore.finalizeRun(run);
+    if (options.mode !== "dry-run" && options.stateStore) {
+        options.onStage?.("track2.state.run-finalizing", { status });
+        await options.stateStore.finalizeRun(run);
+        options.onStage?.("track2.state.run-finalized", { status });
+    }
     return { track: "track-2", mode: options.mode, status, contentCommit: options.contentCommit, inventoryDigest: before, items, partitions, outcomes, coverage, reconciliation, drift, inspectionFailed, run };
 }

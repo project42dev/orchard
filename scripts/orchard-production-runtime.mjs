@@ -81,12 +81,15 @@ export async function downloadBoundArtifact(container, blobName, expectedDigest,
 }
 
 export async function runController(track, args, log) {
+    log("info", "controller.loading");
     const module = await import(TRACK_ENTRY_POINTS[track]);
+    log("info", "controller.loaded");
     const previousExitCode = process.exitCode;
     process.exitCode = undefined;
     let controllerExitCode;
     try {
-        await module.main(args);
+        log("info", "controller.executing");
+        await module.main(args, { log });
         controllerExitCode = process.exitCode;
     } finally {
         process.exitCode = previousExitCode;
@@ -168,6 +171,9 @@ export async function main(argv = process.argv.slice(2)) {
             "ERR_FOUNDRY_SPEND_CAP",
             "ERR_FOUNDRY_SPEND_RESERVATION_CAP",
             "ERR_FOUNDRY_USAGE_INVALID",
+            "ERR_ORCHARD_CONTROLLER_FAILED",
+            "ERR_ORCHARD_RESULTS_INVALID",
+            "ERR_ORCHARD_STATE_OPEN_FAILED",
         ]);
         const errorCode = safeErrorCodes.has(error?.code) ? error.code : "ERR_ORCHARD_RUNTIME_FAILED";
         log("error", "runtime.failed", { error: { code: errorCode, name: error instanceof TypeError ? "TypeError" : "Error" } });

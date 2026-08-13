@@ -499,7 +499,9 @@ test("controller invocation restores the caller exit code on success and throw",
     const original = process.exitCode;
     try {
         process.exitCode = 23;
-        await runController("track-2", ["--help"], () => { });
+        const events = [];
+        await runController("track-2", ["--help"], (_level, event) => events.push(event));
+        assert.deepEqual(events, ["controller.loading", "controller.loaded", "controller.executing", "controller.completed"]);
         assert.equal(process.exitCode, 23);
         await assert.rejects(() => runController("track-2", [], () => { }), /track must be track-2/);
         assert.equal(process.exitCode, 23);

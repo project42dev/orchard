@@ -35,7 +35,14 @@ function parseArgs(argv) {
     return result;
 }
 
-export async function main(argv = process.argv.slice(2)) {
+function stageError(code, cause) {
+    const error = new Error(code, { cause });
+    error.code = code;
+    return error;
+}
+
+export async function main(argv = process.argv.slice(2), options = {}) {
+    const log = options.log ?? (() => { });
     if (argv.includes("--help")) { console.log(HELP); return; }
     const args = parseArgs(argv);
     if (args.track !== "track-2") throw new TypeError("--track must be track-2");
@@ -49,24 +56,44 @@ export async function main(argv = process.argv.slice(2)) {
     const expectedItems = args.mode === "dry-run" ? [] : enumerateCanonicalCorpus(args["platform-root"]);
     if (args.mode === "full" && expectedItems.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`full Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${expectedItems.length}`);
     const expectedStableIds = args.mode === "subset" ? (args["item-ids"] ?? "").split(",").map((value) => value.trim()).filter(Boolean) : expectedItems.map((item) => item.stableId);
-    const inspector = args.mode === "dry-run" ? null : createValidatedResultInspector({ resultPath: args["inspection-results"], expectedStableIds, maxResults: expectedStableIds.length });
-    const store = args.mode === "dry-run" ? null : openStateStore(args["state-db"]);
+    let inspector;
     try {
-        const result = await runTrack2({
-            mode: args.mode,
-            platformRoot: args["platform-root"],
-            contentCommit: args["content-commit"],
-            implementationCommit: args["implementation-commit"],
-            triggerType: args["trigger-type"],
-            triggerReference: args["trigger-reference"],
-            actorKind: args["actor-kind"],
-            actorReference: args["actor-reference"],
-            subsetIds: (args["item-ids"] ?? "").split(",").map((value) => value.trim()).filter(Boolean),
-            partitionSize: Number.parseInt(args["partition-size"] ?? "50", 10),
-            concurrency: Number.parseInt(args.concurrency ?? "4", 10),
-            inspector,
-            stateStore: store,
-        });
+        inspector = args.mode === "dry-run" ? null : createValidatedResultInspector({ resultPath: args["inspection-results"], expectedStableIds, maxResults: expectedStableIds.length });
+        log("info", "track2.results.validated", { expectedCount: expectedStableIds.length });
+    } catch (error) {
+        throw stageError("ERR_ORCHARD_RESULTS_INVALID", error);
+    }
+    let store;
+    try {
+        store = args.mode === "dry-run" ? null : openStateStore(args["state-db"]);
+        if (store) log("info", "track2.state.opened");
+    } catch (error) {
+        throw stageError("ERR_ORCHARD_STATE_OPEN_FAILED", error);
+    }
+    try {
+        let result;
+        try {
+            log("info", "track2.controller.started");
+            result = await runTrack2({
+                mode: args.mode,
+                platformRoot: args["platform-root"],
+                contentCommit: args["content-commit"],
+                implementationCommit: args["implementation-commit"],
+                triggerType: args["trigger-type"],
+                triggerReference: args["trigger-reference"],
+                actorKind: args["actor-kind"],
+                actorReference: args["actor-reference"],
+                subsetIds: (args["item-ids"] ?? "").split(",").map((value) => value.trim()).filter(Boolean),
+                partitionSize: Number.parseInt(args["partition-size"] ?? "50", 10),
+                concurrency: Number.parseInt(args.concurrency ?? "4", 10),
+                inspector,
+                stateStore: store,
+                onStage: (event, fields) => log("info", event, fields),
+            });
+            log("info", "track2.controller.finished", { status: result.status, inspected: result.coverage.inspected });
+        } catch (error) {
+            throw stageError("ERR_ORCHARD_CONTROLLER_FAILED", error);
+        }
         const output = `${JSON.stringify(result, null, 2)}\n`;
         if (args.mode !== "dry-run" && args.out) writeFileSync(args.out, output, "utf8");
         else process.stdout.write(output);
