@@ -391,6 +391,25 @@ test("Foundry producer atomically reserves capacity before concurrent dispatch",
     } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("Foundry producer reports bounded local invariant diagnostics", async () => {
+    const root = mkdtempSync(join(tmpdir(), "orchard-foundry-diagnostics-"));
+    writeFileSync(join(root, "content.json"), "canonical");
+    const item = { stableId: "kind:one", sourcePath: "content.json", digest: sha256Digest("item"), sourceDigest: sha256Digest(Buffer.from("canonical")) };
+    try {
+        const producer = createFoundryInspectionProducer({
+            endpoint: "https://example.test/", deployment: "model", policy: "fixed policy", maxRequests: 1,
+            client: { responses: { create: async () => ({ status: "completed", usage: { input_tokens: 1, output_tokens: 1 }, output_text: JSON.stringify({ classification: "evidence-backed-no-change", evidence: ["verified"] }) }) } },
+        });
+        await producer(item, root);
+        await assert.rejects(() => producer(item, root), (error) => error.code === "ERR_FOUNDRY_REQUEST_CAP");
+
+        await assert.rejects(() => produceInspectionResultFile({
+            items: [item], platformRoot: root, outputPath: join(root, "never.json"),
+            producer: async () => { throw new Error("sensitive local detail"); },
+        }), (error) => error.code === "ERR_FOUNDRY_PRODUCER_FAILED" && error.message === "Foundry inspection producer failed a local invariant");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("ACA lifecycle qualification passes Azure CLI arguments without a shell", () => {
     const source = readFileSync(new URL("../scripts/test-lifecycle-aca.mjs", import.meta.url), "utf8");
     assert.doesNotMatch(source, /execSync|\.join\(['"] ['"]\)/);
@@ -431,8 +450,10 @@ test("inspection result production preserves order and enforces concurrency boun
     try {
         const items = [{ stableId: "one" }, { stableId: "two" }];
         const output = join(root, "results.json");
-        const results = await produceInspectionResultFile({ items, platformRoot: root, outputPath: output, concurrency: 2, producer: async (item) => ({ stableId: item.stableId }) });
+        const progress = [];
+        const results = await produceInspectionResultFile({ items, platformRoot: root, outputPath: output, concurrency: 2, producer: async (item) => ({ stableId: item.stableId }), progressEvery: 1, onProgress: (value) => progress.push(value.completed) });
         assert.deepEqual(results.map((entry) => entry.stableId), ["one", "two"]);
+        assert.deepEqual(progress, [1, 2]);
         await assert.rejects(() => produceInspectionResultFile({ items, platformRoot: root, outputPath: output, concurrency: 17, producer: async () => ({}) }), /1 through 16/);
     } finally { rmSync(root, { recursive: true, force: true }); }
 });
@@ -455,7 +476,7 @@ test("inspection production stops dequeuing after failure and awaits in-flight w
     });
     await new Promise((resolvePromise) => setImmediate(resolvePromise));
     release();
-    await assert.rejects(operation, /stop/);
+    await assert.rejects(operation, (error) => error.code === "ERR_FOUNDRY_PRODUCER_FAILED");
     assert.deepEqual(started, ["one", "two"]);
     assert.deepEqual(settled, ["two"]);
     rmSync(root, { recursive: true, force: true });

@@ -125,7 +125,14 @@ async function runAzure(track, log) {
             log("info", "foundry.budget.accepted", { requestCount: estimate.requestCount, inputTokenUpperBound: estimate.inputTokenUpperBound, outputTokenUpperBound: estimate.outputTokenUpperBound, estimatedUsd: Number(estimate.estimatedUsd.toFixed(6)), spendCapUsd: spendCap });
             const producer = createFoundryInspectionProducer({ endpoint: required("ORCHARD_FOUNDRY_ENDPOINT"), deployment: required("ORCHARD_FOUNDRY_DEPLOYMENT"), managedIdentityClientId: required("AZURE_CLIENT_ID"), policy, maxInputBytes, maxOutputTokens, maxRequests, maxTotalInputTokens: estimate.inputTokenUpperBound, maxTotalOutputTokens: estimate.outputTokenUpperBound, maxSpendUsd: spendCap, requestOverheadTokens, inputUsdPerMillionTokens: inputRate, outputUsdPerMillionTokens: outputRate });
             const results = join(root, "inspection-results.json");
-            await produceInspectionResultFile({ items, platformRoot, producer, outputPath: results, concurrency: integer("ORCHARD_INSPECTION_CONCURRENCY", 4) });
+            await produceInspectionResultFile({
+                items,
+                platformRoot,
+                producer,
+                outputPath: results,
+                concurrency: integer("ORCHARD_INSPECTION_CONCURRENCY", 4),
+                onProgress: ({ completed, total }) => log("info", "foundry.inspection.progress", { completed, total }),
+            });
             await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--concurrency", process.env.ORCHARD_INSPECTION_CONCURRENCY ?? "4"], log);
         }
         await assertCurrent();
@@ -147,11 +154,19 @@ export async function main(argv = process.argv.slice(2)) {
             "ERR_ORCHARD_CONFIGURATION",
             "ERR_FOUNDRY_AUTHORIZATION",
             "ERR_FOUNDRY_INCOMPLETE",
+            "ERR_FOUNDRY_INPUT_CAP",
+            "ERR_FOUNDRY_INPUT_RESERVATION_CAP",
+            "ERR_FOUNDRY_OUTPUT_CAP",
+            "ERR_FOUNDRY_OUTPUT_RESERVATION_CAP",
+            "ERR_FOUNDRY_PRODUCER_FAILED",
             "ERR_FOUNDRY_RATE_LIMITED",
+            "ERR_FOUNDRY_REQUEST_CAP",
             "ERR_FOUNDRY_REQUEST_FAILED",
             "ERR_FOUNDRY_REQUEST_REJECTED",
             "ERR_FOUNDRY_RESULT_INVALID",
             "ERR_FOUNDRY_SERVICE_UNAVAILABLE",
+            "ERR_FOUNDRY_SPEND_CAP",
+            "ERR_FOUNDRY_SPEND_RESERVATION_CAP",
             "ERR_FOUNDRY_USAGE_INVALID",
         ]);
         const errorCode = safeErrorCodes.has(error?.code) ? error.code : "ERR_ORCHARD_RUNTIME_FAILED";

@@ -23,6 +23,11 @@ function foundryRequestError(error) {
     return foundryError("ERR_FOUNDRY_REQUEST_FAILED", "Foundry inspection request failed");
 }
 
+function foundryProducerError(error) {
+    if (typeof error?.code === "string" && error.code.startsWith("ERR_FOUNDRY_")) return error;
+    return foundryError("ERR_FOUNDRY_PRODUCER_FAILED", "Foundry inspection producer failed a local invariant");
+}
+
 const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     additionalProperties: false,
@@ -106,10 +111,10 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
         const nextReservedInput = usage.reservedInputTokens + reservedInputTokens;
         const nextReservedOutput = usage.reservedOutputTokens + maxOutputTokens;
         const reservedSpendUsd = ((nextReservedInput * inputRate) + (nextReservedOutput * outputRate)) / 1_000_000;
-        if (usage.requests >= maxRequests) throw new Error("Foundry aggregate request cap reached");
-        if (!Number.isSafeInteger(nextReservedInput) || nextReservedInput > maxTotalInputTokens) throw new Error("Foundry aggregate input-token reservation cap reached");
-        if (!Number.isSafeInteger(nextReservedOutput) || nextReservedOutput > maxTotalOutputTokens) throw new Error("Foundry aggregate output-token reservation cap reached");
-        if (!Number.isFinite(reservedSpendUsd) || reservedSpendUsd > spendCap) throw new Error("Foundry aggregate spend reservation cap reached");
+        if (usage.requests >= maxRequests) throw foundryError("ERR_FOUNDRY_REQUEST_CAP", "Foundry aggregate request cap reached");
+        if (!Number.isSafeInteger(nextReservedInput) || nextReservedInput > maxTotalInputTokens) throw foundryError("ERR_FOUNDRY_INPUT_RESERVATION_CAP", "Foundry aggregate input-token reservation cap reached");
+        if (!Number.isSafeInteger(nextReservedOutput) || nextReservedOutput > maxTotalOutputTokens) throw foundryError("ERR_FOUNDRY_OUTPUT_RESERVATION_CAP", "Foundry aggregate output-token reservation cap reached");
+        if (!Number.isFinite(reservedSpendUsd) || reservedSpendUsd > spendCap) throw foundryError("ERR_FOUNDRY_SPEND_RESERVATION_CAP", "Foundry aggregate spend reservation cap reached");
         usage.requests += 1;
         usage.reservedInputTokens = nextReservedInput;
         usage.reservedOutputTokens = nextReservedOutput;
@@ -138,9 +143,9 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
         usage.reservedInputTokens -= reservedInputTokens - inputTokens;
         usage.reservedOutputTokens -= maxOutputTokens - outputTokens;
         const actualSpendUsd = ((usage.reservedInputTokens * inputRate) + (usage.reservedOutputTokens * outputRate)) / 1_000_000;
-        if (!Number.isSafeInteger(usage.inputTokens) || usage.inputTokens > maxTotalInputTokens) throw new Error("Foundry aggregate input-token cap exceeded");
-        if (!Number.isSafeInteger(usage.outputTokens) || usage.outputTokens > maxTotalOutputTokens) throw new Error("Foundry aggregate output-token cap exceeded");
-        if (!Number.isFinite(actualSpendUsd) || actualSpendUsd > spendCap) throw new Error("Foundry aggregate spend cap exceeded");
+        if (!Number.isSafeInteger(usage.inputTokens) || usage.inputTokens > maxTotalInputTokens) throw foundryError("ERR_FOUNDRY_INPUT_CAP", "Foundry aggregate input-token cap exceeded");
+        if (!Number.isSafeInteger(usage.outputTokens) || usage.outputTokens > maxTotalOutputTokens) throw foundryError("ERR_FOUNDRY_OUTPUT_CAP", "Foundry aggregate output-token cap exceeded");
+        if (!Number.isFinite(actualSpendUsd) || actualSpendUsd > spendCap) throw foundryError("ERR_FOUNDRY_SPEND_CAP", "Foundry aggregate spend cap exceeded");
         let result;
         try { result = JSON.parse(response.output_text); }
         catch { throw foundryError("ERR_FOUNDRY_RESULT_INVALID", `Foundry inspection returned invalid JSON: ${item.stableId}`); }
@@ -153,18 +158,24 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
     };
 }
 
-export async function produceInspectionResultFile({ items, platformRoot, producer, outputPath, concurrency = 4 }) {
+export async function produceInspectionResultFile({ items, platformRoot, producer, outputPath, concurrency = 4, onProgress, progressEvery = 10 }) {
     if (!Array.isArray(items) || items.length < 1) throw new TypeError("canonical items are required");
     if (typeof producer !== "function") throw new TypeError("inspection producer is required");
     if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 16) throw new TypeError("inspection concurrency must be an integer from 1 through 16");
+    if (onProgress !== undefined && typeof onProgress !== "function") throw new TypeError("onProgress must be a function");
+    if (!Number.isSafeInteger(progressEvery) || progressEvery < 1) throw new TypeError("progressEvery must be a positive safe integer");
     const results = new Array(items.length);
     let cursor = 0;
+    let completed = 0;
     let firstError;
     const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
         while (!firstError && cursor < items.length) {
             const index = cursor++;
-            try { results[index] = await producer(items[index], platformRoot); }
-            catch (error) { firstError ??= error; }
+            try {
+                results[index] = await producer(items[index], platformRoot);
+                completed += 1;
+                if (onProgress && (completed % progressEvery === 0 || completed === items.length)) onProgress(Object.freeze({ completed, total: items.length }));
+            } catch (error) { firstError ??= foundryProducerError(error); }
         }
     });
     await Promise.all(workers);
