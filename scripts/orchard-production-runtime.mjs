@@ -9,7 +9,7 @@ import { BlobServiceClient } from "@azure/storage-blob";
 import { BlobStateAdapter } from "./lib/blob-state-adapter.mjs";
 import { withFencedState } from "./lib/coordination.mjs";
 import { materializeCorpusSnapshot } from "./lib/corpus-snapshot.mjs";
-import { createFoundryInspectionProducer, estimateFoundryInspectionCost, produceInspectionResultFile } from "./lib/foundry-inspection-producer.mjs";
+import { createFoundryInspectionProducer, estimateFoundryInspectionCost, produceInspectionResultFile, summarizeFoundryInspectionUsage } from "./lib/foundry-inspection-producer.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
 import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
@@ -106,7 +106,7 @@ async function runAzure(track, log) {
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
     return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
         const execution = process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local-execution";
-        const common = ["--mode", required("ORCHARD_RUN_MODE"), "--state-db", state.path, "--implementation-commit", required("ORCHARD_IMPLEMENTATION_COMMIT"), "--trigger-type", required("ORCHARD_TRIGGER_TYPE"), "--trigger-reference", process.env.ORCHARD_TRIGGER_REFERENCE ?? execution, "--actor-kind", required("ORCHARD_ACTOR_KIND"), "--actor-reference", process.env.ORCHARD_ACTOR_REFERENCE ?? execution];
+        const common = ["--mode", required("ORCHARD_RUN_MODE"), "--state-db", state.path, "--implementation-commit", required("ORCHARD_IMPLEMENTATION_COMMIT"), "--trigger-type", required("ORCHARD_TRIGGER_TYPE"), "--trigger-reference", process.env.ORCHARD_TRIGGER_REFERENCE ?? execution, "--actor-kind", required("ORCHARD_ACTOR_KIND"), "--actor-reference", process.env.ORCHARD_ACTOR_REFERENCE ?? execution, "--out", join(root, `${track}-controller-output.json`)];
         if (track === "track-1") {
             const registry = await downloadBoundArtifact(clients.artifacts, required("ORCHARD_SOURCE_REGISTRY_BLOB"), required("ORCHARD_SOURCE_REGISTRY_DIGEST"), join(root, "source-registry.json"), integer("ORCHARD_MAX_SOURCE_REGISTRY_BYTES", 4_194_304));
             loadApprovedSourceRegistry(JSON.parse(readFileSync(registry, "utf8")), { allowLegacyMetadata: false, requirePolicyReview: true, expectedDigest: required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST") });
@@ -149,13 +149,20 @@ async function runAzure(track, log) {
             log("info", "foundry.budget.accepted", { requestCount: estimate.requestCount, inputTokenUpperBound: estimate.inputTokenUpperBound, outputTokenUpperBound: estimate.outputTokenUpperBound, estimatedUsd: Number(estimate.estimatedUsd.toFixed(6)), spendCapUsd: spendCap });
             const producer = createFoundryInspectionProducer({ endpoint: required("ORCHARD_FOUNDRY_ENDPOINT"), deployment: required("ORCHARD_FOUNDRY_DEPLOYMENT"), managedIdentityClientId: required("AZURE_CLIENT_ID"), policy, maxInputBytes, maxOutputTokens, maxRequests, maxTotalInputTokens: estimate.inputTokenUpperBound, maxTotalOutputTokens: estimate.outputTokenUpperBound, maxSpendUsd: spendCap, requestOverheadTokens, inputUsdPerMillionTokens: inputRate, outputUsdPerMillionTokens: outputRate });
             const results = join(root, "inspection-results.json");
-            await produceInspectionResultFile({
+            const inspectionResults = await produceInspectionResultFile({
                 items,
                 platformRoot,
                 producer,
                 outputPath: results,
                 concurrency,
                 onProgress: ({ completed, total }) => log("info", "foundry.inspection.progress", { completed, total }),
+            });
+            const usage = summarizeFoundryInspectionUsage(inspectionResults, inputRate, outputRate);
+            log("info", "foundry.usage.completed", {
+                requestCount: usage.requestCount,
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                actualUsd: Number(usage.actualUsd.toFixed(6)),
             });
             await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--run-id", runId, "--started-at", startedAt, "--partition-size", "50", "--concurrency", String(concurrency)], log);
         }

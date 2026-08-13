@@ -1,67 +1,46 @@
 # Session handoff
 
-## Repository state
+## 2026-08-13 production qualification checkpoint
 
-- Worktree: `D:/git/project42dev/worktrees/orchard-two-track-lifecycle`
-- Branch: `feat/orchard-two-track-lifecycle`
-- Base commit: `80e2f6251e2e4fafe02218a7ef47ccf7ecc1b530`
-- Project42 platform pin: `38178e39fb2a68fda7400bb6390c9c271621ef9d`
-- Implementation commit: `05bab9edd82ca83d17752a73114744077036b475`
-- Central branch: `origin/feat/orchard-two-track-lifecycle`, live-verified at the exact implementation commit
-- PR, merge, deployment, protected-main publication acknowledgement, owner acceptance, and ADO closure: not performed
+- Worktree: `D:/git/project42dev/worktrees/orchard-two-track-lifecycle`.
+- Branch: `feat/orchard-two-track-lifecycle`.
+- Production content pin: `38178e39fb2a68fda7400bb6390c9c271621ef9d`.
+- Deployed runtime commit: `d89fb68148e7b2070e8d9309d0ec6b9b874b543b`.
+- Deployed image: `sha256:9863c0a61322c6ee02db9f77f823a9a22d5a427ae1feac8ae36c2218df725fbe`.
+- Production Track 2 execution `caj-orch-t2-man-prod-eus-01-0npplji` succeeded from
+	`2026-08-13T14:11:33Z` through `2026-08-13T14:16:25Z` with exact 183/183
+	coverage, zero gaps, 183 distinct outcomes, and zero exceptions.
+- Azure Monitor reported 2,145,026 input tokens and 50,450 output tokens for
+	deployment `gpt-5-6-sol` over the execution window. At the deployed rates of
+	USD 5 and USD 30 per million input and output tokens, configured-rate cost is
+	USD 12.238630. This is deployment-and-window attribution, not per-response
+	reconciliation.
+- Private verifier execution `caj-orch-t2-man-prod-eus-01-hck60j9` succeeded.
+	It independently verified manifest generation 1, fencing generation 10,
+	matching state and backup SHA-256
+	`d37f175f98efd445d4072e0c051d5e8cd939fd50871c744213baa5b0c96b66a7`,
+	metadata, commit marker, SQLite integrity, zero foreign-key violations,
+	schema version 5, and the completed 183-item run.
+- A plaintext PAT discovered in ignored local configuration was revoked. Live
+	verification found zero active PATs. No PAT rotation is claimed.
 
-## Implemented
+## Pending source remediation
 
-- Deterministic Track 1 and Track 2 controllers with strict completion accounting.
-- SQLite authority, migrations, backup and restore, replay safety, leases, and append-only evidence.
-- Protected Gate 1 and Gate 2 trust evidence with immutable provider, policy, adapter, repository, item, and revision bindings.
-- Exact ADO reconciliation, qualified handoffs, artifact binding, protected-main publication, acknowledgement, owner acceptance, and closure evidence.
-- Read-only pinned weekly workflows and removal of unsafe legacy workflows.
-- SSRF-resistant Track 1 HTTPS fetching with public-address validation, DNS pinning, redirect restrictions, timeouts, retries, byte caps, and cancellation.
-- Legacy survey network mode removed. Offline legacy measurement remains available.
-- Caller-selected gate, dispatch, publication, and closure authority removed.
-- PowerShell shell-string invocation removed.
-- Atomic verified restore with retained rollback evidence.
-- Track 1 disabled-source accounting corrected.
-- Complete IPv6 special-purpose exclusions now include deprecated site-local, translation, benchmarking, documentation, and mapped-private cases; mixed DNS answers fail closed.
-- Gate capture closes the authoritative SQLite store on every success and failure path.
-- Trust and workflow documentation now describes immutable SQLite anchors and dry-run-only caller pin overrides.
+- Non-dry controllers now fail closed unless an explicit output file is bound.
+	The Azure runtime always supplies that file and emits only bounded aggregate
+	Foundry usage telemetry.
+- Aggregate token and configured-rate cost logic is order-independent, validates
+	safe token counts, and has asymmetric-rate behavioral coverage.
+- Full validation passed 160 Node tests with zero failures. Focused production
+	contracts passed 28 tests. `git diff --check` passed, editor diagnostics are
+	clear, and independent review reported no blockers.
+- These source changes are not yet deployed. Do not claim that historical Log
+	Analytics retention was removed or that production is already running the
+	telemetry remediation.
 
-## Verification
+## Governance state
 
-- `npm test`: content database build passed 38 assertions; 124 Node tests passed; zero failed.
-- PowerShell parser validation passed for `delivery/Invoke-PostProcess.ps1`.
-- `git diff --check` passed.
-- `actionlint` passed for both new workflows.
-- Added-line scans found no em dashes or likely secrets.
-- No stale environment-selected Gate trust, caller-selected publication adapter, unsupported global fetch path, `cmd /c`, `actor.authorized`, `authorizedOwners`, or legacy `accepted-by` path remains.
-- VS Code diagnostics reported no errors in the final directly edited files.
-
-## Review state
-
-- Review round 1 found a legacy global-fetch SSRF path and incomplete handoff. The path was removed and the formal handoff supplied.
-- Review round 2 found caller-selected authorization, publication reconciliation, shell injection, restore atomicity, and disabled-source accounting defects.
-- A coder agent fixed every reported defect and added regression coverage. Full tests pass.
-- Repository policy permits at most two revision rounds before human escalation.
-- The owner supplied the required second approval after final validation, authorizing commit and push.
-
-## Live ADO verification
-
-Read-only queries against `https://dev.azure.com/hybridcloudsolutions`, project `Project 42`, found:
-
-- 5115: `[Project 42] Automate trusted content maintenance`, New, revision 14.
-- 5135: `[Project 42] Detect drift and propose updates`, New, revision 7.
-- 5136: `[Project 42] Apply AI assisted content and assessment updates`, New, revision 6.
-- 7046: `[Orchard] Make the queue drive the briefs`, Active, revision 9.
-
-No exact pre-existing work item contained the full two-track acceptance criteria. User Story 7342, `[Orchard] Implement two-track, two-gate lifecycle`, was created and live-verified Active. It is parented by Feature 5135 and related to Feature 5136 and User Story 7046. Its acceptance criteria cover both tracks, both gates, protected trust, publication acknowledgement, owner acceptance, closure, workflows, and regression tests. Completion notes explicitly distinguish local validation from commit, push, PR, publication, acceptance, and closure.
-
-## Other decisions
-
-- Retain `delivery/issue-tracker.json` unchanged as historical evidence; no new code references it.
-- Governance drift is unavailable because Orchard is not registered with HCS Governance.
-- New dependencies: `ajv` 8.20.0 runtime and `@mermaid-js/mermaid-cli` ^11.16.0 development.
-
-## Next gated action
-
-Create and review a pull request only when explicitly directed. Merge, protected-main acknowledgement, owner acceptance, and ADO closure remain separate later gates and must not be fabricated. Keep work item 7342 Active until those exact conditions are satisfied.
+- AB#7342 evidence was appended and live-verified at revision 5; it remains Active.
+- Protected-main acknowledgement, owner acceptance, and ADO closure are not
+	complete and must not be claimed.
+- Commit and push only the intended telemetry remediation and handoff update.

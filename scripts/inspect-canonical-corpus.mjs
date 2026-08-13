@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createValidatedResultInspector } from "./lib/built-in-inspector.mjs";
+import { writeControllerResult } from "./lib/controller-output.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
 import { enumerateCanonicalCorpus, runTrack2, TRACK_2_EXPECTED_CANONICAL_ITEMS, verifyPinnedCommit } from "./lib/track-2-controller.mjs";
 
@@ -53,7 +53,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     for (const name of ["platform-root", "content-commit"]) if (!args[name]) throw new TypeError(`--${name} is required`);
     verifyPinnedCommit(args["platform-root"], args["content-commit"]);
     if (args.inspector) throw new TypeError("--inspector is prohibited because executable inspector modules are not a trust boundary");
-    if (args.mode !== "dry-run" && (!args["inspection-results"] || !args["state-db"])) throw new TypeError("non-dry runs require --inspection-results and --state-db");
+    if (args.mode !== "dry-run" && (!args["inspection-results"] || !args["state-db"] || !args.out)) throw new TypeError("non-dry runs require --inspection-results, --state-db, and --out");
     const expectedItems = args.mode === "dry-run" ? [] : enumerateCanonicalCorpus(args["platform-root"]);
     if (args.mode === "full" && expectedItems.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`full Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${expectedItems.length}`);
     const expectedStableIds = args.mode === "subset" ? (args["item-ids"] ?? "").split(",").map((value) => value.trim()).filter(Boolean) : expectedItems.map((item) => item.stableId);
@@ -97,9 +97,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
         } catch (error) {
             throw stageError("ERR_ORCHARD_CONTROLLER_FAILED", error);
         }
-        const output = `${JSON.stringify(result, null, 2)}\n`;
-        if (args.mode !== "dry-run" && args.out) writeFileSync(args.out, output, "utf8");
-        else process.stdout.write(output);
+        writeControllerResult({ result, mode: args.mode, outputPath: args.out });
         if (result.status === "failed") process.exitCode = 2;
         else if (args.mode !== "dry-run" && result.status !== "completed") process.exitCode = 3;
     } finally {

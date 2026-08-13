@@ -53,6 +53,25 @@ function positiveNumber(value, label) {
     return number;
 }
 
+export function summarizeFoundryInspectionUsage(results, inputUsdPerMillionTokens, outputUsdPerMillionTokens) {
+    if (!Array.isArray(results)) throw new TypeError("Foundry inspection results must be an array");
+    const inputRate = positiveNumber(inputUsdPerMillionTokens, "Foundry input rate");
+    const outputRate = positiveNumber(outputUsdPerMillionTokens, "Foundry output rate");
+    const usage = results.reduce((aggregate, result) => {
+        if (!Number.isSafeInteger(result?.inputTokens) || result.inputTokens < 0
+            || !Number.isSafeInteger(result?.outputTokens) || result.outputTokens < 0) {
+            throw new TypeError("Foundry inspection result has invalid token usage");
+        }
+        const inputTokens = aggregate.inputTokens + result.inputTokens;
+        const outputTokens = aggregate.outputTokens + result.outputTokens;
+        if (!Number.isSafeInteger(inputTokens) || !Number.isSafeInteger(outputTokens)) throw new TypeError("Foundry aggregate token usage exceeds safe integer range");
+        return { inputTokens, outputTokens };
+    }, { inputTokens: 0, outputTokens: 0 });
+    const actualUsd = ((usage.inputTokens * inputRate) + (usage.outputTokens * outputRate)) / 1_000_000;
+    if (!Number.isFinite(actualUsd)) throw new TypeError("Foundry actual cost is not finite");
+    return Object.freeze({ requestCount: results.length, ...usage, actualUsd });
+}
+
 export function estimateFoundryInspectionCost({ items, platformRoot, policy, maxInputBytes = 200_000, maxOutputTokens, maxRequests, requestOverheadTokens = 4000, inputUsdPerMillionTokens, outputUsdPerMillionTokens }) {
     if (!Array.isArray(items) || items.length < 1) throw new TypeError("canonical items are required");
     if (!Number.isSafeInteger(maxRequests) || maxRequests < 1) throw new TypeError("Foundry request cap must be a positive safe integer");

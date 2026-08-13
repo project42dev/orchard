@@ -41,6 +41,7 @@
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, extname, basename, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { writeControllerResult } from './lib/controller-output.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 import { runTrack1 } from './lib/track-1-controller.mjs';
 
@@ -103,6 +104,7 @@ async function track1Main(argv) {
   if (args['actor-kind'] && !['scheduler', 'operator'].includes(args['actor-kind'])) throw new TypeError('--actor-kind must be scheduler or operator');
   if (!args['source-registry']) throw new TypeError('--source-registry is required');
   if (args.mode !== 'dry-run' && !args['state-db']) throw new TypeError('--state-db is required except in dry-run mode');
+  if (args.mode !== 'dry-run' && !args.out) throw new TypeError('--out is required except in dry-run mode');
   const registry = JSON.parse(readFileSync(args['source-registry'], 'utf8'));
   const integer = (name, fallback) => args[name] === undefined ? fallback : Number.parseInt(args[name], 10);
   const store = args.mode === 'dry-run' ? null : openStateStore(args['state-db']);
@@ -130,9 +132,7 @@ async function track1Main(argv) {
         maxRetries: integer('max-retries', 1),
       },
     });
-    const output = `${JSON.stringify(result, null, 2)}\n`;
-    if (args.mode !== 'dry-run' && args.out) writeFileSync(args.out, output, 'utf8');
-    else process.stdout.write(output);
+    writeControllerResult({ result, mode: args.mode, outputPath: args.out });
     if (result.status === 'failed') process.exitCode = 2;
     else if (args.mode !== 'dry-run' && result.status !== 'completed') process.exitCode = 3;
   } finally {

@@ -10,8 +10,9 @@ import { test } from "node:test";
 import { c } from "tar";
 
 import { BlobStateAdapter } from "../scripts/lib/blob-state-adapter.mjs";
+import { writeControllerResult } from "../scripts/lib/controller-output.mjs";
 import { corpusContentDigest, materializeCorpusSnapshot, validateCorpusArchiveEntry, verifyCorpusSnapshot } from "../scripts/lib/corpus-snapshot.mjs";
-import { createFoundryInspectionProducer, estimateFoundryInspectionCost, produceInspectionResultFile } from "../scripts/lib/foundry-inspection-producer.mjs";
+import { createFoundryInspectionProducer, estimateFoundryInspectionCost, produceInspectionResultFile, summarizeFoundryInspectionUsage } from "../scripts/lib/foundry-inspection-producer.mjs";
 import { sha256Digest } from "../scripts/lib/identity.mjs";
 import { createStructuredLogger } from "../scripts/lib/structured-logger.mjs";
 import { acquireLease, releaseLease } from "../scripts/lib/leases.mjs";
@@ -30,6 +31,42 @@ test("production image includes every runtime contract dependency", () => {
     assert.match(dockerfile, /^COPY --chown=10001:10001 schema \.\/schema$/m);
     assert.match(dockerignore, /^!contracts\/$/m);
     assert.match(dockerignore, /^!contracts\/\*\*$/m);
+});
+
+test("production runtime keeps controller bodies out of logs and emits bounded usage", () => {
+    const runtime = readFileSync(new URL("../scripts/orchard-production-runtime.mjs", import.meta.url), "utf8");
+    assert.match(runtime, /"--out", join\(root, `\$\{track\}-controller-output\.json`\)/);
+    assert.match(runtime, /log\("info", "foundry\.usage\.completed", \{/);
+    assert.match(runtime, /requestCount: usage\.requestCount/);
+    assert.match(runtime, /inputTokens: usage\.inputTokens/);
+    assert.match(runtime, /outputTokens: usage\.outputTokens/);
+    assert.doesNotMatch(runtime, /log\([^\n]*inspectionResults/);
+});
+
+test("non-dry controller results never write record bodies to stdout", () => {
+    const writes = [];
+    const stdout = { write: (value) => { throw new Error(`stdout received ${value}`); } };
+    assert.throws(() => writeControllerResult({ result: { sentinel: "canonical-body" }, mode: "full", stdout }), /requires --out/);
+    const emitted = writeControllerResult({
+        result: { sentinel: "canonical-body" }, mode: "full", outputPath: "/bounded/result.json", stdout,
+        write: (path, value, encoding) => writes.push({ path, value, encoding }),
+    });
+    assert.deepEqual(emitted, { destination: "file", bytes: 35 });
+    assert.deepEqual(writes, [{ path: "/bounded/result.json", value: '{\n  "sentinel": "canonical-body"\n}\n', encoding: "utf8" }]);
+});
+
+test("Foundry usage aggregation is order-independent and uses asymmetric deployed rates", () => {
+    const first = summarizeFoundryInspectionUsage([
+        { inputTokens: 500_000, outputTokens: 10_000 },
+        { inputTokens: 250_000, outputTokens: 20_000 },
+    ], 5, 30);
+    const second = summarizeFoundryInspectionUsage([
+        { inputTokens: 250_000, outputTokens: 20_000 },
+        { inputTokens: 500_000, outputTokens: 10_000 },
+    ], 5, 30);
+    assert.deepEqual(first, second);
+    assert.deepEqual(first, { requestCount: 2, inputTokens: 750_000, outputTokens: 30_000, actualUsd: 4.65 });
+    assert.throws(() => summarizeFoundryInspectionUsage([{ inputTokens: -1, outputTokens: 1 }], 5, 30), /invalid token usage/);
 });
 
 function runGit(repository, args) {
