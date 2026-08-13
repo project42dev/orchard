@@ -159,13 +159,16 @@ export class StateStore {
         });
     }
 
-    async recordRun(record) {
+    async recordRun(record, options = {}) {
         await assertValidRecord("run-manifest", record);
         const json = canonicalJson(record);
         const key = record.idempotency_key ?? `run:${record.run_id}:${record.manifest_digest}`;
         return transaction(this.db, () => {
+            options.onStage?.("replay-checking");
             const replay = exactReplay(this.db, "workflow_run", "run_id", record.run_id, key, json);
+            options.onStage?.("replay-checked", { replay: Boolean(replay) });
             if (replay) return replay;
+            options.onStage?.("manifest-inserting");
             this.db.prepare(`INSERT INTO workflow_run
                 (run_id, track, trigger_type, scope_mode, status, replay_of, manifest_digest,
                  idempotency_key, started_at, completed_at, record_json, created_at)
@@ -174,8 +177,11 @@ export class StateStore {
                 record.replay_of ?? null, record.manifest_digest, key, record.started_at,
                 record.completed_at ?? null, json, record.started_at
             );
+            options.onStage?.("manifest-inserted");
             const coverage = this.db.prepare("INSERT INTO run_coverage (run_id, metric, value) VALUES (?, ?, ?)");
+            options.onStage?.("coverage-inserting", { metricCount: Object.keys(record.coverage).length });
             for (const [metric, value] of Object.entries(record.coverage)) coverage.run(record.run_id, metric, value);
+            options.onStage?.("coverage-inserted");
             return record;
         });
     }

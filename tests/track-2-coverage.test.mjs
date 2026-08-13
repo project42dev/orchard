@@ -96,13 +96,17 @@ test("a preflight run manifest replays exactly when the controller starts", asyn
     const runId = generateUuidV7();
     const startedAt = "2026-08-12T00:00:00.000Z";
     const runOptions = options(root, "full", { runId, startedAt, partitionSize: 50, concurrency: 4 });
-    await store.recordRun(createTrack2RunRecord(runOptions, { expected: 7, enumerated: 7, inspected: 0, gaps: 7 }, "running", startedAt, null));
+    const stages = [];
+    await store.recordRun(createTrack2RunRecord(runOptions, { expected: 7, enumerated: 7, inspected: 0, gaps: 7 }, "running", startedAt, null), {
+        onStage: (stage) => stages.push(stage),
+    });
 
     const result = await runTrack2({ ...runOptions, stateStore: store });
 
     assert.equal(result.status, "completed");
     assert.equal(result.run.run_id, runId);
     assert.equal(result.run.started_at, startedAt);
+    assert.deepEqual(stages, ["replay-checking", "replay-checked", "manifest-inserting", "manifest-inserted", "coverage-inserting", "coverage-inserted"]);
 });
 
 test("state persistence failure propagates without retrying the partition", async (t) => {

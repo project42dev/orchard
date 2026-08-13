@@ -129,7 +129,9 @@ async function runAzure(track, log) {
             try {
                 log("info", "track2.state.preflight-recording");
                 const coverage = { expected: items.length, enumerated: items.length, inspected: 0, gaps: items.length };
-                await preflightStore.recordRun(createTrack2RunRecord(runOptions, coverage, "running", startedAt, null));
+                await preflightStore.recordRun(createTrack2RunRecord(runOptions, coverage, "running", startedAt, null), {
+                    onStage: (stage, details) => log("info", `track2.state.preflight.${stage}`, details),
+                });
                 log("info", "track2.state.preflight-recorded");
             } finally {
                 preflightStore.close();
