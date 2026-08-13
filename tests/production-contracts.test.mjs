@@ -22,6 +22,13 @@ import { loadApprovedSourceRegistry } from "../scripts/lib/track-1-controller.mj
 
 const digest = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
+test("production image includes every runtime contract dependency", () => {
+    const dockerfile = readFileSync(new URL("../delivery/Dockerfile.two-track", import.meta.url), "utf8");
+    assert.match(dockerfile, /^COPY --chown=10001:10001 scripts \.\/scripts$/m);
+    assert.match(dockerfile, /^COPY --chown=10001:10001 contracts \.\/contracts$/m);
+    assert.match(dockerfile, /^COPY --chown=10001:10001 schema \.\/schema$/m);
+});
+
 function runGit(repository, args) {
     const result = spawnSync("git", ["-C", repository, ...args], { encoding: "utf8", windowsHide: true });
     assert.equal(result.status, 0, result.stderr || result.stdout);
