@@ -19,7 +19,7 @@
 //   ACA_POLL_TIMEOUT_MS — Max poll time in ms (default: 600000 = 10 min)
 //   ACA_SKIP_TRIGGER    — If '1', skip triggering and only verify existing records
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,13 +28,18 @@ import { tmpdir } from 'node:os';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
 
-const SUBSCRIPTION = process.env.ACA_SUBSCRIPTION || execSync(
-    'az account show --query id -o tsv', { encoding: 'utf8', timeout: 10000 }
+const SUBSCRIPTION = process.env.ACA_SUBSCRIPTION || execFileSync(
+    'az', ['account', 'show', '--query', 'id', '-o', 'tsv'], { encoding: 'utf8', timeout: 10000 }
 ).trim();
 const RESOURCE_GROUP = process.env.ACA_RESOURCE_GROUP || 'rg-p42-delivery-prod-eus-01';
 const JOB_NAME = process.env.ACA_JOB_NAME || 'caj-p42-harness-prod-eus-01';
 const POLL_TIMEOUT_MS = parseInt(process.env.ACA_POLL_TIMEOUT_MS || '600000', 10);
 const SKIP_TRIGGER = process.env.ACA_SKIP_TRIGGER === '1';
+
+if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(SUBSCRIPTION)) throw new Error('ACA_SUBSCRIPTION must be an Azure subscription UUID');
+if (!/^[A-Za-z0-9._()\-]{1,90}$/.test(RESOURCE_GROUP)) throw new Error('ACA_RESOURCE_GROUP is invalid');
+if (!/^[A-Za-z0-9-]{2,32}$/.test(JOB_NAME)) throw new Error('ACA_JOB_NAME is invalid');
+if (!Number.isSafeInteger(POLL_TIMEOUT_MS) || POLL_TIMEOUT_MS < 1) throw new Error('ACA_POLL_TIMEOUT_MS must be a positive integer');
 
 let passed = 0;
 const failures = [];
@@ -50,9 +55,9 @@ function equal(label, actual, expected) {
 }
 
 function az(args, timeoutMs = 30000) {
-    const fullArgs = ['az', ...args, '--subscription', SUBSCRIPTION, '-o', 'json'];
+    const fullArgs = [...args, '--subscription', SUBSCRIPTION, '-o', 'json'];
     try {
-        const result = execSync(fullArgs.join(' '), {
+        const result = execFileSync('az', fullArgs, {
             encoding: 'utf8',
             timeout: timeoutMs,
             stdio: ['ignore', 'pipe', 'pipe'],
@@ -76,7 +81,7 @@ console.log('1. Verifying prerequisites...');
 
 // Check az CLI is available
 try {
-    execSync('az version', { encoding: 'utf8', timeout: 10000, stdio: 'ignore' });
+    execFileSync('az', ['version'], { encoding: 'utf8', timeout: 10000, stdio: 'ignore' });
     check('az CLI is available', true);
 } catch {
     check('az CLI is available', false);
@@ -167,8 +172,8 @@ if (SKIP_TRIGGER) {
         // Try to get logs
         try {
             console.log('\n  Recent job logs:');
-            execSync(
-                `az containerapp job logs show --name ${JOB_NAME} --resource-group ${RESOURCE_GROUP} --subscription ${SUBSCRIPTION} --tail 30`,
+            execFileSync(
+                'az', ['containerapp', 'job', 'logs', 'show', '--name', JOB_NAME, '--resource-group', RESOURCE_GROUP, '--subscription', SUBSCRIPTION, '--tail', '30'],
                 { encoding: 'utf8', timeout: 30000, stdio: 'inherit' }
             );
         } catch {

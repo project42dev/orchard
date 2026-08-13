@@ -35,6 +35,25 @@ function registry(count, overrides = {}) {
     };
 }
 
+function reviewedRegistry(count = 1) {
+    const value = registry(count);
+    for (const source of value.approvedSources) {
+        source.policy = {
+            approval: "approved",
+            approvalReference: `approval:${source.id}`,
+            owner: "source-policy-owner",
+            licenseTermsReview: "reviewed",
+            robotsPolicy: "reviewed",
+            ratePolicy: "bounded-runtime-policy",
+            evidenceRetentionClass: "private-90-days",
+            reviewedAt: "2026-08-12",
+            reviewCadenceDays: 90,
+            allowedHosts: [new URL(source.url).hostname],
+        };
+    }
+    return value;
+}
+
 const success = async (source) => ({ kind: "success", status: 200, finalUrl: source.url, bytes: 10, durationMs: 2, body: source.id });
 
 function options(mode, count, extra = {}) {
@@ -70,6 +89,90 @@ test("legacy discovery rejects network mode before accessing registry URLs", (t)
 
     assert.equal(result.status, 1);
     assert.match(result.stderr, /legacy network survey mode is disabled/);
+});
+
+test("runTrack1 propagates strict reviewed-policy validation", async () => {
+    const approved = reviewedRegistry();
+    const result = await runTrack1({
+        ...options("dry-run", 1),
+        registry: approved,
+        allowLegacyMetadata: false,
+        requirePolicyReview: true,
+    });
+    assert.equal(result.run.coverage.approved_enabled_source_count, 1);
+
+    for (const field of [
+        "approvalReference", "owner", "licenseTermsReview", "robotsPolicy",
+        "ratePolicy", "evidenceRetentionClass", "reviewedAt", "reviewCadenceDays", "allowedHosts",
+    ]) {
+        const invalid = structuredClone(approved);
+        delete invalid.approvedSources[0].policy[field];
+        await assert.rejects(
+            runTrack1({
+                ...options("dry-run", 1),
+                registry: invalid,
+                allowLegacyMetadata: false,
+                requirePolicyReview: true,
+            }),
+            new RegExp(`policy\\.${field}|valid policy\\.reviewedAt|positive policy\\.reviewCadenceDays|explicit policy\\.allowedHosts`),
+            field,
+        );
+    }
+
+    const invalidApproval = structuredClone(approved);
+    invalidApproval.approvedSources[0].policy.approval = "pending";
+    await assert.rejects(
+        runTrack1({
+            ...options("dry-run", 1),
+            registry: invalidApproval,
+            allowLegacyMetadata: false,
+            requirePolicyReview: true,
+        }),
+        /policy\.approval must be approved/,
+    );
+
+    const disabledPending = structuredClone(approved);
+    disabledPending.approvedSources[0] = {
+        id: "source-000",
+        enabled: false,
+        url: "https://source-000.example.test/feed",
+        label: "source-000",
+        policy: { approval: "pending", statusReason: "Requires substantive source-policy review." },
+    };
+    const pendingResult = await runTrack1({
+        ...options("dry-run", 1),
+        registry: disabledPending,
+        allowLegacyMetadata: false,
+        requirePolicyReview: true,
+    });
+    assert.equal(pendingResult.run.coverage.approved_enabled_source_count, 0);
+
+    delete disabledPending.approvedSources[0].policy.statusReason;
+    await assert.rejects(
+        runTrack1({
+            ...options("dry-run", 1),
+            registry: disabledPending,
+            allowLegacyMetadata: false,
+            requirePolicyReview: true,
+        }),
+        /policy\.statusReason/,
+    );
+
+    const disabledApproved = structuredClone(approved);
+    disabledApproved.approvedSources[0].enabled = false;
+    await assert.rejects(
+        runTrack1({ ...options("dry-run", 1), registry: disabledApproved, allowLegacyMetadata: false, requirePolicyReview: true }),
+        /must be pending, rejected, or retired/,
+    );
+
+    for (const url of ["https://user:password@example.test/", "https://example.test:8443/"]) {
+        const invalidUrl = structuredClone(approved);
+        invalidUrl.approvedSources[0].url = url;
+        await assert.rejects(
+            runTrack1({ ...options("dry-run", 1), registry: invalidUrl, allowLegacyMetadata: false, requirePolicyReview: true }),
+            /must not contain credentials|must use HTTPS port 443/,
+        );
+    }
 });
 
 test("full Track 1 success attempts 50 distinct approved sources and persists exact durable outcomes", async (t) => {

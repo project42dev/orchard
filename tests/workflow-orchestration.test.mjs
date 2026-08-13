@@ -1,10 +1,29 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { test } from "node:test";
+import { parseDocument } from "yaml";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const track1 = read("../.github/workflows/track-1-discovery.yml");
 const track2 = read("../.github/workflows/track-2-corpus-inspection.yml");
+
+function parseWorkflow(workflow, name) {
+    const document = parseDocument(workflow, { prettyErrors: true, uniqueKeys: true });
+    assert.deepEqual(document.errors, [], `${name} must be valid YAML`);
+    const parsed = document.toJS();
+    assert.equal(typeof parsed?.on?.workflow_dispatch, "object", `${name} must be manually dispatched`);
+    assert.equal(typeof parsed?.jobs, "object", `${name} must define jobs`);
+    return parsed;
+}
+
+test("GitHub workflows are structurally valid YAML", () => {
+    const parsedTrack1 = parseWorkflow(track1, "Track 1 workflow");
+    const parsedTrack2 = parseWorkflow(track2, "Track 2 workflow");
+    assert.equal(parsedTrack1.permissions.contents, "read");
+    assert.equal(parsedTrack2.permissions.contents, "read");
+    assert.ok(Array.isArray(parsedTrack1.jobs.validate.steps));
+    assert.ok(Array.isArray(parsedTrack2.jobs.validate.steps));
+});
 
 function assertReadOnlyWorkflow(workflow) {
     assert.match(workflow, /permissions:\s*\n\s+contents: read/);
@@ -14,36 +33,28 @@ function assertReadOnlyWorkflow(workflow) {
     assert.doesNotMatch(workflow, /uses: [^\s]+@v\d/);
 }
 
-test("Track 1 weekly orchestration is full, pinned, bounded, and read only", () => {
+test("Track 1 workflow only validates exact reviewed source policy in dry-run mode", () => {
     assertReadOnlyWorkflow(track1);
-    assert.match(track1, /cron: "0 6 \* \* 1"/);
-    assert.match(track1, /if \(\$scheduled\) \{ 'full' \}/);
+    assert.match(track1, /workflow_dispatch:/);
+    assert.doesNotMatch(track1, /schedule:|cron:/);
     assert.match(track1, /ORCHARD_PLATFORM_COMMIT/);
     assert.match(track1, /ORCHARD_SOURCE_REGISTRY_DIGEST/);
-    assert.match(track1, /overrides are allowed only for dry-run mode/);
-    assert.match(track1, /if \(\$mode -eq 'dry-run' -and \$env:REQUESTED_PLATFORM_COMMIT\)/);
-    assert.match(track1, /if \(\$mode -eq 'dry-run' -and \$env:REQUESTED_REGISTRY_DIGEST\)/);
+    assert.match(track1, /--mode dry-run/);
     assert.match(track1, /--registry-digest/);
-    assert.match(track1, /--trigger-type/);
-    assert.match(track1, /--actor-kind/);
-    assert.match(track1, /--state-db/);
-    assert.match(track1, /steps\.config\.outputs\.mode != 'dry-run'/);
+    assert.match(track1, /Production discovery is performed only by the fixed Container Apps Job runtime/);
+    assert.doesNotMatch(track1, /--source-ids|--state-db|--out|--mode full|--mode subset|upload-artifact/);
 });
 
-test("Track 2 weekly orchestration pins all executable inputs and requires complete inspection settings", () => {
+test("Track 2 workflow only validates an immutable corpus pin in dry-run mode", () => {
     assertReadOnlyWorkflow(track2);
-    assert.match(track2, /cron: "0 12 \* \* 1"/);
-    assert.match(track2, /if \(\$scheduled\) \{ 'full' \}/);
+    assert.match(track2, /workflow_dispatch:/);
+    assert.doesNotMatch(track2, /schedule:|cron:/);
     assert.match(track2, /ORCHARD_PLATFORM_COMMIT/);
-    assert.match(track2, /platform_commit override is allowed only for dry-run mode/);
-    assert.match(track2, /if \(\$mode -eq 'dry-run' -and \$env:REQUESTED_PLATFORM_COMMIT\)/);
-    assert.match(track2, /ORCHARD_INSPECTOR_REPOSITORY/);
-    assert.match(track2, /ORCHARD_INSPECTOR_COMMIT/);
-    assert.match(track2, /ORCHARD_INSPECTOR_MODULE/);
-    assert.match(track2, /--partition-size', '50'/);
-    assert.match(track2, /--concurrency', '4'/);
-    assert.match(track2, /--state-db/);
-    assert.match(track2, /steps\.config\.outputs\.mode != 'dry-run'/);
+    assert.match(track2, /--mode dry-run/);
+    assert.match(track2, /--partition-size 50/);
+    assert.match(track2, /--concurrency 4/);
+    assert.match(track2, /Production inspection is performed only by the fixed Container Apps Job runtime/);
+    assert.doesNotMatch(track2, /ORCHARD_INSPECTOR_|--inspection-results|--state-db|--mode full/);
 });
 
 test("unsafe legacy workflow entry points are removed", () => {

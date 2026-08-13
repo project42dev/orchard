@@ -87,9 +87,12 @@ export function renewLease(db, { scopeType, scopeKey, ownerToken, ttlMs, now = D
 
 export function releaseLease(db, { scopeType, scopeKey, ownerToken }) {
     validateScope(scopeType, scopeKey);
-    return transaction(db, () => db.prepare(
-        "DELETE FROM lease WHERE scope_type = ? AND scope_key = ? AND owner_token = ?"
-    ).run(scopeType, scopeKey, ownerToken).changes === 1);
+    const releasedAt = iso(Date.now());
+    return transaction(db, () => db.prepare(`UPDATE lease
+        SET owner = 'released', owner_token = ?, renewed_at = ?, expires_at = ?
+        WHERE scope_type = ? AND scope_key = ? AND owner_token = ?`).run(
+        `released:${randomUUID()}`, releasedAt, releasedAt, scopeType, scopeKey, ownerToken
+    ).changes === 1);
 }
 
 export function getLease(db, { scopeType, scopeKey }, { now = Date.now(), includeExpired = false } = {}) {
@@ -100,7 +103,8 @@ export function getLease(db, { scopeType, scopeKey }, { now = Date.now(), includ
 }
 
 export function purgeExpiredLeases(db, { now = Date.now() } = {}) {
-    return db.prepare("DELETE FROM lease WHERE expires_at <= ?").run(iso(now)).changes;
+    iso(now);
+    return 0;
 }
 
 function rowToLease(row) {

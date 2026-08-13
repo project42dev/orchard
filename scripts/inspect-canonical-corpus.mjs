@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
+import { createValidatedResultInspector } from "./lib/built-in-inspector.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
-import { runTrack2, verifyPinnedCommit } from "./lib/track-2-controller.mjs";
+import { enumerateCanonicalCorpus, runTrack2, TRACK_2_EXPECTED_CANONICAL_ITEMS, verifyPinnedCommit } from "./lib/track-2-controller.mjs";
 
 const HELP = `Track 2 canonical-corpus deep inspection
 
@@ -13,11 +13,12 @@ usage: inspect-canonical-corpus.mjs --track track-2 --mode <full|subset|dry-run>
     [--implementation-commit SHA] [--trigger-type weekly|manual|replay]
     [--trigger-reference <text>] [--actor-kind scheduler|operator]
     [--actor-reference <text>]
-       [--inspector <file-url-or-path>] [--state-db <path>] [--out <path>]
+    [--inspection-results <json-path>] [--state-db <path>] [--out <path>]
 
-The inspector module must export inspect(item, context) and return evidence plus
-one classification: addition, update, correction, replacement, removal, or
-evidence-backed-no-change. Non-dry runs require --inspector and --state-db.
+Inspection results are untrusted data, never executable modules. Each result must
+bind to the canonical stable ID, item digest, source digest, inspector digest,
+evidence, and one supported classification. Non-dry runs require
+--inspection-results and --state-db.
 Dry-run only validates the pin, enumerates, and partitions; it does not inspect,
 open workflow state, write output files, or call external integrations.`;
 
@@ -34,13 +35,6 @@ function parseArgs(argv) {
     return result;
 }
 
-async function loadInspector(specifier) {
-    const url = specifier.startsWith("file:") ? specifier : pathToFileURL(resolve(specifier)).href;
-    const module = await import(url);
-    if (typeof module.inspect !== "function") throw new TypeError("inspector module must export inspect(item, context)");
-    return module.inspect;
-}
-
 export async function main(argv = process.argv.slice(2)) {
     if (argv.includes("--help")) { console.log(HELP); return; }
     const args = parseArgs(argv);
@@ -50,8 +44,12 @@ export async function main(argv = process.argv.slice(2)) {
     if (args["actor-kind"] && !["scheduler", "operator"].includes(args["actor-kind"])) throw new TypeError("--actor-kind must be scheduler or operator");
     for (const name of ["platform-root", "content-commit"]) if (!args[name]) throw new TypeError(`--${name} is required`);
     verifyPinnedCommit(args["platform-root"], args["content-commit"]);
-    if (args.mode !== "dry-run" && (!args.inspector || !args["state-db"])) throw new TypeError("non-dry runs require --inspector and --state-db");
-    const inspector = args.mode === "dry-run" ? null : await loadInspector(args.inspector);
+    if (args.inspector) throw new TypeError("--inspector is prohibited because executable inspector modules are not a trust boundary");
+    if (args.mode !== "dry-run" && (!args["inspection-results"] || !args["state-db"])) throw new TypeError("non-dry runs require --inspection-results and --state-db");
+    const expectedItems = args.mode === "dry-run" ? [] : enumerateCanonicalCorpus(args["platform-root"]);
+    if (args.mode === "full" && expectedItems.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`full Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${expectedItems.length}`);
+    const expectedStableIds = args.mode === "subset" ? (args["item-ids"] ?? "").split(",").map((value) => value.trim()).filter(Boolean) : expectedItems.map((item) => item.stableId);
+    const inspector = args.mode === "dry-run" ? null : createValidatedResultInspector({ resultPath: args["inspection-results"], expectedStableIds, maxResults: expectedStableIds.length });
     const store = args.mode === "dry-run" ? null : openStateStore(args["state-db"]);
     try {
         const result = await runTrack2({

@@ -26,6 +26,12 @@ export function recordRejection({
     now = new Date().toISOString(),
     apply = false,
 }) {
+    if (apply) {
+        throw new RejectionError(
+            'legacy rejection mutation is retired',
+            'capture the rejection through the protected gate-decision authority.',
+        );
+    }
     if (!rejectedBy) {
         throw new RejectionError(
             'no --rejected-by',
@@ -58,23 +64,6 @@ export function recordRejection({
             );
         }
 
-        if (apply) {
-            db.prepare(
-                `INSERT INTO publication
-           (subject_id, item_id, run_id, brief_id, proposal_file, proposal_digest,
-            disposition, accepted_by, published_at, note)
-         VALUES (?, ?, NULL, NULL, NULL, NULL, 'rejected', ?, ?, ?)
-         ON CONFLICT (subject_id, run_id, proposal_file) DO UPDATE SET
-           disposition = 'rejected',
-           accepted_by = excluded.accepted_by,
-           published_at = excluded.published_at,
-           note = excluded.note`,
-            ).run(subjectId, item.id, rejectedBy, now, note ?? `Rejected by ${rejectedBy}`);
-            db.prepare(
-                "UPDATE work_item SET state = 'rejected', note = ?, updated_at = ? WHERE id = ?",
-            ).run(`rejected by ${rejectedBy}`, now, item.id);
-        }
-
         return { workItem: item, from: item.state, to: 'rejected' };
     } finally {
         db.close();
@@ -97,7 +86,7 @@ function main() {
     const args = parseArgs(process.argv.slice(2));
     if (!args.db || !args.subject || !args['rejected-by']) {
         console.error('usage: reject-publication.mjs --db <content.db> --subject <subject-id> --rejected-by <name>');
-        console.error('       [--kind needs-creating|needs-updating] [--note <text>] [--apply]');
+        console.error('       [--kind needs-creating|needs-updating] [--note <text>]');
         process.exit(2);
     }
 
@@ -125,7 +114,7 @@ function main() {
     console.log(`  work item   ${r.from} -> ${r.to}`);
     console.log(`  rejected by ${args['rejected-by']}`);
 
-    if (!args.apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
+    console.log('\nDRY RUN. Legacy mutation is retired; use the protected gate-decision authority.');
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) main();

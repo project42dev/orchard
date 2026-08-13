@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { sha256Digest } from './lib/identity.mjs';
+import { protectedAdapterDigest } from './lib/protected-adapter.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 
 export async function provisionTrustAnchor({ dbPath, inputPath }) {
@@ -12,7 +13,7 @@ export async function provisionTrustAnchor({ dbPath, inputPath }) {
     if (!['gate', 'publication', 'closure'].includes(input.scope)) throw new TypeError('scope must be gate, publication, or closure');
     if (!input.adapter_path) throw new TypeError('adapter_path is required');
     const adapterPath = resolve(input.adapter_path);
-    const adapterText = readFileSync(adapterPath, 'utf8');
+    const adapterDigest = await protectedAdapterDigest(adapterPath);
     const loaded = await import(pathToFileURL(adapterPath).href);
     if (typeof loaded.adapterIdentity !== 'string' || !loaded.adapterIdentity) {
         throw new TypeError('protected adapter module must export adapterIdentity');
@@ -28,7 +29,7 @@ export async function provisionTrustAnchor({ dbPath, inputPath }) {
     try {
         return store.provisionTrustAnchor({
             scope: input.scope, adapter_identity: loaded.adapterIdentity,
-            adapter_digest: sha256Digest(adapterText), adapter_path: adapterPath,
+            adapter_digest: adapterDigest, adapter_path: adapterPath,
             policy_digest: policyDigest, policy,
             provisioned_at: input.provisioned_at ?? new Date().toISOString()
         });

@@ -46,7 +46,7 @@ function platformFixture(t) {
 }
 
 function options(root, mode = "full", extra = {}) {
-    return { mode, platformRoot: root, contentCommit: COMMIT, commitVerifier: verifyCommit, inspector: noChange, ...extra };
+    return { mode, platformRoot: root, contentCommit: COMMIT, commitVerifier: verifyCommit, inspector: noChange, expectedCanonicalItems: 7, ...extra };
 }
 
 test("canonical enumeration is deterministic, typed, and excludes generated content", (t) => {
@@ -58,6 +58,10 @@ test("canonical enumeration is deterministic, typed, and excludes generated cont
     assert.equal(first.length, 7);
     assert.equal(first.some(({ canonicalId }) => canonicalId === "must-not-be-enumerated"), false);
     assert.deepEqual(new Set(first.map(({ kind }) => kind)), new Set(["catalogue", "learning-item", "guide-item", "guide-diagram-item"]));
+    const diagram = first.find(({ stableId }) => stableId === "guide-diagram:diagram-a");
+    assert.equal(diagram.digest, diagram.sourceDigest);
+    writeFileSync(join(root, "content/diagrams/diagram-a.mmd"), "graph TD; A-->C;\n", "utf8");
+    assert.notEqual(enumerateCanonicalCorpus(root).find(({ stableId }) => stableId === diagram.stableId).digest, diagram.digest);
 });
 
 test("partitions are deterministic, no larger than 50, and reject duplicate stable IDs", () => {
@@ -80,6 +84,15 @@ test("100 percent full inspection completes and persists one observation and out
     assert.equal(result.reconciliation.ok, true);
     assert.equal(store.db.prepare("SELECT count(*) AS count FROM observation_event WHERE run_id = ?").get(result.run.run_id).count, 7);
     assert.equal(store.db.prepare("SELECT count(*) AS count FROM run_outcome WHERE run_id = ?").get(result.run.run_id).count, 7);
+});
+
+test("full inspection rejects corpus cardinality below or above the immutable expectation before inspection", async (t) => {
+    const root = platformFixture(t);
+    let calls = 0;
+    const inspector = async (item) => { calls += 1; return noChange(item); };
+    await assert.rejects(runTrack2(options(root, "full", { expectedCanonicalItems: 6, inspector })), /requires exactly 6.*enumerated 7/);
+    await assert.rejects(runTrack2(options(root, "full", { expectedCanonicalItems: 8, inspector })), /requires exactly 8.*enumerated 7/);
+    assert.equal(calls, 0);
 });
 
 test("subset inspection never qualifies as completed full coverage", async (t) => {
@@ -116,6 +129,21 @@ test("partition omission, duplicate output, and thrown partition failure fail cl
     const thrown = await runTrack2(options(root, "full", { partitionExecutor: async () => { throw new Error("synthetic partition failure"); } }));
     assert.equal(thrown.status, "failed");
     assert.equal(thrown.outcomes.every(({ outcome }) => outcome === "failed"), true);
+});
+
+test("an individual inspector failure fails a full run closed", async (t) => {
+    const root = platformFixture(t);
+    let calls = 0;
+    const result = await runTrack2(options(root, "full", {
+        inspector: async (item) => {
+            calls += 1;
+            if (calls === 1) throw new Error("synthetic inspector failure");
+            return noChange(item);
+        }
+    }));
+    assert.equal(result.status, "failed");
+    assert.equal(result.inspectionFailed, true);
+    assert.equal(result.coverage.gaps, 1);
 });
 
 test("inspection concurrency never exceeds four", async () => {

@@ -2,10 +2,12 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { canonicalJson, generateUuidV7, sha256Digest } from "./identity.mjs";
+import { verifyCorpusSnapshot } from "./corpus-snapshot.mjs";
 
 export const TRACK_2_CLASSIFICATIONS = Object.freeze([
     "addition", "update", "correction", "replacement", "removal", "evidence-backed-no-change"
 ]);
+export const TRACK_2_EXPECTED_CANONICAL_ITEMS = 183;
 
 function posixRelative(root, path) { return relative(root, path).split(sep).join("/"); }
 
@@ -86,7 +88,8 @@ export function enumerateCanonicalCorpus(platformRoot) {
         if (!normalized.startsWith(`${join(root, "content")}${sep}`)) throw new Error(`canonical item escaped content root: ${item.stableId}`);
         if (!statSync(normalized, { throwIfNoEntry: false })?.isFile()) throw new Error(`canonical item source is missing: ${item.stableId}`);
         item.sourcePath = posixRelative(root, normalized);
-        item.digest = sha256Digest(item.value);
+        item.sourceDigest = sha256Digest(readFileSync(normalized));
+        item.digest = item.kind === "guide-diagram-item" ? item.sourceDigest : sha256Digest(item.value);
     }
     ensureUnique(items);
     return items.map((item) => Object.freeze(item));
@@ -139,6 +142,7 @@ export function reconcileTrack2Outcomes(itemIds, outcomes) {
 export function verifyPinnedCommit(platformRoot, commit) {
     if (!/^[a-f0-9]{40}$/.test(commit ?? "")) throw new TypeError("contentCommit must be a full lowercase Git commit");
     const root = resolve(platformRoot);
+    if (!statSync(join(root, ".git"), { throwIfNoEntry: false })) return verifyCorpusSnapshot(root, commit).commit;
     const actual = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
     if (actual !== commit) throw new Error(`platform root is at ${actual}, not pinned commit ${commit}`);
     const contentChanges = execFileSync("git", ["-C", root, "status", "--porcelain", "--untracked-files=all", "--",
@@ -184,6 +188,11 @@ export async function runTrack2(options) {
     const commitVerifier = options.commitVerifier ?? verifyPinnedCommit;
     commitVerifier(options.platformRoot, options.contentCommit);
     const allItems = enumerateCanonicalCorpus(options.platformRoot);
+    const expectedCanonicalItems = options.expectedCanonicalItems ?? TRACK_2_EXPECTED_CANONICAL_ITEMS;
+    if (!Number.isSafeInteger(expectedCanonicalItems) || expectedCanonicalItems < 1) throw new TypeError("expectedCanonicalItems must be a positive safe integer");
+    if (options.mode === "full" && allItems.length !== expectedCanonicalItems) {
+        throw new Error(`full Track 2 requires exactly ${expectedCanonicalItems} canonical items; enumerated ${allItems.length}`);
+    }
     const subset = options.mode === "subset" ? new Set(options.subsetIds ?? []) : null;
     if (subset) for (const id of subset) if (!allItems.some((item) => item.stableId === id)) throw new TypeError(`subset item is not canonical: ${id}`);
     const items = allItems.filter((item) => !subset || subset.has(item.stableId));
@@ -213,7 +222,7 @@ export async function runTrack2(options) {
         try {
             const execute = options.partitionExecutor ?? ((part, inspect) => mapWithConcurrency(part, concurrency, inspect));
             const results = await execute(partition, async (item) => {
-                try { return { stableId: item.stableId, ...validateInspection(await options.inspector(item, { runId, contentCommit: options.contentCommit, partitionOrdinal: ordinal })) }; }
+                try { return { stableId: item.stableId, ...validateInspection(await options.inspector(item, { runId, contentCommit: options.contentCommit, partitionOrdinal: ordinal, platformRoot: resolve(options.platformRoot) })) }; }
                 catch (error) { return { stableId: item.stableId, outcome: "failed", error: error.message }; }
             });
             if (!Array.isArray(results) || results.length !== partition.length) throw new Error("partition executor returned incomplete results");
@@ -242,10 +251,11 @@ export async function runTrack2(options) {
     const reconciliation = reconcileTrack2Outcomes(items.map((item) => item.stableId), outcomes);
     const inspected = outcomes.filter((entry) => TRACK_2_CLASSIFICATIONS.includes(entry.classification)).length;
     const coverage = { expected: items.length, enumerated: items.length, inspected, gaps: items.length - inspected };
-    const fullSuccess = options.mode === "full" && !drift && !stopped && reconciliation.ok && coverage.expected === allItems.length && coverage.expected === coverage.enumerated && coverage.enumerated === coverage.inspected && coverage.gaps === 0;
-    const status = drift || stopped || !reconciliation.ok ? "failed" : fullSuccess ? "completed" : "incomplete";
+    const inspectionFailed = outcomes.some((entry) => entry.outcome === "failed" || entry.error);
+    const fullSuccess = options.mode === "full" && !drift && !stopped && !inspectionFailed && reconciliation.ok && coverage.expected === allItems.length && coverage.expected === coverage.enumerated && coverage.enumerated === coverage.inspected && coverage.gaps === 0;
+    const status = drift || stopped || inspectionFailed || !reconciliation.ok ? "failed" : fullSuccess ? "completed" : "incomplete";
     const completedAt = (options.now?.() ?? new Date()).toISOString();
     const run = runRecord(normalized, coverage, status, startedAt, completedAt);
     if (options.mode !== "dry-run" && options.stateStore) await options.stateStore.finalizeRun(run);
-    return { track: "track-2", mode: options.mode, status, contentCommit: options.contentCommit, inventoryDigest: before, items, partitions, outcomes, coverage, reconciliation, drift, run };
+    return { track: "track-2", mode: options.mode, status, contentCommit: options.contentCommit, inventoryDigest: before, items, partitions, outcomes, coverage, reconciliation, drift, inspectionFailed, run };
 }

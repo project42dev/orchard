@@ -11,6 +11,7 @@ import { createAgentHandoff, validateHandoffChain } from '../scripts/lib/handoff
 import { FakeGitHubAdapter } from '../scripts/adapters/fake-github-adapter.mjs';
 import { FakeAdoAdapter } from '../scripts/adapters/fake-ado-adapter.mjs';
 import { sha256Digest } from '../scripts/lib/identity.mjs';
+import { loadProtectedAdapterModule, protectedAdapterDigest, verifyProtectedAdapterArtifact } from '../scripts/lib/protected-adapter.mjs';
 import { reconcileApprovedItem } from '../scripts/lib/ado-reconciliation.mjs';
 import { StateStore } from '../scripts/lib/state-store.mjs';
 
@@ -30,7 +31,7 @@ const source = { repository: 'project42dev/orchard', issue_number: 42, comment_i
 const actor = { provider: 'github', immutable_id: '123', display_name: 'Owner' };
 
 let captureSequence = 0;
-function runCaptureCli(root, input, overrides = {}) {
+async function runCaptureCli(root, input, overrides = {}) {
   const directory = join(root, String(captureSequence++));
   mkdirSync(directory, { recursive: true });
   const inputPath = join(directory, 'capture.json');
@@ -43,7 +44,7 @@ function runCaptureCli(root, input, overrides = {}) {
   const store = new StateStore(dbPath);
   if (!overrides.missingTrust) store.provisionTrustAnchor({
     scope: 'gate', adapter_identity: overrides.adapterIdentity ?? 'test:gate-provider:v1',
-    adapter_digest: overrides.adapterDigest ?? sha256Digest(adapterText), adapter_path: adapterPath,
+    adapter_digest: overrides.adapterDigest ?? await protectedAdapterDigest(adapterPath), adapter_path: adapterPath,
     policy_digest: sha256Digest(policy), policy, provisioned_at: '2026-08-01T00:00:00.000Z'
   });
   store.close();
@@ -56,21 +57,50 @@ test('gate capture CLI fails closed when protected trust configuration is missin
   const root = mkdtempSync(join(tmpdir(), 'orchard-gate-cli-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
-  const missing = runCaptureCli(root, {}, { missingTrust: true });
+  const missing = await runCaptureCli(root, {}, { missingTrust: true });
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /trust\.configuration/);
 
-  const adapterMismatch = runCaptureCli(root, {}, { adapterDigest: digest('f') });
+  const adapterMismatch = await runCaptureCli(root, {}, { adapterDigest: digest('f') });
   assert.notEqual(adapterMismatch.status, 0);
   assert.match(adapterMismatch.stderr, /source\.adapter-digest/);
 
-  const missingContract = runCaptureCli(root, {});
+  const missingContract = await runCaptureCli(root, {});
   assert.notEqual(missingContract.status, 0);
   assert.match(missingContract.stderr, /source\.adapter-contract/);
 
-  const selfAsserted = runCaptureCli(root, { event: { actor: { immutable_id: '123' } } });
+  const selfAsserted = await runCaptureCli(root, { event: { actor: { immutable_id: '123' } } });
   assert.notEqual(selfAsserted.status, 0);
   assert.match(selfAsserted.stderr, /source\.self-asserted/);
+});
+
+test('protected adapter digest covers transitive local dependencies', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'orchard-protected-adapter-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const entry = join(root, 'entry.mjs');
+  const helper = join(root, 'helper.mjs');
+  writeFileSync(entry, "import { value } from './helper.mjs';\nexport const adapterIdentity = value;\n");
+  writeFileSync(helper, "export const value = 'trusted';\n");
+  const expected = await protectedAdapterDigest(entry);
+  await verifyProtectedAdapterArtifact(entry, expected);
+  writeFileSync(helper, "export const value = 'mutated';\n");
+  await assert.rejects(verifyProtectedAdapterArtifact(entry, expected), /does not match/);
+});
+
+test('protected gate adapter executes only the verified snapshot', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'orchard-protected-gate-adapter-'));
+  const entry = join(root, 'entry.mjs');
+  const dbPath = join(root, 'content.db');
+  writeFileSync(entry, "export const adapterIdentity = 'test:gate:v1';\nexport const fetchVerifiedEvent = () => 'trusted';\n");
+  const store = new StateStore(dbPath);
+  t.after(() => { store.close(); rmSync(root, { recursive: true, force: true }); });
+  store.provisionTrustAnchor({
+    scope: 'gate', adapter_identity: 'test:gate:v1', adapter_digest: await protectedAdapterDigest(entry),
+    adapter_path: entry, policy_digest: sha256Digest({}), policy: {}, provisioned_at: '2026-08-01T00:00:00.000Z'
+  });
+  const { loaded } = await loadProtectedAdapterModule(store, 'gate');
+  writeFileSync(entry, "export const adapterIdentity = 'test:gate:v1';\nexport const fetchVerifiedEvent = () => 'mutated';\n");
+  assert.equal(await loaded.fetchVerifiedEvent(), 'trusted');
 });
 
 test('gate manifests isolate items and batch deterministically at twenty', async () => {

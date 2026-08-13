@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { assertValidRecord } from './lib/contracts.mjs';
 import { canonicalJson, generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { verifyGateManifestDigests } from './lib/gates.mjs';
+import { loadProtectedAdapterModule } from './lib/protected-adapter.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
@@ -111,9 +112,9 @@ async function main() {
         if ('event' in input || 'verifiedEvent' in input || 'authorizationPolicy' in input || 'authorizedActorIds' in input) fail('source.self-asserted', 'capture input cannot supply provider evidence or authorization policy');
         const policy = trust.policy;
         if (sha256Digest(policy) !== trust.policy_digest) fail('actor.policy-digest', 'authorization policy digest does not match the trusted pin');
-        const adapterPath = resolve(trust.adapter_path);
-        if (sha256Digest(readFileSync(adapterPath, 'utf8')) !== trust.adapter_digest) fail('source.adapter-digest', 'provider adapter digest does not match the trusted pin');
-        const adapter = await import(pathToFileURL(adapterPath).href);
+        let adapter;
+        try { ({ loaded: adapter } = await loadProtectedAdapterModule(store, 'gate', { validateIdentity: false })); }
+        catch { fail('source.adapter-digest', 'provider adapter artifact does not match the trusted pin'); }
         if (typeof adapter.fetchVerifiedEvent !== 'function') fail('source.adapter-contract', 'provider adapter must export fetchVerifiedEvent(reference)');
         if (typeof adapter.adapterIdentity !== 'string' || !adapter.adapterIdentity) fail('source.adapter-identity', 'provider adapter must export a stable adapterIdentity');
         if (adapter.adapterIdentity !== trust.adapter_identity) fail('source.adapter-identity', 'provider adapter identity does not match the trusted pin');

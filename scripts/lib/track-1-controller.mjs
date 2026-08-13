@@ -22,13 +22,44 @@ function positiveInteger(value, name, fallback) {
     return result;
 }
 
-function normalizeSource(source, legacyDefaults) {
+function nonEmptyPolicyText(policy, name, sourceId) {
+    if (typeof policy[name] !== "string" || policy[name].trim().length === 0) throw new TypeError(`approved source ${sourceId} needs policy.${name}`);
+}
+
+function validateReviewedPolicy(policy, source, parsed) {
+    if (policy.approval !== "approved") throw new TypeError(`approved source ${source.id} policy.approval must be approved`);
+    for (const name of ["approvalReference", "owner", "licenseTermsReview", "robotsPolicy", "ratePolicy", "evidenceRetentionClass"]) nonEmptyPolicyText(policy, name, source.id);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(policy.reviewedAt ?? "") || Number.isNaN(Date.parse(`${policy.reviewedAt}T00:00:00Z`))) throw new TypeError(`approved source ${source.id} needs a valid policy.reviewedAt date`);
+    if (!Number.isSafeInteger(policy.reviewCadenceDays) || policy.reviewCadenceDays < 1) throw new TypeError(`approved source ${source.id} needs a positive policy.reviewCadenceDays`);
+    if (!Array.isArray(policy.allowedHosts) || policy.allowedHosts.length === 0) throw new TypeError(`approved source ${source.id} needs explicit policy.allowedHosts`);
+    const hosts = policy.allowedHosts.map((host) => String(host).toLowerCase());
+    if (!hosts.includes(parsed.hostname.toLowerCase())) throw new TypeError(`approved source ${source.id} policy.allowedHosts must include its URL host`);
+}
+
+function validateProductionPolicy(policy, source, parsed, enabled) {
+    if (enabled) {
+        validateReviewedPolicy(policy, source, parsed);
+        return;
+    }
+    if (!["pending", "rejected", "retired"].includes(policy.approval)) {
+        throw new TypeError(`disabled source ${source.id} policy.approval must be pending, rejected, or retired`);
+    }
+    nonEmptyPolicyText(policy, "statusReason", source.id);
+}
+
+function validateSourceUrl(parsed, sourceId) {
+    if (parsed.protocol !== "https:") throw new TypeError(`approved source ${sourceId} must use HTTPS`);
+    if (parsed.username || parsed.password) throw new TypeError(`approved source ${sourceId} URL must not contain credentials`);
+    if (parsed.port && parsed.port !== "443") throw new TypeError(`approved source ${sourceId} URL must use HTTPS port 443`);
+}
+
+function normalizeSource(source, legacyDefaults, requirePolicyReview) {
     if (!source || typeof source !== "object" || Array.isArray(source)) throw new TypeError("approved source entries must be objects");
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(source.id ?? "")) throw new TypeError("approved source id must be immutable lowercase key text");
     const url = source.url ?? source.urlPrefix;
     let parsed;
     try { parsed = new URL(url); } catch { throw new TypeError(`approved source ${source.id} has an invalid URL`); }
-    if (parsed.protocol !== "https:") throw new TypeError(`approved source ${source.id} must use HTTPS`);
+    validateSourceUrl(parsed, source.id);
     if (source.enabled === undefined && !legacyDefaults) throw new TypeError(`approved source ${source.id} needs an explicit enabled state`);
     const enabled = source.enabled ?? true;
     if (typeof enabled !== "boolean") throw new TypeError(`approved source ${source.id} enabled must be boolean`);
@@ -40,6 +71,7 @@ function normalizeSource(source, legacyDefaults) {
         fetchNote: source.fetchNote ?? null,
     };
     if (!policy || typeof policy !== "object" || Array.isArray(policy)) throw new TypeError(`approved source ${source.id} needs policy metadata`);
+    if (requirePolicyReview) validateProductionPolicy(policy, source, parsed, enabled);
     const allowedHosts = [...new Set((policy.allowedHosts ?? [parsed.hostname]).map((host) => String(host).toLowerCase()))].sort();
     return Object.freeze({
         id: source.id,
@@ -57,7 +89,7 @@ export function loadApprovedSourceRegistry(registry, options = {}) {
     const entries = registry.approvedSources ?? registry.sources ?? registry.watchList;
     if (!Array.isArray(entries)) throw new TypeError("approved source registry needs approvedSources, sources, or watchList");
     const legacyDefaults = options.allowLegacyMetadata !== false && !registry.approvedSources;
-    const sources = entries.map((entry) => normalizeSource(entry, legacyDefaults)).sort((left, right) => left.id.localeCompare(right.id));
+    const sources = entries.map((entry) => normalizeSource(entry, legacyDefaults, options.requirePolicyReview === true)).sort((left, right) => left.id.localeCompare(right.id));
     const ids = new Set();
     for (const source of sources) {
         if (ids.has(source.id)) throw new TypeError(`duplicate approved source id: ${source.id}`);
@@ -233,7 +265,7 @@ export function createBoundedFetchAdapter(options = {}) {
                         const location = response.headers.get("location");
                         if (!location) return { kind: "failed", reason: "redirect-without-location", status: response.status, redirects, bytes: 0, durationMs: Date.now() - started };
                         const next = new URL(location, url);
-                        if (next.protocol !== "https:" || !source.policy.allowedHosts.includes(next.hostname.toLowerCase())) {
+                        if (next.protocol !== "https:" || next.username || next.password || (next.port && next.port !== "443") || !source.policy.allowedHosts.includes(next.hostname.toLowerCase())) {
                             return { kind: "blocked", reason: "unapproved-redirect", status: response.status, finalUrl: next.href, redirects, bytes: 0, durationMs: Date.now() - started };
                         }
                         url = next.href;
@@ -317,7 +349,11 @@ async function persistSourceResult(store, runId, source, result, observedAt) {
 
 export async function runTrack1(options) {
     if (!["full", "subset", "dry-run"].includes(options.mode)) throw new TypeError("Track 1 mode must be full, subset, or dry-run");
-    const registry = loadApprovedSourceRegistry(options.registry, { expectedDigest: options.registryDigest, allowLegacyMetadata: options.allowLegacyMetadata });
+    const registry = loadApprovedSourceRegistry(options.registry, {
+        expectedDigest: options.registryDigest,
+        allowLegacyMetadata: options.allowLegacyMetadata,
+        requirePolicyReview: options.requirePolicyReview,
+    });
     const requested = options.mode === "subset" ? new Set(options.subsetIds ?? []) : null;
     if (requested) {
         for (const id of requested) if (!registry.sources.some((source) => source.id === id)) throw new TypeError(`subset source is not approved: ${id}`);
@@ -358,8 +394,11 @@ export async function runTrack1(options) {
                 if ((result.bytes ?? 0) > maxBytes) result = { ...result, outcome: "blocked", reason: "byte-cap" };
                 if ((result.durationMs ?? 0) > maxDurationMs) result = { ...result, outcome: "failed", reason: "duration-cap" };
                 if (result.finalUrl) {
-                    const host = new URL(result.finalUrl).hostname.toLowerCase();
-                    if (!source.policy.allowedHosts.includes(host)) result = { ...result, outcome: "blocked", reason: "unapproved-redirect" };
+                    const finalUrl = new URL(result.finalUrl);
+                    const host = finalUrl.hostname.toLowerCase();
+                    if (finalUrl.protocol !== "https:" || finalUrl.username || finalUrl.password || (finalUrl.port && finalUrl.port !== "443") || !source.policy.allowedHosts.includes(host)) {
+                        result = { ...result, outcome: "blocked", reason: "unapproved-redirect" };
+                    }
                 }
             } catch (error) {
                 result = { outcome: "failed", reason: "adapter-error", error: error.message };

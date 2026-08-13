@@ -111,6 +111,8 @@ async function track1Main(argv) {
       mode: args.mode,
       registry,
       registryDigest: args['registry-digest'],
+      allowLegacyMetadata: false,
+      requirePolicyReview: true,
       subsetIds: (args['source-ids'] ?? '').split(',').map((value) => value.trim()).filter(Boolean),
       stateStore: store,
       contentCommit: args['content-commit'],
@@ -285,8 +287,8 @@ export function buildProposals({ probes, corpusText, surveyed, gapThreshold, sur
   return proposals;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+async function legacyMain(argv) {
+  const args = parseArgs(argv);
   for (const required of ['registry', 'corpus', 'probes', 'out']) {
     if (!args[required]) usage(`--${required} is required`);
   }
@@ -374,10 +376,11 @@ async function main() {
 
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const argv = process.argv.slice(2);
+export async function main(argv = process.argv.slice(2)) {
   if (argv.includes('--help')) console.log(TRACK_1_HELP);
   else if (argv.includes('--legacy-help')) usage();
   else if (argv.includes('--track')) await track1Main(argv);
-  else await main();
+  else await legacyMain(argv);
 }
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

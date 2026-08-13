@@ -1,34 +1,19 @@
-name: Track 1 Discovery
+name: Track 1 Source Policy Validation
 
 on:
-    schedule:
-        - cron: "0 6 * * 1"
     workflow_dispatch:
         inputs:
-            mode:
-                description: Run mode. Weekly runs always use full.
-                required: true
-                default: dry-run
-                type: choice
-                options:
-                    - dry-run
-                    - subset
-                    - full
             platform_commit:
-                description: Optional dry-run-only project42-platform commit. Evidence-bearing runs use the protected repository variable.
+                description: Optional exact project42-platform commit. The protected repository variable is used when omitted.
                 required: false
                 type: string
             registry_digest:
-                description: Optional dry-run-only registry digest. Evidence-bearing runs use the protected repository variable.
-                required: false
-                type: string
-            source_ids:
-                description: Comma-separated approved source IDs. Required only for subset mode.
+                description: Optional exact canonical registry digest. The protected repository variable is used when omitted.
                 required: false
                 type: string
 
 concurrency:
-    group: orchard-track-1-${{ github.ref }}
+    group: orchard-track-1-policy-validation-${{ github.ref }}
     cancel-in-progress: false
 
 permissions:
@@ -39,67 +24,34 @@ env:
     PLATFORM_REPOSITORY: ${{ vars.ORCHARD_PLATFORM_REPOSITORY || 'project42dev/project42-platform' }}
 
 jobs:
-    discover:
-        name: Inspect approved sources
+    validate:
+        name: Validate reviewed source policy
         runs-on: ubuntu-latest
-        timeout-minutes: 120
+        timeout-minutes: 30
 
         steps:
-            - name: Resolve and validate immutable inputs
+            - name: Resolve immutable inputs
               id: config
               shell: pwsh
               env:
-                  EVENT_NAME: ${{ github.event_name }}
-                  REQUESTED_MODE: ${{ inputs.mode }}
                   REQUESTED_PLATFORM_COMMIT: ${{ inputs.platform_commit }}
-                  SCHEDULED_PLATFORM_COMMIT: ${{ vars.ORCHARD_PLATFORM_COMMIT }}
+                  PROTECTED_PLATFORM_COMMIT: ${{ vars.ORCHARD_PLATFORM_COMMIT }}
                   REQUESTED_REGISTRY_DIGEST: ${{ inputs.registry_digest }}
-                  SCHEDULED_REGISTRY_DIGEST: ${{ vars.ORCHARD_SOURCE_REGISTRY_DIGEST }}
-                  REQUESTED_SOURCE_IDS: ${{ inputs.source_ids }}
-                  RUN_REFERENCE: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  PROTECTED_REGISTRY_DIGEST: ${{ vars.ORCHARD_SOURCE_REGISTRY_DIGEST }}
               run: |
                   Set-StrictMode -Version Latest
                   $ErrorActionPreference = 'Stop'
 
-                  $scheduled = $env:EVENT_NAME -eq 'schedule'
-                  $mode = if ($scheduled) { 'full' } else { $env:REQUESTED_MODE }
-                  if ($mode -notin @('full', 'subset', 'dry-run')) {
-                    throw 'mode must be full, subset, or dry-run'
-                  }
-                  if ($scheduled -and $mode -ne 'full') {
-                    throw 'scheduled Track 1 runs must use full mode'
-                  }
-
-                  if ($mode -ne 'dry-run' -and ($env:REQUESTED_PLATFORM_COMMIT -or $env:REQUESTED_REGISTRY_DIGEST)) {
-                    throw 'platform_commit and registry_digest overrides are allowed only for dry-run mode'
-                  }
-                  $platformCommit = if ($mode -eq 'dry-run' -and $env:REQUESTED_PLATFORM_COMMIT) { $env:REQUESTED_PLATFORM_COMMIT } else { $env:SCHEDULED_PLATFORM_COMMIT }
+                  $platformCommit = if ($env:REQUESTED_PLATFORM_COMMIT) { $env:REQUESTED_PLATFORM_COMMIT } else { $env:PROTECTED_PLATFORM_COMMIT }
                   if ($platformCommit -cnotmatch '^[a-f0-9]{40}$') {
-                    throw 'an exact lowercase ORCHARD_PLATFORM_COMMIT is required'
+                    throw 'an exact lowercase project42-platform commit is required'
                   }
-                  $registryDigest = if ($mode -eq 'dry-run' -and $env:REQUESTED_REGISTRY_DIGEST) { $env:REQUESTED_REGISTRY_DIGEST } else { $env:SCHEDULED_REGISTRY_DIGEST }
+                  $registryDigest = if ($env:REQUESTED_REGISTRY_DIGEST) { $env:REQUESTED_REGISTRY_DIGEST } else { $env:PROTECTED_REGISTRY_DIGEST }
                   if ($registryDigest -cnotmatch '^sha256:[a-f0-9]{64}$') {
-                    throw 'an exact lowercase ORCHARD_SOURCE_REGISTRY_DIGEST is required'
+                    throw 'an exact lowercase canonical registry digest is required'
                   }
-
-                  $sourceIds = $env:REQUESTED_SOURCE_IDS.Trim()
-                  if ($mode -eq 'subset' -and -not $sourceIds) {
-                    throw 'source_ids is required for subset mode'
-                  }
-                  if ($sourceIds -and $sourceIds -cnotmatch '^[a-z0-9._-]+(?:,[a-z0-9._-]+)*$') {
-                    throw 'source_ids contains an invalid source identifier'
-                  }
-                  if ($mode -ne 'subset' -and $sourceIds) {
-                    throw 'source_ids is allowed only in subset mode'
-                  }
-
-                  "mode=$mode" >> $env:GITHUB_OUTPUT
                   "platform_commit=$platformCommit" >> $env:GITHUB_OUTPUT
                   "registry_digest=$registryDigest" >> $env:GITHUB_OUTPUT
-                  "source_ids=$sourceIds" >> $env:GITHUB_OUTPUT
-                  "trigger_type=$(if ($scheduled) { 'weekly' } else { 'manual' })" >> $env:GITHUB_OUTPUT
-                  "actor_kind=$(if ($scheduled) { 'scheduler' } else { 'operator' })" >> $env:GITHUB_OUTPUT
-                  "run_reference=$($env:RUN_REFERENCE)" >> $env:GITHUB_OUTPUT
 
             - name: Checkout Orchard
               uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -127,55 +79,32 @@ jobs:
               shell: pwsh
               run: npm ci --ignore-scripts
 
-            - name: Run Track 1
+            - name: Validate exact reviewed source policy
               working-directory: orchard
               shell: pwsh
               env:
-                  MODE: ${{ steps.config.outputs.mode }}
                   PLATFORM_COMMIT: ${{ steps.config.outputs.platform_commit }}
                   REGISTRY_DIGEST: ${{ steps.config.outputs.registry_digest }}
-                  SOURCE_IDS: ${{ steps.config.outputs.source_ids }}
-                  TRIGGER_TYPE: ${{ steps.config.outputs.trigger_type }}
-                  ACTOR_KIND: ${{ steps.config.outputs.actor_kind }}
-                  RUN_REFERENCE: ${{ steps.config.outputs.run_reference }}
               run: |
                   Set-StrictMode -Version Latest
                   $ErrorActionPreference = 'Stop'
 
                   $implementationCommit = (git rev-parse HEAD).Trim()
-                  $arguments = @(
-                    'scripts/discover-content-opportunities.mjs',
-                    '--track', 'track-1',
-                    '--mode', $env:MODE,
-                    '--source-registry', '../platform/content/source-registry.json',
-                    '--registry-digest', $env:REGISTRY_DIGEST,
-                    '--content-commit', $env:PLATFORM_COMMIT,
-                    '--implementation-commit', $implementationCommit,
-                    '--trigger-type', $env:TRIGGER_TYPE,
-                    '--trigger-reference', $env:RUN_REFERENCE,
-                    '--actor-kind', $env:ACTOR_KIND,
-                    '--actor-reference', $env:RUN_REFERENCE
-                  )
-
-                  if ($env:MODE -eq 'subset') {
-                    $arguments += @('--source-ids', $env:SOURCE_IDS)
-                  }
-                  if ($env:MODE -ne 'dry-run') {
-                    New-Item -ItemType Directory -Path 'delivery/private/track-1' -Force | Out-Null
-                    $arguments += @(
-                      '--state-db', 'delivery/private/track-1/workflow-state.db',
-                      '--out', 'delivery/private/track-1/result.json'
-                    )
-                  }
-
-                  & node @arguments
+                  & node scripts/discover-content-opportunities.mjs `
+                    --track track-1 `
+                    --mode dry-run `
+                    --source-registry ../platform/content/source-registry.json `
+                    --registry-digest $env:REGISTRY_DIGEST `
+                    --content-commit $env:PLATFORM_COMMIT `
+                    --implementation-commit $implementationCommit `
+                    --trigger-type manual `
+                    --trigger-reference "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" `
+                    --actor-kind operator `
+                    --actor-reference "github:${{ github.actor_id }}"
                   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-            - name: Upload immutable Track 1 evidence
-              if: ${{ always() && steps.config.outputs.mode != 'dry-run' }}
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-              with:
-                  name: orchard-track-1-${{ github.run_id }}-${{ github.run_attempt }}
-                  path: orchard/delivery/private/track-1/
-                  if-no-files-found: error
-                  retention-days: 90
+            - name: State production boundary
+              shell: pwsh
+              run: |
+                  Write-Host 'This workflow only validates the exact reviewed source policy in dry-run mode.'
+                  Write-Host 'Production discovery is performed only by the fixed Container Apps Job runtime with managed identity, Blob-fenced state, and bounded retrieval.'
