@@ -3,5 +3,7 @@
 !package-lock.json
 !scripts/
 !scripts/**
+!contracts/
+!contracts/**
 !schema/
 !schema/**

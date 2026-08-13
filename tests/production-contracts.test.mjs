@@ -24,9 +24,12 @@ const digest = (value) => `sha256:${createHash("sha256").update(value).digest("h
 
 test("production image includes every runtime contract dependency", () => {
     const dockerfile = readFileSync(new URL("../delivery/Dockerfile.two-track", import.meta.url), "utf8");
+    const dockerignore = readFileSync(new URL("../.dockerignore", import.meta.url), "utf8");
     assert.match(dockerfile, /^COPY --chown=10001:10001 scripts \.\/scripts$/m);
     assert.match(dockerfile, /^COPY --chown=10001:10001 contracts \.\/contracts$/m);
     assert.match(dockerfile, /^COPY --chown=10001:10001 schema \.\/schema$/m);
+    assert.match(dockerignore, /^!contracts\/$/m);
+    assert.match(dockerignore, /^!contracts\/\*\*$/m);
 });
 
 function runGit(repository, args) {
