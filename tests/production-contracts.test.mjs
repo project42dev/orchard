@@ -336,6 +336,10 @@ test("Foundry producer validates endpoint, source containment, digest, bounds, a
         await assert.rejects(() => producer({ ...item, sourceDigest: sha256Digest("wrong") }, root), /digest changed/);
         const malformed = createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "policy", client: { responses: { create: async () => ({ status: "completed", usage: { input_tokens: 1, output_tokens: 1 }, output_text: "{}" }) } } });
         await assert.rejects(() => malformed(item, root), /invalid result/);
+        const invalidJson = createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "policy", client: { responses: { create: async () => ({ status: "completed", usage: { input_tokens: 1, output_tokens: 1 }, output_text: "{" }) } } });
+        await assert.rejects(() => invalidJson(item, root), (error) => error.code === "ERR_FOUNDRY_RESULT_INVALID");
+        const unauthorized = createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "policy", client: { responses: { create: async () => { throw Object.assign(new Error("sensitive provider detail"), { status: 401 }); } } } });
+        await assert.rejects(() => unauthorized(item, root), (error) => error.code === "ERR_FOUNDRY_AUTHORIZATION" && !error.message.includes("sensitive"));
     } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

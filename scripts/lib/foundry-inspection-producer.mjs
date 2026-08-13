@@ -14,6 +14,15 @@ function foundryError(code, message) {
     return error;
 }
 
+function foundryRequestError(error) {
+    const status = Number(error?.status);
+    if (status === 401 || status === 403) return foundryError("ERR_FOUNDRY_AUTHORIZATION", "Foundry rejected the workload identity");
+    if (status === 429) return foundryError("ERR_FOUNDRY_RATE_LIMITED", "Foundry rate limited the inspection request");
+    if (Number.isInteger(status) && status >= 400 && status < 500) return foundryError("ERR_FOUNDRY_REQUEST_REJECTED", "Foundry rejected the inspection request");
+    if (Number.isInteger(status) && status >= 500) return foundryError("ERR_FOUNDRY_SERVICE_UNAVAILABLE", "Foundry could not complete the inspection request");
+    return foundryError("ERR_FOUNDRY_REQUEST_FAILED", "Foundry inspection request failed");
+}
+
 const RESPONSE_SCHEMA = Object.freeze({
     type: "object",
     additionalProperties: false,
@@ -117,13 +126,13 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
         } catch (error) {
             usage.reservedInputTokens -= reservedInputTokens;
             usage.reservedOutputTokens -= maxOutputTokens;
-            throw error;
+            throw foundryRequestError(error);
         }
         if (response.status !== "completed" || !response.output_text) throw foundryError("ERR_FOUNDRY_INCOMPLETE", `Foundry inspection did not complete: ${item.stableId}`);
         const inputTokens = response.usage?.input_tokens;
         const outputTokens = response.usage?.output_tokens;
-        if (!Number.isSafeInteger(inputTokens) || inputTokens < 0 || !Number.isSafeInteger(outputTokens) || outputTokens < 0) throw new Error(`Foundry inspection omitted valid token usage: ${item.stableId}`);
-        if (inputTokens > reservedInputTokens || outputTokens > maxOutputTokens) throw new Error(`Foundry inspection exceeded its reserved token allowance: ${item.stableId}`);
+        if (!Number.isSafeInteger(inputTokens) || inputTokens < 0 || !Number.isSafeInteger(outputTokens) || outputTokens < 0) throw foundryError("ERR_FOUNDRY_USAGE_INVALID", `Foundry inspection omitted valid token usage: ${item.stableId}`);
+        if (inputTokens > reservedInputTokens || outputTokens > maxOutputTokens) throw foundryError("ERR_FOUNDRY_USAGE_INVALID", `Foundry inspection exceeded its reserved token allowance: ${item.stableId}`);
         usage.inputTokens += inputTokens;
         usage.outputTokens += outputTokens;
         usage.reservedInputTokens -= reservedInputTokens - inputTokens;
@@ -132,7 +141,9 @@ export function createFoundryInspectionProducer({ endpoint, deployment, managedI
         if (!Number.isSafeInteger(usage.inputTokens) || usage.inputTokens > maxTotalInputTokens) throw new Error("Foundry aggregate input-token cap exceeded");
         if (!Number.isSafeInteger(usage.outputTokens) || usage.outputTokens > maxTotalOutputTokens) throw new Error("Foundry aggregate output-token cap exceeded");
         if (!Number.isFinite(actualSpendUsd) || actualSpendUsd > spendCap) throw new Error("Foundry aggregate spend cap exceeded");
-        const result = JSON.parse(response.output_text);
+        let result;
+        try { result = JSON.parse(response.output_text); }
+        catch { throw foundryError("ERR_FOUNDRY_RESULT_INVALID", `Foundry inspection returned invalid JSON: ${item.stableId}`); }
         if (!TRACK_2_CLASSIFICATIONS.includes(result.classification)
             || !Array.isArray(result.evidence) || result.evidence.length < 1 || result.evidence.length > 8
             || result.evidence.some((entry) => typeof entry !== "string" || entry.length < 1 || entry.length > 500)) {

@@ -143,7 +143,17 @@ export async function main(argv = process.argv.slice(2)) {
         log("info", "runtime.completed");
     } catch (error) {
         process.exitCode = process.exitCode || 1;
-        const safeErrorCodes = new Set(["ERR_ORCHARD_CONFIGURATION", "ERR_FOUNDRY_INCOMPLETE", "ERR_FOUNDRY_RESULT_INVALID"]);
+        const safeErrorCodes = new Set([
+            "ERR_ORCHARD_CONFIGURATION",
+            "ERR_FOUNDRY_AUTHORIZATION",
+            "ERR_FOUNDRY_INCOMPLETE",
+            "ERR_FOUNDRY_RATE_LIMITED",
+            "ERR_FOUNDRY_REQUEST_FAILED",
+            "ERR_FOUNDRY_REQUEST_REJECTED",
+            "ERR_FOUNDRY_RESULT_INVALID",
+            "ERR_FOUNDRY_SERVICE_UNAVAILABLE",
+            "ERR_FOUNDRY_USAGE_INVALID",
+        ]);
         const errorCode = safeErrorCodes.has(error?.code) ? error.code : "ERR_ORCHARD_RUNTIME_FAILED";
         log("error", "runtime.failed", { error: { code: errorCode, name: error instanceof TypeError ? "TypeError" : "Error" } });
     }
