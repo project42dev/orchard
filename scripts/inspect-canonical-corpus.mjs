@@ -10,6 +10,7 @@ const HELP = `Track 2 canonical-corpus deep inspection
 usage: inspect-canonical-corpus.mjs --track track-2 --mode <full|subset|dry-run>
        --platform-root <path> --content-commit <40-char-sha>
        [--item-ids kind:id,kind:id] [--partition-size 50] [--concurrency 4]
+    [--run-id <uuidv7>] [--started-at <iso-8601>]
     [--implementation-commit SHA] [--trigger-type weekly|manual|replay]
     [--trigger-reference <text>] [--actor-kind scheduler|operator]
     [--actor-reference <text>]
@@ -78,6 +79,8 @@ export async function main(argv = process.argv.slice(2), options = {}) {
                 mode: args.mode,
                 platformRoot: args["platform-root"],
                 contentCommit: args["content-commit"],
+                runId: args["run-id"],
+                startedAt: args["started-at"],
                 implementationCommit: args["implementation-commit"],
                 triggerType: args["trigger-type"],
                 triggerReference: args["trigger-reference"],

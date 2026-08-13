@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { StateStore } from "../scripts/lib/state-store.mjs";
+import { generateUuidV7 } from "../scripts/lib/identity.mjs";
 import {
+    createTrack2RunRecord,
     enumerateCanonicalCorpus,
     mapWithConcurrency,
     partitionCanonicalItems,
@@ -84,6 +86,47 @@ test("100 percent full inspection completes and persists one observation and out
     assert.equal(result.reconciliation.ok, true);
     assert.equal(store.db.prepare("SELECT count(*) AS count FROM observation_event WHERE run_id = ?").get(result.run.run_id).count, 7);
     assert.equal(store.db.prepare("SELECT count(*) AS count FROM run_outcome WHERE run_id = ?").get(result.run.run_id).count, 7);
+});
+
+test("a preflight run manifest replays exactly when the controller starts", async (t) => {
+    const root = platformFixture(t);
+    const stateRoot = mkdtempSync(join(tmpdir(), "orchard-track2-preflight-"));
+    const store = new StateStore(join(stateRoot, "state.db"));
+    t.after(() => { store.close(); rmSync(stateRoot, { recursive: true, force: true }); });
+    const runId = generateUuidV7();
+    const startedAt = "2026-08-12T00:00:00.000Z";
+    const runOptions = options(root, "full", { runId, startedAt, partitionSize: 50, concurrency: 4 });
+    await store.recordRun(createTrack2RunRecord(runOptions, { expected: 7, enumerated: 7, inspected: 0, gaps: 7 }, "running", startedAt, null));
+
+    const result = await runTrack2({ ...runOptions, stateStore: store });
+
+    assert.equal(result.status, "completed");
+    assert.equal(result.run.run_id, runId);
+    assert.equal(result.run.started_at, startedAt);
+});
+
+test("state persistence failure propagates without retrying the partition", async (t) => {
+    const root = platformFixture(t);
+    let partitionExecutions = 0;
+    let observationAttempts = 0;
+    const stateStore = {
+        recordRun: async () => { },
+        recordObservation: async () => {
+            observationAttempts += 1;
+            throw new Error("synthetic state persistence failure");
+        },
+        recordRunOutcome: () => { throw new Error("outcome persistence must not follow a failed observation"); },
+    };
+
+    await assert.rejects(() => runTrack2(options(root, "full", {
+        stateStore,
+        partitionExecutor: async (partition, inspect) => {
+            partitionExecutions += 1;
+            return Promise.all(partition.map(inspect));
+        },
+    })), /synthetic state persistence failure/);
+    assert.equal(partitionExecutions, 1);
+    assert.equal(observationAttempts, 1);
 });
 
 test("full inspection rejects corpus cardinality below or above the immutable expectation before inspection", async (t) => {

@@ -151,7 +151,7 @@ export function verifyPinnedCommit(platformRoot, commit) {
     return actual;
 }
 
-function runRecord(options, coverage, status, startedAt, completedAt) {
+export function createTrack2RunRecord(options, coverage, status, startedAt, completedAt) {
     const record = {
         schema_version: "1.0.0", run_id: options.runId, track: "track-2",
         trigger: { type: options.triggerType ?? "manual", reference: options.triggerReference ?? "local-controller" }, status,
@@ -201,7 +201,7 @@ export async function runTrack2(options) {
     const partitions = partitionCanonicalItems(items, partitionSize);
     const runId = options.runId ?? generateUuidV7();
     const normalized = { ...options, runId, partitionSize, concurrency };
-    const startedAt = (options.now?.() ?? new Date()).toISOString();
+    const startedAt = options.startedAt ?? (options.now?.() ?? new Date()).toISOString();
     const before = snapshot(options.platformRoot, allItems);
     const outcomes = [];
     let stopped = false;
@@ -209,7 +209,7 @@ export async function runTrack2(options) {
     const initialCoverage = { expected: items.length, enumerated: items.length, inspected: 0, gaps: items.length };
     if (options.mode !== "dry-run" && options.stateStore) {
         options.onStage?.("track2.state.run-recording");
-        await options.stateStore.recordRun(runRecord(normalized, initialCoverage, "running", startedAt, null));
+        await options.stateStore.recordRun(createTrack2RunRecord(normalized, initialCoverage, "running", startedAt, null));
         options.onStage?.("track2.state.run-recorded");
     }
 
@@ -223,6 +223,7 @@ export async function runTrack2(options) {
             }
             continue;
         }
+        let partitionOutcomes;
         try {
             const execute = options.partitionExecutor ?? ((part, inspect) => mapWithConcurrency(part, concurrency, inspect));
             const results = await execute(partition, async (item) => {
@@ -235,20 +236,22 @@ export async function runTrack2(options) {
                 if (byId.has(result.stableId)) throw new Error(`partition returned duplicate item: ${result.stableId}`);
                 byId.set(result.stableId, result);
             }
-            for (const item of partition) {
-                const result = byId.get(item.stableId) ?? { stableId: item.stableId, outcome: "failed", error: "partition omitted item" };
-                outcomes.push(result);
-                if (options.stateStore) await persistItemResult(options.stateStore, runId, item, result, (options.now?.() ?? new Date()).toISOString());
-            }
-            options.onStage?.("track2.state.partition-persisted", { partition: ordinal + 1, partitionCount: partitions.length, outcomeCount: outcomes.length });
+            partitionOutcomes = partition.map((item) => byId.get(item.stableId)
+                ?? { stableId: item.stableId, outcome: "failed", error: "partition omitted item" });
         } catch (error) {
             stopped = true;
-            for (const item of partition) {
-                const result = { stableId: item.stableId, outcome: "failed", error: `partition failure: ${error.message}` };
-                outcomes.push(result);
-                if (options.stateStore) await persistItemResult(options.stateStore, runId, item, result, (options.now?.() ?? new Date()).toISOString());
+            partitionOutcomes = partition.map((item) => ({ stableId: item.stableId, outcome: "failed", error: `partition failure: ${error.message}` }));
+        }
+        for (let index = 0; index < partition.length; index += 1) {
+            const item = partition[index];
+            const result = partitionOutcomes[index];
+            outcomes.push(result);
+            if (options.stateStore) {
+                options.onStage?.("track2.state.item-persisting", { partition: ordinal + 1, item: outcomes.length });
+                await persistItemResult(options.stateStore, runId, item, result, (options.now?.() ?? new Date()).toISOString());
             }
         }
+        options.onStage?.("track2.state.partition-persisted", { partition: ordinal + 1, partitionCount: partitions.length, outcomeCount: outcomes.length });
         try { commitVerifier(options.platformRoot, options.contentCommit); } catch { drift = true; stopped = true; }
         if (snapshot(options.platformRoot, allItems) !== before) { drift = true; stopped = true; }
     }
@@ -260,7 +263,7 @@ export async function runTrack2(options) {
     const fullSuccess = options.mode === "full" && !drift && !stopped && !inspectionFailed && reconciliation.ok && coverage.expected === allItems.length && coverage.expected === coverage.enumerated && coverage.enumerated === coverage.inspected && coverage.gaps === 0;
     const status = drift || stopped || inspectionFailed || !reconciliation.ok ? "failed" : fullSuccess ? "completed" : "incomplete";
     const completedAt = (options.now?.() ?? new Date()).toISOString();
-    const run = runRecord(normalized, coverage, status, startedAt, completedAt);
+    const run = createTrack2RunRecord(normalized, coverage, status, startedAt, completedAt);
     if (options.mode !== "dry-run" && options.stateStore) {
         options.onStage?.("track2.state.run-finalizing", { status });
         await options.stateStore.finalizeRun(run);

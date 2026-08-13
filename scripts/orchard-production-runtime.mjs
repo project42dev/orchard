@@ -10,8 +10,9 @@ import { BlobStateAdapter } from "./lib/blob-state-adapter.mjs";
 import { withFencedState } from "./lib/coordination.mjs";
 import { materializeCorpusSnapshot } from "./lib/corpus-snapshot.mjs";
 import { createFoundryInspectionProducer, estimateFoundryInspectionCost, produceInspectionResultFile } from "./lib/foundry-inspection-producer.mjs";
-import { sha256Digest } from "./lib/identity.mjs";
-import { enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
+import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
+import { openStateStore } from "./lib/state-store.mjs";
+import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 
 const TRACK_ENTRY_POINTS = Object.freeze({
@@ -115,6 +116,24 @@ async function runAzure(track, log) {
             const platformRoot = await materializeCorpusSnapshot({ containerClient: clients.artifacts, archiveBlob: required("ORCHARD_CORPUS_ARCHIVE_BLOB"), manifestBlob: required("ORCHARD_CORPUS_MANIFEST_BLOB"), expectedCommit: commit, destination: join(root, "platform"), maxArchiveBytes: integer("ORCHARD_MAX_CORPUS_ARCHIVE_BYTES", 268_435_456) });
             const items = enumerateCanonicalCorpus(platformRoot, commit);
             if (items.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`production Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${items.length}`);
+            const runId = generateUuidV7();
+            const startedAt = new Date().toISOString();
+            const concurrency = integer("ORCHARD_INSPECTION_CONCURRENCY", 4);
+            const runOptions = {
+                mode: required("ORCHARD_RUN_MODE"), partitionSize: 50, concurrency, subsetIds: [], runId,
+                contentCommit: commit, implementationCommit: required("ORCHARD_IMPLEMENTATION_COMMIT"),
+                triggerType: required("ORCHARD_TRIGGER_TYPE"), triggerReference: process.env.ORCHARD_TRIGGER_REFERENCE ?? execution,
+                actorKind: required("ORCHARD_ACTOR_KIND"), actorReference: process.env.ORCHARD_ACTOR_REFERENCE ?? execution,
+            };
+            const preflightStore = openStateStore(state.path);
+            try {
+                log("info", "track2.state.preflight-recording");
+                const coverage = { expected: items.length, enumerated: items.length, inspected: 0, gaps: items.length };
+                await preflightStore.recordRun(createTrack2RunRecord(runOptions, coverage, "running", startedAt, null));
+                log("info", "track2.state.preflight-recorded");
+            } finally {
+                preflightStore.close();
+            }
             const policy = verifyInspectionPolicy(required("ORCHARD_INSPECTION_POLICY"), required("ORCHARD_INSPECTION_POLICY_DIGEST"));
             const maxOutputTokens = integer("ORCHARD_MAX_OUTPUT_TOKENS", 1200);
             const maxInputBytes = integer("ORCHARD_MAX_INSPECTION_INPUT_BYTES", 200_000);
@@ -133,10 +152,10 @@ async function runAzure(track, log) {
                 platformRoot,
                 producer,
                 outputPath: results,
-                concurrency: integer("ORCHARD_INSPECTION_CONCURRENCY", 4),
+                concurrency,
                 onProgress: ({ completed, total }) => log("info", "foundry.inspection.progress", { completed, total }),
             });
-            await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--concurrency", process.env.ORCHARD_INSPECTION_CONCURRENCY ?? "4"], log);
+            await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--run-id", runId, "--started-at", startedAt, "--partition-size", "50", "--concurrency", String(concurrency)], log);
         }
         await assertCurrent();
         return { statePath: state.path, value: { track } };
