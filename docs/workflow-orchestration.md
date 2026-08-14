@@ -15,6 +15,19 @@ Orchard runs discovery and canonical-corpus inspection as independent evidence-p
 
 ## Workflow boundary audit
 
+> **Scope correction, 2026-08-14. "Removed" below means removed ON THIS BRANCH.**
+>
+> All four legacy workflows are **still present and active on `main`**, which is
+> what runs today. In particular **Orchard Human Review is live on `main`**: it
+> triggers on `issue_comment`, has no disable guard, acts on a bare `Approved`
+> comment with no item, revision or digest binding, and commits to the content
+> platform. The defects listed for it in the table below are **current
+> production behaviour, not history.**
+>
+> Merging this branch removes that workflow. Nothing replaces it until the
+> item-bound gate CLI is wired to a trigger, so **merging without that wiring
+> leaves no approval path at all.** Sequence the two together.
+
 | Legacy workflow | Trigger and authority problem | External writes | Disposition |
 |---|---|---|---|
 | Orchard Engine | Disabled body combined discovery, model execution, tracker synchronization, and notifications. It depended on one Azure deployment and broad identity permissions. | Issues, Azure token acquisition, tracker updates, and delivery artifacts. | Removed. Track 1 now performs bounded read-only discovery only. Operator-specific delivery remains outside this public repository. |
