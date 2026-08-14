@@ -1,5 +1,10 @@
 # Content opportunity discovery
 
+> **What actually runs, verified 2026-08-13.** The discovery engine ends by
+> opening a GitHub issue and has no schedule. **No deployed job reads an
+> approval comment.** Gates, work-item binding, publication and live
+> verification are designed and not built.
+
 Find candidate content by measuring what a watched market teaches against what you
 already cover. Discovery proposes; a human decides; nothing is published.
 

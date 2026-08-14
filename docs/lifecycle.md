@@ -39,6 +39,64 @@ The database is the source of truth for **content**. The work tracker is the
 source of truth for **work**. A content item outlives any number of work items
 about it.
 
+
+## The process this must deliver
+
+This is the product owner's mandate, in the owner's own terms. Every design
+decision, contract, diagram and runbook in Orchard exists to deliver these
+steps. If any document describes a different flow, this section wins and that
+document is wrong.
+
+### Discovery track
+
+1. Process kicks off.
+2. A discovery agent runs against a list of valid sources.
+3. Discovered content is stored.
+4. Discovered content is scored.
+5. Scored content is stored.
+6. A GitHub issue and an alert are raised, listing everything discovered with
+   its scoring.
+7. The owner approves on the comment.
+8. Approved content moves to an approved list, and each item gets a work item
+   for tracking.
+9. Orchestration kicks off: research agents, authoring agents, review agents.
+10. Fully written content is stored.
+11. A GitHub issue is created carrying the work-item link and either the written
+    content or a link to it, for owner review.
+12. Approve or deny. A denial carries a reason and the work returns for rework.
+    An approval moves the content into the central content store: brand-new
+    content becomes a new course, and content extending an existing course is
+    added to it.
+13. Commit and push.
+14. Verify the new content is live.
+
+### Currency track
+
+The currency track follows the same method from step 6 onward. It differs at the
+start:
+
+1. Instead of discovering new content, it inspects existing content, using the
+   source list and, **as an owner requirement not yet designed**, an online
+   search.
+2. New updates found are recorded, as is stale content that should be removed.
+3. The same GitHub approval process runs, for updates and for removals.
+4. The same research and authoring agents run.
+5. A second GitHub issue approves the written updates and the deletions.
+6. The agents update existing content, remove stale content, commit and push.
+
+### Known gaps against this mandate
+
+- **Nothing deployed reads the owner's approval comment.** Steps 7 through 14
+  are designed and not built, for both tracks.
+- **Online search for the currency track is not designed.** It conflicts with
+  the fail-closed approved-source rule and needs a decision.
+- **Batch approval is not designed.** Every decision command is per item and
+  carries a UUID, a revision and a digest, which does not scale to a human
+  typing them.
+- **Two of the six required agent roles do not exist**: researcher and
+  finalizer.
+- **Live verification, step 14, has no implementation.**
+
 ## Current authoritative lifecycle
 
 The current implementation separates evidence collection from mutation.
