@@ -4,9 +4,27 @@
 **Related:** ADR-0017 (the separation), ADR-0018 (the model map), ADR-0019 (the
 content database)
 
+> **Correction, 2026-08-13. Read this before the rest of the page.**
+>
+> The sentence that followed this banner claimed every state below is a state a
+> real record is in, in a real system, and every arrow is something that
+> actually happens. **That is not true today**, and stating it in the present
+> tense is how this project came to believe a lifecycle was running when it was
+> not.
+>
+> What is actually deployed: the 7-phase engine performs discovery, scoring,
+> database build, brief generation, delivery against Foundry, ingest, and it
+> ends by **opening a GitHub issue**. It has trigger `Manual` and a null cron,
+> so nothing schedules it. The currency track runs monthly and records findings.
+>
+> **No deployed job reads an approval comment.** Item-level gates, ADO binding,
+> the publication transaction and live verification are designed and not built.
+>
+> Treat this page as the intended lifecycle. The record of what runs is
+> `how-orchard-works.md` in the operations repository design package.
+
 One content item, from the moment a discovery pass first notices the topic to
-the moment it is retired. Every state below is a state a real record is in, in a
-real system, and every arrow is something that actually happens to it.
+the moment it is retired. The states below are the **intended** lifecycle.
 
 Three systems carry the item, and they answer different questions. Confusing
 them is the main way a process like this rots:
