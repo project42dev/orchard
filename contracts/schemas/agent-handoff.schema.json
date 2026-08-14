@@ -1,0 +1,172 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/agent-handoff/1.0.0",
+    "title": "Orchard agent handoff",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "handoff_id",
+        "run_id",
+        "item_id",
+        "item_revision",
+        "proposal_digest",
+        "gate1_decision_event_id",
+        "ado_external_key",
+        "ado_work_item_id",
+        "role",
+        "model",
+        "prompt_version",
+        "input_digest",
+        "output_digest",
+        "predecessor_handoff_digest",
+        "status",
+        "findings",
+        "started_at",
+        "completed_at"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "handoff_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_revision": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "proposal_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "gate1_decision_event_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "ado_external_key": {
+            "type": "string",
+            "pattern": "^orchard:track-[12]:[0-9a-fA-F-]{36}:r[1-9][0-9]*$"
+        },
+        "ado_work_item_id": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "role": {
+            "enum": [
+                "evidence-researcher",
+                "writer",
+                "editor",
+                "factual-verifier",
+                "accessibility-reviewer",
+                "assessment-reviewer",
+                "diagram-reviewer",
+                "final-reviewer"
+            ]
+        },
+        "model": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "identity",
+                "provider_family",
+                "qualification_digest"
+            ],
+            "properties": {
+                "identity": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                },
+                "provider_family": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                },
+                "qualification_digest": {
+                    "$ref": "#/$defs/digest"
+                }
+            }
+        },
+        "prompt_version": {
+            "type": "string",
+            "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "input_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "output_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "predecessor_handoff_digest": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/digest"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "status": {
+            "enum": [
+                "passed",
+                "failed",
+                "blocked",
+                "human-review"
+            ]
+        },
+        "findings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "severity",
+                    "summary"
+                ],
+                "properties": {
+                    "severity": {
+                        "enum": [
+                            "info",
+                            "warning",
+                            "blocking"
+                        ]
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                    },
+                    "evidence_ref": {
+                        "type": "string",
+                        "maxLength": 1000
+                    }
+                }
+            }
+        },
+        "started_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "completed_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+    }
+}

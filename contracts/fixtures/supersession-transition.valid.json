@@ -1,0 +1,15 @@
+{
+    "schema_version": "1.0.0",
+    "transition_id": "018f5000-0000-7000-8000-000000000003",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "item_id": "018f1000-0000-7000-8000-000000000001",
+    "item_revision": 1,
+    "from_state": "gate1-pending",
+    "to_state": "superseded",
+    "cause": "superseded",
+    "actor": "identity-reconciler",
+    "reason": "The intended outcome and target surface changed, creating a successor semantic need.",
+    "superseding_item_id": "018f1000-0000-7000-8000-000000000003",
+    "occurred_at": "2026-08-11T10:35:00Z",
+    "correlation_id": "018f5000-0000-7000-8000-000000000004"
+}

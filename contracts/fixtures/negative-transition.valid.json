@@ -1,0 +1,17 @@
+{
+    "schema_version": "1.0.0",
+    "transition_id": "018f5000-0000-7000-8000-000000000001",
+    "run_id": "018f0000-0000-7000-8000-000000000002",
+    "item_id": "018f1000-0000-7000-8000-000000000002",
+    "item_revision": 2,
+    "from_state": "changes-requested",
+    "to_state": "gate2-ready",
+    "cause": "revision-created",
+    "actor": "artifact-revision-coordinator",
+    "reason": "The requested human assistive-technology evidence is now bound to a revised artifact.",
+    "superseding_item_id": null,
+    "successor_revision": 3,
+    "recovery_gate": "gate-2",
+    "occurred_at": "2026-08-11T10:40:00Z",
+    "correlation_id": "018f5000-0000-7000-8000-000000000002"
+}

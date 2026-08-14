@@ -1,0 +1,29 @@
+{
+    "schema_version": "1.0.0",
+    "event_id": "018f3000-0000-7000-8000-000000000003",
+    "gate": "gate-2",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "item_id": "018f1000-0000-7000-8000-000000000001",
+    "item_revision": 1,
+    "digest": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+    "decision": "approve",
+    "reason": null,
+    "review_after": null,
+    "actor": {
+        "provider": "github",
+        "immutable_id": "1000001",
+        "display_name": "configured-owner",
+        "authorized": true
+    },
+    "source": {
+        "repository": "project42dev/orchard",
+        "issue_number": 103,
+        "comment_id": "synthetic-comment-3",
+        "comment_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    },
+    "occurred_at": "2026-08-11T10:20:00Z",
+    "previous_state": "gate2-pending",
+    "next_state": "gate2-approved",
+    "supersedes_event_id": null,
+    "correlation_id": "018f3000-0000-7000-8000-000000000004"
+}

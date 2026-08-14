@@ -1,0 +1,110 @@
+name: Track 1 Source Policy Validation
+
+on:
+    workflow_dispatch:
+        inputs:
+            platform_commit:
+                description: Optional exact project42-platform commit. The protected repository variable is used when omitted.
+                required: false
+                type: string
+            registry_digest:
+                description: Optional exact canonical registry digest. The protected repository variable is used when omitted.
+                required: false
+                type: string
+
+concurrency:
+    group: orchard-track-1-policy-validation-${{ github.ref }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    NODE_VERSION: "22"
+    PLATFORM_REPOSITORY: ${{ vars.ORCHARD_PLATFORM_REPOSITORY || 'project42dev/project42-platform' }}
+
+jobs:
+    validate:
+        name: Validate reviewed source policy
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+
+        steps:
+            - name: Resolve immutable inputs
+              id: config
+              shell: pwsh
+              env:
+                  REQUESTED_PLATFORM_COMMIT: ${{ inputs.platform_commit }}
+                  PROTECTED_PLATFORM_COMMIT: ${{ vars.ORCHARD_PLATFORM_COMMIT }}
+                  REQUESTED_REGISTRY_DIGEST: ${{ inputs.registry_digest }}
+                  PROTECTED_REGISTRY_DIGEST: ${{ vars.ORCHARD_SOURCE_REGISTRY_DIGEST }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = 'Stop'
+
+                  $platformCommit = if ($env:REQUESTED_PLATFORM_COMMIT) { $env:REQUESTED_PLATFORM_COMMIT } else { $env:PROTECTED_PLATFORM_COMMIT }
+                  if ($platformCommit -cnotmatch '^[a-f0-9]{40}$') {
+                    throw 'an exact lowercase project42-platform commit is required'
+                  }
+                  $registryDigest = if ($env:REQUESTED_REGISTRY_DIGEST) { $env:REQUESTED_REGISTRY_DIGEST } else { $env:PROTECTED_REGISTRY_DIGEST }
+                  if ($registryDigest -cnotmatch '^sha256:[a-f0-9]{64}$') {
+                    throw 'an exact lowercase canonical registry digest is required'
+                  }
+                  "platform_commit=$platformCommit" >> $env:GITHUB_OUTPUT
+                  "registry_digest=$registryDigest" >> $env:GITHUB_OUTPUT
+
+            - name: Checkout Orchard
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  path: orchard
+                  persist-credentials: false
+
+            - name: Checkout canonical platform pin
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  repository: ${{ env.PLATFORM_REPOSITORY }}
+                  ref: ${{ steps.config.outputs.platform_commit }}
+                  path: platform
+                  persist-credentials: false
+
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: orchard/package-lock.json
+
+            - name: Install locked dependencies
+              working-directory: orchard
+              shell: pwsh
+              run: npm ci --ignore-scripts
+
+            - name: Validate exact reviewed source policy
+              working-directory: orchard
+              shell: pwsh
+              env:
+                  PLATFORM_COMMIT: ${{ steps.config.outputs.platform_commit }}
+                  REGISTRY_DIGEST: ${{ steps.config.outputs.registry_digest }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = 'Stop'
+
+                  $implementationCommit = (git rev-parse HEAD).Trim()
+                  & node scripts/discover-content-opportunities.mjs `
+                    --track track-1 `
+                    --mode dry-run `
+                    --source-registry ../platform/content/source-registry.json `
+                    --registry-digest $env:REGISTRY_DIGEST `
+                    --content-commit $env:PLATFORM_COMMIT `
+                    --implementation-commit $implementationCommit `
+                    --trigger-type manual `
+                    --trigger-reference "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" `
+                    --actor-kind operator `
+                    --actor-reference "github:${{ github.actor_id }}"
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            - name: State production boundary
+              shell: pwsh
+              run: |
+                  Write-Host 'This workflow only validates the exact reviewed source policy in dry-run mode.'
+                  Write-Host 'Production discovery is performed only by the fixed Container Apps Job runtime with managed identity, Blob-fenced state, and bounded retrieval.'

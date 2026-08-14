@@ -1,0 +1,341 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/decision-event/1.0.0",
+    "title": "Orchard append-only decision event",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "event_id",
+        "gate",
+        "run_id",
+        "item_id",
+        "item_revision",
+        "digest",
+        "decision",
+        "actor",
+        "source",
+        "occurred_at",
+        "previous_state",
+        "next_state",
+        "correlation_id"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "event_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "gate": {
+            "enum": [
+                "gate-1",
+                "gate-2"
+            ]
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_revision": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "decision": {
+            "enum": [
+                "approve",
+                "deny",
+                "defer",
+                "request-changes"
+            ]
+        },
+        "reason": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "maxLength": 2000
+        },
+        "review_after": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date"
+        },
+        "actor": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "provider",
+                "immutable_id",
+                "authorized"
+            ],
+            "properties": {
+                "provider": {
+                    "const": "github"
+                },
+                "immutable_id": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]*$"
+                },
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "authorized": {
+                    "const": true
+                }
+            }
+        },
+        "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "issue_number",
+                "comment_id",
+                "repository"
+            ],
+            "properties": {
+                "repository": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+                },
+                "issue_number": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "comment_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "comment_digest": {
+                    "$ref": "#/$defs/digest"
+                }
+            }
+        },
+        "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "previous_state": {
+            "type": "string",
+            "minLength": 1
+        },
+        "next_state": {
+            "type": "string",
+            "minLength": 1
+        },
+        "supersedes_event_id": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/uuid"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "correlation_id": {
+            "$ref": "#/$defs/uuid"
+        }
+    },
+    "oneOf": [
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-1"
+                },
+                "decision": {
+                    "const": "approve"
+                },
+                "previous_state": {
+                    "const": "gate1-pending"
+                },
+                "next_state": {
+                    "const": "gate1-approved"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-1"
+                },
+                "decision": {
+                    "const": "deny"
+                },
+                "previous_state": {
+                    "const": "gate1-pending"
+                },
+                "next_state": {
+                    "const": "denied"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-1"
+                },
+                "decision": {
+                    "const": "defer"
+                },
+                "previous_state": {
+                    "const": "gate1-pending"
+                },
+                "next_state": {
+                    "const": "deferred"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-1"
+                },
+                "decision": {
+                    "const": "request-changes"
+                },
+                "previous_state": {
+                    "const": "gate1-pending"
+                },
+                "next_state": {
+                    "const": "changes-requested"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-2"
+                },
+                "decision": {
+                    "const": "approve"
+                },
+                "previous_state": {
+                    "const": "gate2-pending"
+                },
+                "next_state": {
+                    "const": "gate2-approved"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-2"
+                },
+                "decision": {
+                    "const": "deny"
+                },
+                "previous_state": {
+                    "const": "gate2-pending"
+                },
+                "next_state": {
+                    "const": "denied"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-2"
+                },
+                "decision": {
+                    "const": "defer"
+                },
+                "previous_state": {
+                    "const": "gate2-pending"
+                },
+                "next_state": {
+                    "const": "deferred"
+                }
+            }
+        },
+        {
+            "properties": {
+                "gate": {
+                    "const": "gate-2"
+                },
+                "decision": {
+                    "const": "request-changes"
+                },
+                "previous_state": {
+                    "const": "gate2-pending"
+                },
+                "next_state": {
+                    "const": "changes-requested"
+                }
+            }
+        }
+    ],
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "decision": {
+                        "enum": [
+                            "deny",
+                            "defer",
+                            "request-changes"
+                        ]
+                    }
+                },
+                "required": [
+                    "decision"
+                ]
+            },
+            "then": {
+                "required": [
+                    "reason"
+                ],
+                "properties": {
+                    "reason": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "decision": {
+                        "const": "defer"
+                    }
+                },
+                "required": [
+                    "decision"
+                ]
+            },
+            "then": {
+                "required": [
+                    "review_after"
+                ],
+                "properties": {
+                    "review_after": {
+                        "type": "string",
+                        "format": "date"
+                    }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+    }
+}

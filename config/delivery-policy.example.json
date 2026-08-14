@@ -1,0 +1,63 @@
+{
+  "$schema": "./schemas/delivery-policy.schema.json",
+  "schema_version": "1.0.0",
+  "roles": {
+    "required_order": [
+      "evidence-researcher",
+      "writer",
+      "editor",
+      "factual-verifier",
+      "accessibility-reviewer",
+      "final-reviewer"
+    ],
+    "conditional": {
+      "assessments_changed": "assessment-reviewer",
+      "diagrams_changed": "diagram-reviewer"
+    }
+  },
+  "qualification": {
+    "maximum_age_days": 90,
+    "required_criteria": [
+      "role-quality",
+      "primary-source-fidelity",
+      "planted-defects",
+      "conflicting-evidence",
+      "prompt-injection",
+      "structured-output",
+      "accessibility",
+      "latency",
+      "cost",
+      "recovery"
+    ]
+  },
+  "authority": {
+    "agents_may_grant_gate_authority": false,
+    "agents_may_publish": false
+  },
+  "limits": {
+    "per_run": {
+      "requests": 100,
+      "input_tokens": 1000000,
+      "output_tokens": 250000,
+      "total_tokens": 1250000,
+      "duration_ms": 3600000,
+      "retries": 20,
+      "source_fetches": 500,
+      "item_count": 20,
+      "concurrency": 4,
+      "usd_spend": 100
+    },
+    "per_item": {
+      "requests": 12,
+      "input_tokens": 150000,
+      "output_tokens": 40000,
+      "total_tokens": 190000,
+      "duration_ms": 900000,
+      "retries": 3,
+      "source_fetches": 50,
+      "item_count": 1,
+      "concurrency": 1,
+      "usd_spend": 15
+    }
+  }
+}

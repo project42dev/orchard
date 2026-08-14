@@ -78,6 +78,22 @@ export class BriefGenerationError extends Error {
   }
 }
 
+// Dispatch-authority validation from the two-track lifecycle design. NOT yet
+// wired into briefFor: the deployed engine authorizes work through Gate 1
+// state ('queued' after owner approval), not through an authority store.
+// Kept exported so the design's tests keep running against it until the
+// two-track runtime is wired.
+export function validateDispatchAuthority(queueItem, authorityReference, authorityStore) {
+  if (!authorityStore || typeof authorityStore.getDispatchBinding !== 'function') {
+    return { error: 'dispatch authority must be loaded from the Orchard authority store' };
+  }
+  if (!authorityReference || authorityReference.queue_work_item_id !== queueItem.id) {
+    return { error: 'no exact dispatch authority reference for this queue work item' };
+  }
+  try { return { binding: authorityStore.getDispatchBinding(authorityReference) }; }
+  catch (error) { return { error: error.message }; }
+}
+
 // The delivery platform normalizes a brief id into a filename slug before it
 // writes the proposal, and the ingest recovers the brief id from that filename.
 // Anything the normalizer changes is information lost on the round trip, so

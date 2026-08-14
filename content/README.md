@@ -1,5 +1,11 @@
 # Content opportunity discovery
 
+> **What actually runs, verified 2026-08-14.** The engine runs monthly and
+> **holds new work at Gate 1: nothing is authored until the owner approves
+> it.** Gate 2 binds the publication approval to the exact item and artifact
+> digest. Gate manifests, batching, and PR-transaction publication remain
+> designed and not built.
+
 Find candidate content by measuring what a watched market teaches against what you
 already cover. Discovery proposes; a human decides; nothing is published.
 

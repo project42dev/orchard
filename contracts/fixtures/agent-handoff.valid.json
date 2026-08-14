@@ -1,0 +1,31 @@
+{
+    "schema_version": "1.0.0",
+    "handoff_id": "018f2000-0000-7000-8000-000000000001",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "item_id": "018f1000-0000-7000-8000-000000000001",
+    "item_revision": 1,
+    "proposal_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "gate1_decision_event_id": "018f3000-0000-7000-8000-000000000001",
+    "ado_external_key": "orchard:track-1:018f1000-0000-7000-8000-000000000001:r1",
+    "ado_work_item_id": 5101,
+    "role": "factual-verifier",
+    "model": {
+        "identity": "qualified-model-alias",
+        "provider_family": "independent-family",
+        "qualification_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "prompt_version": "1.0.0",
+    "input_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "output_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "predecessor_handoff_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "status": "passed",
+    "findings": [
+        {
+            "severity": "info",
+            "summary": "All volatile claims map to current primary evidence.",
+            "evidence_ref": "evidence/review/factual"
+        }
+    ],
+    "started_at": "2026-08-11T08:00:00Z",
+    "completed_at": "2026-08-11T08:05:00Z"
+}

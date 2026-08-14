@@ -1,0 +1,45 @@
+{
+    "schema_version": "1.0.0",
+    "gate": "gate-1",
+    "run_id": "018f0000-0000-7000-8000-000000000002",
+    "track": "track-2",
+    "batch": {
+        "ordinal": 1,
+        "count": 1,
+        "item_count": 1,
+        "total_item_count": 1,
+        "maximum_size": 20
+    },
+    "full_manifest_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "batch_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "idempotency_key": "github:gate-1:018f0000-0000-7000-8000-000000000002:sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "items": [
+        {
+            "item_id": "018f1000-0000-7000-8000-000000000002",
+            "item_revision": 2,
+            "proposal_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "category": "correction",
+            "title": "Example factual correction",
+            "rationale": "Deep inspection found a claim contradicted by current primary evidence.",
+            "evidence_refs": [
+                "evidence/claim/example"
+            ],
+            "score": {
+                "formula_version": "1.0.0",
+                "value": 91
+            },
+            "target": {
+                "repository": "project42dev/project42-platform",
+                "path": "content/learning/example-existing-module.json"
+            },
+            "risks": [
+                "Assessment wording may depend on the corrected claim."
+            ],
+            "estimated_cost": {
+                "currency": "USD",
+                "amount": 3.75
+            },
+            "decision_state": "pending"
+        }
+    ]
+}

@@ -4,9 +4,31 @@
 **Related:** ADR-0017 (the separation), ADR-0018 (the model map), ADR-0019 (the
 content database)
 
+> **Correction, 2026-08-13. Read this before the rest of the page.**
+>
+> The sentence that followed this banner claimed every state below is a state a
+> real record is in, in a real system, and every arrow is something that
+> actually happens. **That is not true today**, and stating it in the present
+> tense is how this project came to believe a lifecycle was running when it was
+> not.
+>
+> What is actually deployed, verified 2026-08-14: the 8-phase engine runs
+> monthly (the 1st, 06:00 UTC) performing discovery, scoring, database build,
+> **Gate 1**, brief generation, delivery against Foundry, ingest, and
+> notification. New work holds at `gate1-pending` until the owner approves.
+> Gate 2 binds the publication approval to the exact item and artifact
+> digest, with a denial-rework loop. The currency track runs monthly (the
+> 15th) and records findings.
+>
+> Still designed and not built: gate manifests and batching, revision
+> binding, `defer`, the PR-transaction publication, wired live verification,
+> and every currency-track step past inspection.
+>
+> Treat this page as the intended lifecycle. The record of what runs is
+> `how-orchard-works.md` in the operations repository design package.
+
 One content item, from the moment a discovery pass first notices the topic to
-the moment it is retired. Every state below is a state a real record is in, in a
-real system, and every arrow is something that actually happens to it.
+the moment it is retired. The states below are the **intended** lifecycle.
 
 Three systems carry the item, and they answer different questions. Confusing
 them is the main way a process like this rots:
@@ -17,16 +39,138 @@ them is the main way a process like this rots:
 | Content database | what do we have, and what state is it in | content state, forever |
 | Work tracker | who did what work, and when was it done | the work, not the content |
 
-The database is the source of truth for **content**. The work tracker is the
+Version-controlled content files are canonical. The database is a **compiled index** of them and is authoritative only for **workflow state**, per ADR-0019 and ADR-0023. Corrected 2026-08-13: this line previously called the database the source of truth for content, contradicting the ADRs. The work tracker is the
 source of truth for **work**. A content item outlives any number of work items
 about it.
+
+
+## The process this must deliver
+
+This is the product owner's mandate, in the owner's own terms. Every design
+decision, contract, diagram and runbook in Orchard exists to deliver these
+steps. If any document describes a different flow, this section wins and that
+document is wrong.
+
+### Discovery track
+
+1. Process kicks off.
+2. A discovery agent runs against a list of valid sources.
+3. Discovered content is stored.
+4. Discovered content is scored.
+5. Scored content is stored.
+6. A GitHub issue and an alert are raised, listing everything discovered with
+   its scoring.
+7. The owner approves on the comment.
+8. Approved content moves to an approved list, and each item gets a work item
+   for tracking.
+9. Orchestration kicks off: research agents, authoring agents, review agents.
+10. Fully written content is stored.
+11. A GitHub issue is created carrying the work-item link and either the written
+    content or a link to it, for owner review.
+12. Approve or deny. A denial carries a reason and the work returns for rework.
+    An approval moves the content into the central content store: brand-new
+    content becomes a new course, and content extending an existing course is
+    added to it.
+13. Commit and push.
+14. Verify the new content is live.
+
+### Currency track
+
+The currency track follows the same method from step 6 onward. It differs at the
+start:
+
+1. Instead of discovering new content, it inspects existing content, using the
+   source list and, **as an owner requirement not yet designed**, an online
+   search.
+2. New updates found are recorded, as is stale content that should be removed.
+3. The same GitHub approval process runs, for updates and for removals.
+4. The same research and authoring agents run.
+5. A second GitHub issue approves the written updates and the deletions.
+6. The agents update existing content, remove stale content, commit and push.
+
+### Known gaps against this mandate
+
+- **Approval before authoring is live (closed 2026-08-14).** Gate 1 runs inside the deployed engine: new work enters `gate1-pending` and only owner approval reaches a model. Remaining wiring: nothing posts the Gate 1 issue automatically, and the engine job has no `ORCHARD_GATE1_ISSUE` set, so decisions are pulled manually.
+- **The publication approval is bound (closed 2026-08-14).** `orchard-human-review.yml` now acts only on `/orchard gate2` commands naming the exact item and artifact digest; editing a proposal invalidates prior approvals, and denial re-queues the item with the reviewer's reason. Publication is still a direct commit, not the designed PR transaction.
+- **Online search for the currency track is not designed.** It conflicts with
+  the fail-closed approved-source rule and needs a decision.
+- **Batch approval is not designed.** Every decision command is per item and
+  carries a UUID, a revision and a digest, which does not scale to a human
+  typing them.
+- **Two of the six required agent roles do not exist**: researcher and
+  finalizer.
+- **Live verification, step 14, is implemented but nothing invokes it.**
+  `verify-published-live.mjs` refuses bare 2xx responses and demands an
+  item-derived marker in the body; it is not yet wired to any phase or
+  workflow.
+
+## Current authoritative lifecycle
+
+The current implementation separates evidence collection from mutation.
+
+1. Track 1 surveys a versioned approved-source registry. A full run completes
+  only after at least 50 distinct approved and enabled sources are attempted.
+2. Track 2 enumerates the canonical corpus at one exact Git commit. A full run
+  completes only when every canonical item has one evidence-bearing inspection
+  and reconciliation reports zero gaps.
+3. Gate 1 records one decision for one item and revision before tracker work is
+  created.
+4. Qualified roles produce persisted handoffs and one immutable artifact
+  binding.
+5. Gate 2 approves that exact artifact.
+6. Publication uses a branch and pull request. Direct pushes to the protected
+  branch are refused.
+7. The merge is reconciled to an exact protected-main acknowledgement.
+8. The owner accepts the bound closure packet and completion notes before the
+  tracker item may close.
+
+Weekly Track 1 and Track 2 runs are independent and always use full mode.
+Manual runs support full, subset, and dry-run modes and default to dry-run.
+Run evidence never counts as either approval. See
+[`workflow-orchestration.md`](workflow-orchestration.md) for pins, permissions,
+and the retired workflow audit.
+
+### Authority is protected evidence, not caller input
+
+Gate decisions become authoritative only when Orchard atomically stores the
+authenticated provider event, the authorization policy, the provider-adapter
+identity and digest, and the resulting decision. The policy and adapter digests
+must match an immutable administrator-provisioned trust anchor in the same
+SQLite authority store. `provision-trust-anchor.mjs` derives the policy and
+adapter digests from exact files and persists the adapter identity; the capture
+command cannot supply or replace any of them.
+A payload that supplies its own event, policy, actor allowlist, or adapter claim
+is rejected even when all of those caller-controlled values agree with each
+other.
+
+Downstream delivery and publication commands do not accept copies of those
+authority objects. Dispatch accepts only the queue work-item ID and persisted
+Gate 1 decision-event ID. Publication accepts only the persisted Gate 2
+decision-event ID. Orchard resolves each reference through the content database
+and reconciles every reviewed field against immutable run, revision, tracker,
+handoff, artifact, and publication evidence before allowing a write.
+
+Closure follows the same rule. The authenticated owner event and owner policy
+are persisted atomically, and the owner policy and adapter must match the
+immutable closure trust anchor. Publication and acknowledgement load their
+adapter only from the publication anchor, persist its identity and digest as
+publication authority, and reconcile that authority before acknowledgement or
+closure. Runtime environment variables and command-line adapter paths cannot
+select protected authority. A caller cannot authorize itself by adding an
+`authorized` field or by passing an owner list. The tracker remains open unless
+the protected owner event binds the current closure-packet digest exactly.
+
+Database restore is also fail closed. A candidate backup is verified before
+replacement, replacement must remain on the same volume, and the previous
+destination is retained as rollback evidence rather than deleted. A restored
+database is accepted only after integrity and schema verification succeeds.
 
 ## The whole cycle
 
 ![Content lifecycle diagram](lifecycle.svg)
 
 > The Mermaid source is in [`lifecycle.mmd`](lifecycle.mmd). The SVG above is
-> generated from it — GitHub does not render Mermaid in markdown files, so the
+> generated from it. GitHub does not render Mermaid in markdown files, so the
 > rendered image is committed alongside the source.
 
 <details>
@@ -34,77 +178,46 @@ about it.
 
 ```mermaid
 flowchart TD
-    subgraph PHASE1["Phase 1, discovery (built)"]
-        A1["Operator runs discovery"] --> A2["Survey the watch list<br/>22 of 27 sources reachable"]
-        A2 --> A3["Measure our corpus per surface<br/>Learn / Field Guide / visual guide"]
-        A3 --> A4{"Demand present<br/>AND supply at zero?"}
-        A4 -->|no| A5["Not a candidate<br/>nothing recorded"]
-        A4 -->|yes| A6["Proposal emitted"]
-        A6 --> A7["Merge into discovery list"]
-        A7 --> A8["Candidate<br/>carries evidence + provenance"]
+  subgraph EVIDENCE["Independent evidence tracks"]
+    A1["Track 1 approved-source discovery<br/>full: at least 50 sources attempted"]
+    A2["Track 2 canonical inspection<br/>full: 100 percent at exact commit"]
     end
 
-    A8 --> B1["Score the candidate"]
+  A1 --> B1["Candidate or finding<br/>one item and revision"]
+  A2 --> B1
 
-    subgraph PHASE2["Phase 2, selection and the content database (built)"]
-        B1 --> B2{"Owner decision"}
-        B2 -->|reject| B3["Rejected<br/>never re-proposed"]
-        B2 -->|defer| B4["Stays a candidate<br/>re-measured next run"]
-        B2 -->|select| B5["Promote"]
-        B5 --> B6["work_item created<br/>kind: needs-creating"]
-        B5 --> B7["Story created in the tracker<br/>linked to the work_item id"]
+  subgraph DELIVERY["Bound delivery lifecycle"]
+    B1 --> B2{"Gate 1 decision"}
+    B2 -->|deny, defer, or changes| B3["No delivery authority"]
+    B2 -->|approve| B4["Linked tracker item reconciled"]
+    B4 --> B5["Qualified role chain<br/>persisted handoffs"]
+    B5 --> B6["Immutable artifact binding"]
+    B6 --> B7{"Gate 2 decision<br/>exact artifact"}
+    B7 -->|deny, defer, or changes| B8["No publication authority"]
+    B7 -->|approve| B9["Deterministic branch<br/>protected-main pull request"]
+    B9 --> B10["Exact merge, tree, diff,<br/>head, and base reconciliation"]
+    B10 --> B11["Protected-main acknowledgement"]
+    B11 --> B12{"Owner accepts closure packet<br/>and completion notes?"}
+    B12 -->|no| B13["Tracker remains open"]
+    B12 -->|yes| B14["Tracker item closed"]
     end
 
-    B6 --> C1["generate-briefs.mjs pulls from the queue<br/>brief id carries the subject id<br/>work_item state: claimed"]
+  B11 --> C1{"Instructor-led rendering wanted?"}
+  C1 -->|no| C2["Written content only"]
+  C1 -->|yes| C3["Build immutable media package<br/>and integrity manifest"]
 
-    subgraph PHASE3["Phase 3, creation and publication"]
-        C1 --> C2["Research, draft, verify, adversary, arbiter, finalize"]
-        C2 --> C2a["Proposal written<br/>named after the brief"]
-        C2a --> C2b["ingest-proposals.mjs<br/>reads the run record"]
-        C2b --> C3{"Ensemble agrees?"}
-        C3 -->|no| C4["work_item state: blocked<br/>findings recorded"]
-        C4 --> C2
-        C3 -->|yes| C5["work_item state: in-progress<br/>proposal inert, pending decision"]
-        C5 --> C6{"Human approves?"}
-        C6 -->|no| C4
-        C6 -->|yes| C7["Content committed and published"]
-        C7 --> C7a["record-publication.mjs<br/>run, brief, proposal, accepter"]
-        C7a --> C8["work_item state: done<br/>item appears in the index"]
-        C7a --> C9["Story closed"]
-    end
-
-    C8 --> D1{"Instructor-led<br/>rendering wanted?"}
-
-    subgraph PHASE4["Phase 4, virtual instructor"]
-        D1 -->|no| D2["Written content only"]
-        D1 -->|yes| D3["Author script and scenes"]
-        D3 --> D4["Render narration, captions,<br/>transcript, avatar video"]
-        D4 --> D5["Build immutable package<br/>+ integrity manifest"]
-        D5 --> D6["rendering row written<br/>avatar and voice recorded"]
-        D6 --> D7["Player serves the package<br/>NO inference at learn time"]
-    end
-
-    C8 --> E1["Currency engine watches<br/>cited sources"]
-    D6 --> E1
-
-    subgraph PHASE5["Phase 5, currency and retirement"]
-        E1 --> E2{"A cited source changed?"}
-        E2 -->|no| E3["No action<br/>no model call made"]
-        E2 -->|yes| E4["v_affected_by_source<br/>names every item at risk"]
-        E4 --> E5{"Any claim affected?"}
-        E5 -->|no| E6["No-change finding recorded"]
-        E5 -->|yes| E7["work_item created<br/>kind: needs-updating"]
-        E7 --> E8["NEW story, Related to the original"]
-        E8 --> C1
-        E7 --> E9{"Still worth keeping?"}
-        E9 -->|no| E10["Deprecated<br/>reason recorded"]
-        E10 --> E11["Unpublished, redirect set,<br/>record retained"]
-    end
+  B11 --> D1["Future Track 2 run<br/>re-inspects the canonical item"]
+  C3 --> D1
+  D1 -->|material finding| B1
 ```
 
 </details>
 
-## The authoring ensemble: six roles, all built
+## The authoring ensemble: six roles designed, four running
+
+**Corrected 2026-08-13.** The heading previously said all six are built. Two are
+not in the deployed ensemble: **researcher** (AB#7047) and **finalizer**
+(AB#7048). The owner has asked three times for six roles.
 
 Every piece of content, whether written for the first time or corrected after a
 source changed, must pass through the same ordered ensemble. **The same ensemble
@@ -119,12 +232,12 @@ agree for reasons that have nothing to do with whether the content is right.
 
 | # | Role | Owns | State |
 |---|---|---|---|
-| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | Built |
+| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | **Designed only. Not in the deployed ensemble** (AB#7047) |
 | 2 | **Drafter** | Writes the content from the brief and the researcher's evidence. | Built |
 | 3 | **Verifier** | Checks every claim against the supplied evidence. Different vendor family from the drafter, enforced. | Built |
 | 4 | **Adversary** | Attacks the draft rather than reviewing it. Looks for what is overstated, unsupported, or invented. | Built |
 | 5 | **Arbiter** | Breaks a tie when the verifier and adversary disagree. Never judges its own output. | Built |
-| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | Built |
+| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | **Designed only. Not in the deployed ensemble** (AB#7048) |
 
 ### Why the two bookend roles matter
 
@@ -153,7 +266,7 @@ delimiter and resume instruction context, and a run aborts rather than stripping
 a forged delimiter. A researcher role uses that existing machinery. It does not
 get a new, looser path to the model.
 
-### Proven, 2026-08-04 (4 roles), 2026-08-07 (6 roles wired)
+### Historical execution and current implementation
 
 The four core roles ran end to end against the live estate: **9 requests,
 $0.57, four vendor families**, drafter `gpt-5-6-sol`, verifier
@@ -163,10 +276,11 @@ $0.57, four vendor families**, drafter `gpt-5-6-sol`, verifier
 not good enough, which is the correct outcome for a gate and the reason nothing
 was published. Missing roles 1 and 6 was the leading explanation.
 
-As of 2026-08-07, all six roles are wired: researcher and finalizer are in the
-brief generator (`ROLE_JOBS` and `ROLE_TOKEN_BUDGET`), the model map has
-`research` and `finalization` jobs, and the delivery platform has always
-supported them. The next ensemble run will exercise all six.
+All six roles are wired: researcher and finalizer are in the brief generator
+(`ROLE_JOBS` and `ROLE_TOKEN_BUDGET`), the model map has `research` and
+`finalization` jobs, and deterministic lifecycle tests exercise complete
+qualified role chains. Historical live results above prove only the four-role
+run they record; they are not evidence of a later deployment.
 
 One defect fixed to get there: the drafter returned an **empty completion**
 because reasoning tokens are billed against `max_completion_tokens`, and a 4096
@@ -184,7 +298,7 @@ and the breaks were in the arrows. Three arrows were missing.
 |---|---|---|
 | **Phase 2 to Phase 3** | The queue held 24 items needing creation. The ensemble read **hand-written briefs**. The two lists had no relationship, so nothing in the queue could ever be picked up and work was chosen by whoever last edited the brief file. | `scripts/generate-briefs.mjs` |
 | **Phase 3 to Phase 2** | The ensemble wrote a proposal to a directory. Nothing read it back, so an item stayed `queued` forever and a human reconciled two lists by hand. | `scripts/ingest-proposals.mjs` |
-| **Phase 3 to Phase 5** | Nothing recorded what was published or from which proposal, so provenance from a published item back to the run that produced it did not exist. | the `publication` table and `scripts/record-publication.mjs` |
+| **Phase 3 to Phase 5** | Nothing recorded what was published or from which proposal, so provenance from a published item back to the run that produced it did not exist. | immutable artifact and publication transactions plus protected-main acknowledgement |
 
 ### The rule that closes the outbound arrow
 
@@ -206,17 +320,25 @@ anything to report against a generated brief.
 
 ### The return arrow, and what it will not do
 
-- **It never publishes.** A proposal is inert until a human accepts it. The
-  ingest records that a proposal exists and what the reviewers concluded.
+- **It never publishes directly.** A proposal is inert until both item-bound
+  gates approve the exact revision and artifact. Publication then proceeds by
+  pull request and remains incomplete until protected-main acknowledgement.
 - **It never overrides a human.** An item a person moved to `rejected` or `done`
   stays there. Automation may propose a state change and may not perform one.
 
 ### The provenance arrow
 
-`record-publication.mjs` is the human's instrument, and its shape says so:
-`--accepted-by` is required and has no default, because a publication with
-nobody named on it is an automated publication and this pipeline does not do
-those. It is also the only tool that writes the terminal `done` state.
+`publish-approved-item.mjs` creates a deterministic branch and pull request only
+after Gate 2 approves the exact immutable artifact. `record-publication.mjs`
+then reconciles the remote transaction and records acknowledgement only when
+the expected head, base, merge commit, tree, and diff are present on protected
+main. A merged pull request by itself is not acceptance and does not close work.
+
+Closure is a separate transaction. Orchard prepares a packet bound to the
+acknowledged publication and exact completion notes. The currently authorized
+owner must explicitly accept that packet before the linked tracker item may move
+through `Resolved` to `Closed`. No publication command writes a terminal legacy
+`done` state on the owner's behalf.
 
 `v_provenance` answers "which run wrote this, under which brief, and what did its
 reviewers conclude". Filtering the table on `run_id` answers the other direction,
@@ -339,12 +461,13 @@ whether the instructor work earns its cost, and building a re-render list if an
 avatar is withdrawn. Neither is a reason to let it touch completion, and adding a
 field to a portable learning record is a contract change rather than a detail.
 
-## Phase 4 proven, and it corrected the avatar decision
+## Phase 4 proof of concept, not production automation
 
-**A real lesson rendered on 2026-08-04.** The opening 87 seconds of *Agents,
+**A real lesson was rendered on 2026-08-04.** The opening 87 seconds of *Agents,
 Tools, and Guardrails*, spoken from that module's own class script, with captions
-embedded. Submit to finished video in about two and a half minutes. It plays on
-the Learn page today.
+embedded. Submit to finished video took about two and a half minutes. This proves
+the media path only; production Phase 4 automation remains on hold and is not
+built.
 
 **Cost, measured rather than estimated.** Two separate meters:
 

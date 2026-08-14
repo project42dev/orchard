@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0.0",
+  "packet_id": "018f4000-0000-7000-8000-000000000001",
+  "run_id": "018f0000-0000-7000-8000-000000000001",
+  "track": "track-1",
+  "item_id": "018f1000-0000-7000-8000-000000000001",
+  "item_revision": 1,
+  "proposal_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "artifact_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "scope_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "handoff_chain_digest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+  "handoff_ids": [
+    "018f2000-0000-7000-8000-000000000001"
+  ],
+  "displayed_diff_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "prepared_tree_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "base_commit": "1111111111111111111111111111111111111111",
+  "artifact_binding": {
+    "schema_version": "1.0.0",
+    "binding_id": "018f2500-0000-7000-8000-000000000001",
+    "idempotency_key": "artifact-binding:track-1:018f1000-0000-7000-8000-000000000001:r1:fixture",
+    "run_id": "018f0000-0000-7000-8000-000000000001",
+    "item_id": "018f1000-0000-7000-8000-000000000001",
+    "item_revision": 1,
+    "artifact_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "final_handoff_id": "018f2000-0000-7000-8000-000000000001",
+    "final_handoff_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "scope_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "occurred_at": "2026-08-12T10:30:00Z"
+  },
+  "gate_1": {
+    "event_id": "018f3000-0000-7000-8000-000000000001",
+    "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "full_manifest_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "batch_digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  },
+  "gate_2": {
+    "event_id": "018f3000-0000-7000-8000-000000000002",
+    "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "full_manifest_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "batch_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+  },
+  "ado": {
+    "external_key": "orchard:track-1:018f1000-0000-7000-8000-000000000001:r1",
+    "work_item_id": 4201
+  },
+  "tests": [
+    {
+      "name": "unit",
+      "status": "passed",
+      "evidence_ref": "evidence:test:unit"
+    }
+  ],
+  "factual_evidence": {
+    "status": "passed",
+    "evidence_ref": "evidence:factual"
+  },
+  "accessibility_evidence": {
+    "status": "passed",
+    "evidence_ref": "evidence:accessibility"
+  },
+  "canonical_target": {
+    "repository": "project42dev/project42-platform",
+    "path": "content/learning/example-module.json",
+    "protected_branch": "main"
+  },
+  "pull_request": {
+    "number": 42,
+    "url": "https://github.com/project42dev/project42-platform/pull/42"
+  },
+  "publication_transaction_id": "018f4000-0000-7000-8000-000000000002",
+  "protected_main_commit": "2222222222222222222222222222222222222222",
+  "push_acknowledgement": {
+    "repository": "project42dev/project42-platform",
+    "branch": "main",
+    "commit": "2222222222222222222222222222222222222222",
+    "status": "succeeded",
+    "acknowledged_at": "2026-08-12T11:00:00Z"
+  },
+  "residual_risks": [],
+  "rollback_reference": "rollback:publication:018f4000-0000-7000-8000-000000000002",
+  "prepared_at": "2026-08-12T11:01:00Z",
+  "packet_digest": "sha256:12f8aa819a904aefc68475cc95d356fbed0dc7aa3b2ee74e5710e3c8a303f50b"
+}

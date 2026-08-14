@@ -6,17 +6,32 @@
   "private": true,
   "scripts": {
     "build:db": "node scripts/build-content-db.mjs",
-    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs && node scripts/test-gate2-review.mjs && node scripts/test-gate2-rework.mjs && node scripts/test-verify-published-live.mjs",
-    "test:gate1": "node scripts/test-gate1-review.mjs"
+    "migrate:db": "node scripts/migrate-content-db.mjs",
+    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs && node scripts/test-gate2-review.mjs && node scripts/test-gate2-rework.mjs && node scripts/test-verify-published-live.mjs && node --test tests/*.test.mjs",
+    "test:gate1": "node scripts/test-gate1-review.mjs",
+    "artifact:corpus": "node scripts/create-corpus-snapshot.mjs",
+    "discover:track-1": "node scripts/discover-content-opportunities.mjs --help",
+    "digest:source-registry": "node scripts/digest-approved-source-registry.mjs",
+    "inspect:track-2": "node scripts/inspect-canonical-corpus.mjs --help",
+    "publish:approved": "node scripts/publish-approved-item.mjs",
+    "publish:record": "node scripts/record-publication.mjs"
   },
   "dependencies": {
-    "@project42/platform": "github:project42dev/project42-platform#v0.72.0"
+    "@azure/identity": "4.13.1",
+    "@azure/storage-blob": "12.29.1",
+    "@project42/platform": "github:project42dev/project42-platform#v0.72.0",
+    "ajv": "8.20.0",
+    "es-module-lexer": "^1.7.0",
+    "ipaddr.js": "2.2.0",
+    "openai": "7.4.0",
+    "tar": "7.5.22"
   },
   "engines": {
     "node": ">=22.5.0"
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@mermaid-js/mermaid-cli": "^11.16.0"
+    "@mermaid-js/mermaid-cli": "^11.16.0",
+    "yaml": "^2.8.1"
   }
 }

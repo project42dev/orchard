@@ -1,0 +1,29 @@
+# Dedicated Orchard two-track runtime. The manifest-list digest was resolved
+# from Docker Hub's Registry v2 API on 2026-08-12.
+ARG BASE_IMAGE=node:22-bookworm-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436
+FROM ${BASE_IMAGE}
+
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOME=/home/orchard \
+    ORCHARD_STATE_ROOT=/var/lib/orchard
+
+COPY package.json package-lock.json ./
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends ca-certificates git \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm ci --omit=dev --ignore-scripts \
+    && npm cache clean --force \
+    && groupadd --gid 10001 orchard \
+    && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin orchard \
+    && mkdir -p /var/lib/orchard /work/platform \
+    && chown -R 10001:10001 /app /var/lib/orchard /work/platform
+
+COPY --chown=10001:10001 scripts ./scripts
+COPY --chown=10001:10001 contracts ./contracts
+COPY --chown=10001:10001 schema ./schema
+
+USER 10001:10001
+RUN node --input-type=module -e "await import('./scripts/lib/track-1-controller.mjs'); await import('./scripts/lib/track-2-controller.mjs'); await import('./scripts/lib/blob-state-adapter.mjs'); await import('./scripts/lib/corpus-snapshot.mjs'); await import('./scripts/lib/foundry-inspection-producer.mjs'); await import('./scripts/lib/structured-logger.mjs')"
+
+ENTRYPOINT ["node", "/app/scripts/orchard-production-runtime.mjs"]

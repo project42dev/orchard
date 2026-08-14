@@ -1,0 +1,99 @@
+name: Track 2 Corpus Pin Validation
+
+on:
+    workflow_dispatch:
+        inputs:
+            platform_commit:
+                description: Optional exact project42-platform commit. The protected repository variable is used when omitted.
+                required: false
+                type: string
+
+concurrency:
+    group: orchard-track-2-pin-validation-${{ github.ref }}
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    NODE_VERSION: "22"
+    PLATFORM_REPOSITORY: ${{ vars.ORCHARD_PLATFORM_REPOSITORY || 'project42dev/project42-platform' }}
+
+jobs:
+    validate:
+        name: Validate pinned canonical corpus
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+
+        steps:
+            - name: Resolve immutable input
+              id: config
+              shell: pwsh
+              env:
+                  REQUESTED_PLATFORM_COMMIT: ${{ inputs.platform_commit }}
+                  PROTECTED_PLATFORM_COMMIT: ${{ vars.ORCHARD_PLATFORM_COMMIT }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = 'Stop'
+
+                  $platformCommit = if ($env:REQUESTED_PLATFORM_COMMIT) { $env:REQUESTED_PLATFORM_COMMIT } else { $env:PROTECTED_PLATFORM_COMMIT }
+                  if ($platformCommit -cnotmatch '^[a-f0-9]{40}$') {
+                    throw 'an exact lowercase project42-platform commit is required'
+                  }
+                  "platform_commit=$platformCommit" >> $env:GITHUB_OUTPUT
+
+            - name: Checkout Orchard
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  path: orchard
+                  persist-credentials: false
+
+            - name: Checkout canonical platform pin
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  repository: ${{ env.PLATFORM_REPOSITORY }}
+                  ref: ${{ steps.config.outputs.platform_commit }}
+                  path: platform
+                  persist-credentials: false
+
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: orchard/package-lock.json
+
+            - name: Install locked dependencies
+              working-directory: orchard
+              shell: pwsh
+              run: npm ci --ignore-scripts
+
+            - name: Validate exact corpus pin
+              working-directory: orchard
+              shell: pwsh
+              env:
+                  PLATFORM_COMMIT: ${{ steps.config.outputs.platform_commit }}
+              run: |
+                  Set-StrictMode -Version Latest
+                  $ErrorActionPreference = 'Stop'
+
+                  $implementationCommit = (git rev-parse HEAD).Trim()
+                  & node scripts/inspect-canonical-corpus.mjs `
+                    --track track-2 `
+                    --mode dry-run `
+                    --platform-root ../platform `
+                    --content-commit $env:PLATFORM_COMMIT `
+                    --implementation-commit $implementationCommit `
+                    --trigger-type manual `
+                    --trigger-reference "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" `
+                    --actor-kind operator `
+                    --actor-reference "github:${{ github.actor_id }}" `
+                    --partition-size 50 `
+                    --concurrency 4
+                  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+            - name: State production boundary
+              shell: pwsh
+              run: |
+                  Write-Host 'This workflow only validates deterministic enumeration of an exact corpus pin.'
+                  Write-Host 'Production inspection is performed only by the fixed Container Apps Job runtime with managed identity, a fixed policy, strict JSON Schema, and hard request and spend caps.'

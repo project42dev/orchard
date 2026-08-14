@@ -1,3 +1,6 @@
+content.db
+content.db-shm
+content.db-wal
 node_modules/
 *.log
 .env
@@ -7,5 +10,4 @@ scores*.json
 
 # Operator-local runtime state. Never committed, in any repository.
 delivery/private/
-content.db-shm
-content.db-wal
+delivery/.orchard-issue-body.tmp

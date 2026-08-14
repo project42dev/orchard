@@ -450,5 +450,8 @@ function main() {
     }
 }
 
-// Top-level call
-main();
+// Run the CLI only when this file is the entry point. Compare the exact
+// basename: endsWith would also match test-notify-review-ready.mjs, and an
+// unconditional call runs the CLI on import, which is how the import
+// side-effect test caught this.
+if (process.argv[1] && basename(process.argv[1]) === 'notify-review-ready.mjs') main();

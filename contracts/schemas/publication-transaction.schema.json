@@ -1,0 +1,306 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://project-42.dev/schemas/orchard/publication-transaction/1.0.0",
+    "title": "Orchard publication transaction",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "transaction_id",
+        "idempotency_key",
+        "run_id",
+        "item_id",
+        "item_revision",
+        "gate2_decision_event_id",
+        "artifact_digest",
+        "proposal_digest",
+        "displayed_diff_digest",
+        "prepared_tree_digest",
+        "ado_external_key",
+        "handoff_chain_digest",
+        "full_manifest_digest",
+        "gate2_batch_digest",
+        "target",
+        "base_commit",
+        "push_acknowledgement",
+        "state",
+        "history",
+        "created_at",
+        "updated_at"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": "1.0.0"
+        },
+        "transaction_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "idempotency_key": {
+            "type": "string",
+            "pattern": "^publication:track-[12]:[0-9a-fA-F-]{36}:r[1-9][0-9]*:sha256:[a-f0-9]{64}$"
+        },
+        "run_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "item_revision": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "gate2_decision_event_id": {
+            "$ref": "#/$defs/uuid"
+        },
+        "artifact_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "proposal_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "displayed_diff_digest": {
+            "$ref": "#/$defs/digest",
+            "description": "Must equal the displayed_diff_digest approved in the bound Gate 2 item; implementation validation enforces equality."
+        },
+        "prepared_tree_digest": {
+            "$ref": "#/$defs/digest",
+            "description": "Must equal the prepared_tree_digest approved in the bound Gate 2 item; implementation validation enforces equality."
+        },
+        "ado_external_key": {
+            "type": "string",
+            "minLength": 1
+        },
+        "handoff_chain_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "full_manifest_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "gate2_batch_digest": {
+            "$ref": "#/$defs/digest"
+        },
+        "target": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "repository",
+                "path",
+                "protected_branch",
+                "branch"
+            ],
+            "properties": {
+                "repository": {
+                    "const": "project42dev/project42-platform"
+                },
+                "path": {
+                    "type": "string",
+                    "pattern": "^(?!\\.{1,2}(?:/|$))[A-Za-z0-9._-]+(?:/(?!\\.{1,2}(?:/|$))[A-Za-z0-9._-]+)*$"
+                },
+                "protected_branch": {
+                    "const": "main"
+                },
+                "branch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240,
+                    "pattern": "^(?!/)(?!.*(?:\\.\\.|//|[~^:?*\\[\\]\\\\]|@\\{|/\\.|\\.lock(?:/|$)))(?!.*[./]$)[A-Za-z0-9._/-]+$",
+                    "not": {
+                        "const": "main"
+                    },
+                    "description": "Publication head branch used to prepare and reconcile the pull request."
+                }
+            }
+        },
+        "base_commit": {
+            "$ref": "#/$defs/gitsha"
+        },
+        "pull_request": {
+            "type": [
+                "object",
+                "null"
+            ],
+            "additionalProperties": false,
+            "required": [
+                "number",
+                "head_commit",
+                "displayed_diff_digest",
+                "prepared_tree_digest",
+                "reconciled_at"
+            ],
+            "properties": {
+                "number": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "head_commit": {
+                    "$ref": "#/$defs/gitsha"
+                },
+                "displayed_diff_digest": {
+                    "$ref": "#/$defs/digest",
+                    "description": "Reconciled PR diff digest; implementation validation requires equality with the transaction and Gate 2 displayed diff digest."
+                },
+                "prepared_tree_digest": {
+                    "$ref": "#/$defs/digest",
+                    "description": "Reconciled PR tree digest; implementation validation requires equality with the transaction and Gate 2 prepared tree digest."
+                },
+                "reconciled_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Time at which the pull request head, displayed diff, and prepared tree were reconciled."
+                }
+            }
+        },
+        "result_commit": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/gitsha"
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "push_acknowledgement": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "repository",
+                        "branch",
+                        "commit",
+                        "status",
+                        "acknowledged_at"
+                    ],
+                    "properties": {
+                        "repository": {
+                            "const": "project42dev/project42-platform"
+                        },
+                        "branch": {
+                            "const": "main"
+                        },
+                        "commit": {
+                            "$ref": "#/$defs/gitsha"
+                        },
+                        "status": {
+                            "const": "succeeded"
+                        },
+                        "acknowledged_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    }
+                },
+                {
+                    "type": "null"
+                }
+            ]
+        },
+        "state": {
+            "enum": [
+                "created",
+                "preparing",
+                "validating",
+                "pr-open",
+                "merge-pending",
+                "merging",
+                "acknowledging",
+                "reconciling",
+                "published",
+                "rollback-pending",
+                "rolled-back",
+                "blocked",
+                "failed"
+            ]
+        },
+        "history": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "state",
+                    "occurred_at",
+                    "actor",
+                    "correlation_id"
+                ],
+                "properties": {
+                    "state": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "occurred_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "actor": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "correlation_id": {
+                        "$ref": "#/$defs/uuid"
+                    },
+                    "evidence_digest": {
+                        "$ref": "#/$defs/digest"
+                    }
+                }
+            }
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "updated_at": {
+            "type": "string",
+            "format": "date-time"
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "state": {
+                        "const": "published"
+                    }
+                },
+                "required": [
+                    "state"
+                ]
+            },
+            "then": {
+                "required": [
+                    "pull_request",
+                    "result_commit",
+                    "push_acknowledgement"
+                ],
+                "properties": {
+                    "pull_request": {
+                        "type": "object"
+                    },
+                    "result_commit": {
+                        "$ref": "#/$defs/gitsha"
+                    },
+                    "push_acknowledgement": {
+                        "type": "object"
+                    }
+                }
+            }
+        }
+    ],
+    "$defs": {
+        "uuid": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "digest": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "gitsha": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+        }
+    }
+}

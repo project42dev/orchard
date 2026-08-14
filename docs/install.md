@@ -1,5 +1,14 @@
 # Connect Orchard to your own models
 
+> **What actually runs, verified 2026-08-14.**
+> The engine runs monthly (the 1st, 06:00 UTC) as an Azure Container Apps
+> job and holds new work at Gate 1 until the owner approves; only approved
+> work reaches a model. Gate 2 binds approval to the exact item and artifact
+> digest, with a denial-rework loop. Still designed and not built: gate
+> manifests and batching, revision binding, `defer`, PR-transaction
+> publication, wired live verification, and every currency-track step past
+> inspection.
+
 Orchard needs one thing from you: **an OpenAI-compatible endpoint** and the model
 ids behind it. It does not care whose cloud that is, and it will never create
 anything in it.
@@ -30,9 +39,9 @@ do not already own.
 
 The delivery pipeline (`delivery/Invoke-Project42Delivery.ps1`) runs in a
 container. The reference deployment uses **Azure Container Apps Jobs**, but the
-container image is portable — it runs on any container platform:
+container image is portable and runs on any container platform:
 
-- **Azure Container Apps Jobs** (reference deployment — Bicep in `project42dev-ops/deployment/infra/`)
+- **Azure Container Apps Jobs** (reference deployment; Bicep in `project42dev-ops/deployment/infra/`)
 - **AKS CronJobs** (Kubernetes `CronJob` with the same image)
 - **Docker Compose** (one-off `docker compose run`)
 - **Any Kubernetes distribution** (Deployment or CronJob)
@@ -241,25 +250,45 @@ node scripts/ingest-proposals.mjs \
 ```
 
 A passed proposal moves its item to `in-progress`; a blocked one moves it to
-`blocked`, which is deliberately distinct from nobody having tried. **It never
-publishes and never overrides a person**: an item somebody moved to `rejected` or
-`done` is reported as left alone.
+`blocked`, which is deliberately distinct from nobody having tried. Ingestion
+never publishes and never overrides a person: an item somebody moved to
+`rejected` or `done` is reported as left alone.
 
-When you have read a proposal and committed the content, record that:
+Publication is a separate, exact transaction. After Gate 1, linked tracker work,
+qualified handoffs, immutable artifact binding, and Gate 2, prepare an authority
+reference. A trust administrator must first provision the exact publication
+adapter into the authority database from an input containing `scope` set to
+`publication` and its `adapter_path`:
 
 ```bash
-node scripts/record-publication.mjs \
-  --db          /path/to/content.db \
-  --run-records /path/to/run-records \
-  --subject     <subject-id> \
-  --accepted-by "your name" \
+node scripts/provision-trust-anchor.mjs \
+  --db    /path/to/content.db \
+  --input /path/to/publication-anchor.json
+```
+
+The provisioning command derives the adapter identity and digest itself. The
+publication caller cannot provide them. Create the branch and pull request:
+
+```bash
+node scripts/publish-approved-item.mjs \
+  --input   /path/to/gate2-reference.json \
+  --db      /path/to/content.db \
   --apply
 ```
 
-`--accepted-by` is required and has no default. A publication with nobody named
-on it is an automated publication, and this pipeline does not do those. This is
-also the only tool that writes the terminal `done` state, which is why a person
-runs it and a build does not.
+Direct publication to `main` is refused. After protected-main merge, reconcile
+and record the exact acknowledgement:
+
+```bash
+node scripts/record-publication.mjs \
+  --db      /path/to/content.db \
+  --key     <publication-idempotency-key> \
+  --apply
+```
+
+Merge completion alone does not close tracker work. Closure additionally
+requires an exact owner-authorized acceptance and completion notes bound to the
+closure packet.
 
 Afterwards, `v_provenance` answers which run wrote a given item, under which
 brief, and what its reviewers concluded. **Read `v_unprovenanced` alongside it**:
@@ -271,8 +300,9 @@ mostly untraced estate reads as fully traced.
 - It will not create, scale, or delete a model deployment.
 - It will not edit your model inventory.
 - It will not call an endpoint you did not configure.
-- It will not publish content. Everything it produces is inert until a human
-  approves it.
+- Evidence tracks and proposal generation will not publish content. Publication
+  requires both item-bound gates, a protected-main pull request, and exact
+  acknowledgement.
 
 If a job needs a model you have not deployed, Orchard stops and tells you. Doing
 something about that is your decision, in your own systems.

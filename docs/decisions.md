@@ -1,5 +1,14 @@
 # Decisions behind Orchard
 
+> **What actually runs, verified 2026-08-14.**
+> The engine runs monthly (the 1st, 06:00 UTC) as an Azure Container Apps
+> job and holds new work at Gate 1 until the owner approves; only approved
+> work reaches a model. Gate 2 binds approval to the exact item and artifact
+> digest, with a denial-rework loop. Still designed and not built: gate
+> manifests and batching, revision binding, `defer`, PR-transaction
+> publication, wired live verification, and every currency-track step past
+> inspection.
+
 The full architecture decision records live in a private planning repository, by
 deliberate decision: candid early analysis needs somewhere it can be candid, and
 public repositories receive a **sanitized summary of accepted decisions that
