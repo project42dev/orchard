@@ -109,7 +109,7 @@ flowchart TD
 Every piece of content, whether written for the first time or corrected after a
 source changed, must pass through the same ordered ensemble. **The same ensemble
 applies to the scheduled currency scans.** It is one platform with two triggers,
-so a role added here is a role the weekly run gets too, and an update needs
+so a role added here is a role the scheduled run gets too, and an update needs
 research more than a first draft does: the whole trigger is that a cited source
 changed, and nothing can assess that without reading what changed.
 
@@ -496,9 +496,9 @@ Rules that keep it usable:
 |---|---|
 | 1, discovery | **Built and run.** 24 candidates across 10 topics, registry v0.1.6. |
 | 2, selection, scoring, content DB | **Built.** Scoring runs against all 24. The content database compiles 150 items and 550 citations, and carries the queue. |
-| 3, creation and publication | **Built.** The ensemble runs daily, emits proposals, and publishes content through the human-review gate. |
+| 3, creation and publication | **Built.** The engine runs monthly (the 1st, 06:00 UTC, as an Azure Container Apps job), holds new work at Gate 1 until the owner approves, then the ensemble emits proposals and publishes through the digest-bound Gate 2 review. |
 | 4, virtual instructor | **Not built.** Avatar and voice are chosen and validated; no rendering code. |
-| 5, currency and retirement | **Built.** Weekly maintenance workflow runs source-change detection, generates update briefs, runs the same ensemble, and feeds through the same human-review gate. Impact assessment and retirement do not exist. |
+| 5, currency and retirement | **Partially built.** The monthly currency job (the 15th, 06:00 UTC) inspects the full corpus and records findings; nothing yet carries findings to review, authoring, or publication. Impact assessment and retirement do not exist. |
 
 The diagram deliberately shows the whole cycle including the parts that do not
 exist, because the shape of the end state is what makes each phase reviewable
