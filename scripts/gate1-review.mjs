@@ -163,6 +163,44 @@ export function applyDecisions(db, parsed, { allowBatch = false, now = null } = 
   return result;
 }
 
+// Decisions are applied INSIDE the container, not by a GitHub workflow.
+//
+// The workflow database lives on the Azure file share the job mounts, so a
+// GitHub Actions runner cannot reach it. Instead the engine, on its next run,
+// reads the comments on the open Gate 1 issue and applies them before it
+// authors anything. That keeps the database single-writer and means an
+// approval cannot be applied by anything that is not the engine itself.
+export async function fetchIssueComments({ repo, issue, token, fetchImpl = fetch }) {
+  if (!repo || !issue) throw new TypeError("repo and issue are required");
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "orchard-gate1",
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const url = `https://api.github.com/repos/${repo}/issues/${issue}/comments?per_page=100`;
+  const res = await fetchImpl(url, { headers });
+  if (!res.ok) throw new Error(`GitHub comments fetch failed: ${res.status}`);
+  const body = await res.json();
+  return Array.isArray(body) ? body : [];
+}
+
+// Only comments from an authorised login may decide. An unauthorised comment is
+// reported, never silently ignored, so a decision that did not apply is visible.
+export function selectAuthorised(comments, allowed) {
+  const set = new Set((allowed ?? []).map((a) => String(a).toLowerCase()));
+  const taken = [];
+  const refused = [];
+  for (const c of comments) {
+    const login = c?.user?.login ? String(c.user.login).toLowerCase() : "";
+    const text = String(c?.body ?? "");
+    if (!text.includes("/orchard gate1")) continue;
+    if (set.size > 0 && !set.has(login)) { refused.push(login || "unknown"); continue; }
+    taken.push(text);
+  }
+  return { taken, refused };
+}
+
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(`--${name}`);
   return i === -1 ? fallback : process.argv[i + 1];
@@ -182,9 +220,26 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "
       process.exitCode = items.length === 0 ? 0 : 0;
     } else if (process.argv.includes("--apply")) {
       const commentPath = arg("comment");
-      const text = commentPath
-        ? (await import("node:fs")).readFileSync(commentPath, "utf8")
-        : arg("text", "");
+      const issue = arg("issue");
+      let text;
+      if (issue) {
+        const comments = await fetchIssueComments({
+          repo: arg("repo", process.env.ORCHARD_GITHUB_REPO),
+          issue,
+          token: process.env.GITHUB_TOKEN ?? process.env.ORCHARD_GITHUB_TOKEN,
+        });
+        const allowed = (arg("allowed", process.env.ORCHARD_GATE1_ACTORS) ?? "")
+          .split(",").map((s) => s.trim()).filter(Boolean);
+        const sel = selectAuthorised(comments, allowed);
+        for (const r of sel.refused) {
+          process.stderr.write(`gate1: refused a decision from unauthorised actor ${r}\n`);
+        }
+        text = sel.taken.join("\n");
+      } else {
+        text = commentPath
+          ? (await import("node:fs")).readFileSync(commentPath, "utf8")
+          : arg("text", "");
+      }
       const parsed = parseDecisions(text);
       const res = applyDecisions(db, parsed, { allowBatch: process.argv.includes("--allow-batch") });
       process.stdout.write(JSON.stringify(res, null, 2) + "\n");

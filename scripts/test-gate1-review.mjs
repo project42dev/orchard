@@ -155,9 +155,26 @@ const authorable = (db) =>
   db.close();
 }
 
+// --- only an authorised actor may decide ---
+{
+  const { selectAuthorised } = await import("./gate1-review.mjs");
+  const comments = [
+    { user: { login: "Owner" }, body: "/orchard gate1 approve item=create:a" },
+    { user: { login: "drive-by" }, body: "/orchard gate1 approve item=create:b" },
+    { user: { login: "Owner" }, body: "looks fine" },
+  ];
+  const s = selectAuthorised(comments, ["owner"]);
+  ok(s.taken.length === 1, "only the authorised actor's decision is taken");
+  ok(s.refused.length === 1 && s.refused[0] === "drive-by", "an unauthorised decision is reported, not silently dropped");
+  ok(selectAuthorised(comments, []).taken.length === 2, "an empty allowlist takes every decision comment");
+  ok(selectAuthorised([{ user: { login: "owner" }, body: "Approved" }], ["owner"]).taken.length === 0,
+     "a bare Approved is still not a Gate 1 decision");
+}
+
 console.log(
   failures === 0
     ? `PASS. ${assertions} assertions on Gate 1: the owner decides before anything is written.`
     : `FAIL. ${failures} of ${assertions} assertions failed.`,
 );
 process.exitCode = failures === 0 ? 0 : 1;
+

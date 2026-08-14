@@ -54,6 +54,8 @@ param(
     [string] $DiscoveryOut = ${env:ORCHARD_DISCOVERY_OUT} ?? '/mnt/run-records/discovery-proposals.json',
     [string] $BriefsOut = ${env:ORCHARD_BRIEFS_OUT} ?? '/mnt/run-records/briefs-queue.json',
     [string] $Gate1Out = ${env:ORCHARD_GATE1_OUT} ?? '/mnt/run-records/gate1-issue.md',
+    [string] $Gate1Issue = ${env:ORCHARD_GATE1_ISSUE} ?? '',
+    [string] $Gate1Repo = ${env:ORCHARD_GITHUB_REPO} ?? 'project42dev/orchard',
     [string] $InventoryPath = ${env:ORCHARD_INVENTORY_PATH} ?? '/mnt/config/deployed-models.json',
     [string] $EngineRunId = ${env:ORCHARD_ENGINE_RUN_ID} ?? '',
     [int] $GapThreshold = [int](${env:ORCHARD_GAP_THRESHOLD} ?? '0'),
@@ -231,8 +233,20 @@ if (-not $SkipDatabase) {
 # applied by `gate1-review.mjs --apply`.
 if (-not $SkipGate1) {
     Invoke-EnginePhase -PhaseName 'Gate 1' -PhaseNumber 4 -Action {
-        & node "$WorkDir/scripts/migrate-gate1.mjs" --db $DbPath 2>&1 | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0) { throw "migrate-gate1 exited with code $LASTEXITCODE" }
+        # Apply any decisions the owner posted on the open Gate 1 issue since the
+        # last run, BEFORE briefs are generated. The workflow database lives on
+        # the mounted share, which a GitHub runner cannot reach, so the engine is
+        # the single writer and decisions are pulled rather than pushed.
+        if ($Gate1Issue) {
+            & node "$WorkDir/scripts/gate1-review.mjs" --db $DbPath --apply `
+                --issue $Gate1Issue --repo $Gate1Repo 2>&1 | ForEach-Object { Write-Host $_ }
+            if ($LASTEXITCODE -ne 0) {
+                Write-EngineLog WARN "gate 1: some decisions were refused, see above. Unapproved work stays pending and is not authored."
+            }
+        }
+        else {
+            Write-EngineLog INFO 'gate 1: no issue bound, so no decisions were applied this run'
+        }
 
         & node "$WorkDir/scripts/gate1-review.mjs" --db $DbPath --notify --out $Gate1Out 2>&1 |
             ForEach-Object { Write-Host $_ }
