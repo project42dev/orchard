@@ -48,10 +48,10 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     const args = parseArgs(argv);
     if (args.track !== "track-2") throw new TypeError("--track must be track-2");
     if (!["full", "subset", "dry-run"].includes(args.mode)) throw new TypeError("--mode must be full, subset, or dry-run");
-    // Both schedules are monthly since 2026-08-13, so `monthly` is the correct
-    // label. `weekly` is still accepted because the deployed job passes it;
-    // remove it only after ORCHARD_TRIGGER_TYPE is changed on the live jobs,
-    // or the next scheduled run fails on its own trigger label.
+    // Both schedules are monthly since 2026-08-13, so `monthly` is the only
+    // correct label for a scheduled run. `weekly` is retained solely so run
+    // records already written by the retiring deployment, which passes it,
+    // still validate. It is a legacy value, not a schedule Orchard offers.
     if (args["trigger-type"] && !["monthly", "weekly", "manual", "replay"].includes(args["trigger-type"])) throw new TypeError("--trigger-type must be monthly, weekly, manual, or replay");
     if (args["actor-kind"] && !["scheduler", "operator"].includes(args["actor-kind"])) throw new TypeError("--actor-kind must be scheduler or operator");
     for (const name of ["platform-root", "content-commit"]) if (!args[name]) throw new TypeError(`--${name} is required`);
