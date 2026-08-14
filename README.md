@@ -50,7 +50,19 @@ The arrows only point up. Nothing below Orchard knows Orchard exists.
 
 ## Status
 
-The two evidence tracks and the gated delivery lifecycle are implemented.
+**Corrected 2026-08-13.** This line previously said the two evidence tracks and
+the gated delivery lifecycle are implemented. The tracks are. **The gated
+lifecycle is not.**
+
+There is no approval before authoring: the engine writes content and only then
+opens an issue. The approval that does exist acts on a bare `Approved` comment
+with no item, revision or digest binding, which is the whole-issue approval the
+design rejects. Denial passes no reason back for rework, and there is no
+live-site verification.
+
+Status is tracked on four columns, because one axis produced contradictions:
+designed, in branch, connected, verified in production. **A capability is
+"implemented" only with all four.**
 
 - **Track 1** performs bounded discovery against a versioned approved-source
    registry. A completed full run requires at least 50 distinct approved and

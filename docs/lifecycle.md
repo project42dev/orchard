@@ -604,11 +604,27 @@ Rules that keep it usable:
 
 ## What is built, and what is not
 
-| Phase | State |
-|---|---|
-| 1, discovery | **Built.** Track 1 full completion enforces at least 50 distinct approved and enabled sources and exact outcome reconciliation. |
-| 2, selection, scoring, content DB | **Built.** Scoring runs against all 24. The content database compiles 150 items and 550 citations, and carries the queue. |
-| 3, creation and publication | **Built.** Two item-bound approvals surround qualified handoffs and immutable artifact binding. Publication uses a protected-main pull request and acknowledgement. |
+**Corrected 2026-08-13.** This table previously scored each phase on a single
+built-versus-not axis, which is why this page contradicted its own banner. A
+capability can be fully implemented on a branch and never run in production.
+Four columns are now used: designed, in branch, connected, verified in
+production. **"Built" requires all four.**
+
+| Phase | Designed | In branch | Connected | Verified |
+|---|---|---|---|---|
+| 1, discovery | yes | yes | yes, but the engine trigger is manual with no schedule | ran 2026-08-11 |
+| 2, scoring and content DB | yes | yes | yes | yes |
+| 2b, **selection before authoring** | yes | **no** | **no** | **no** |
+| 3, creation | yes, six roles | four roles | yes | yes |
+| 3b, **item-bound approval** | yes | **no** | **no** | **no** |
+| 3c, publication | yes, pull request with rollback | direct commit on approval | yes | partially |
+
+**The previous row claiming "Two item-bound approvals surround qualified
+handoffs" was false twice over.** There is no Gate 1 at all: the engine authors
+content in phase 5 and only notifies in phase 7, so nothing is approved before
+it is written. And the live approver is **not** item-bound. It is
+`orchard-human-review.yml`, which acts on a bare `Approved` comment with no
+item, revision or digest binding, and commits to the platform repository.
 | 4, virtual instructor | **Proof of concept validated; production automation on hold and not built.** |
 | 5, currency and retirement | **Partially built.** Track 2 performs complete pinned-corpus inspection. Retirement must use the strict lifecycle; the unsafe direct-push decommission workflow was removed. |
 
