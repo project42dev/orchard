@@ -328,11 +328,19 @@ export function buildContentDb({ contentRoot, dbPath, surfaces = DEFAULT_SURFACE
 // An item past its review cadence becomes a needs-updating item. Both are
 // inserted only when absent. An existing row keeps its state, its owner, and
 // its note, whatever the build thinks.
+// GATE 1. New work enters as 'gate1-pending', NOT 'queued'.
+//
+// generate-briefs.mjs selects `WHERE state = 'queued'`, so an item that has not
+// been approved by the owner can never reach authoring, and therefore can never
+// spend money on a model. Approval moves 'gate1-pending' to 'queued' and is the
+// only way in. Before this, every non-retired candidate was queued on sight and
+// authored before the owner saw it, which meant declining an item was only ever
+// possible after paying to write it.
 export function syncWorkQueue(db, now) {
   const exists = db.prepare('SELECT state FROM work_item WHERE kind = ? AND subject_id = ?');
   const insert = db.prepare(
     `INSERT INTO work_item (id, kind, subject_id, surface, title, state, priority, first_seen, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, 'gate1-pending', ?, ?, ?)`,
   );
 
   let created = 0;

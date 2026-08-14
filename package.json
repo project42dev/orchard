@@ -1,21 +1,22 @@
 {
-    "name": "orchard",
-    "version": "0.1.0",
-    "description": "Content lifecycle tool for Project 42",
-    "type": "module",
-    "private": true,
-    "scripts": {
-        "build:db": "node scripts/build-content-db.mjs",
-        "test": "node scripts/test-build-content-db.mjs"
-    },
-    "dependencies": {
-        "@project42/platform": "github:project42dev/project42-platform#v0.72.0"
-    },
-    "engines": {
-        "node": ">=22.5.0"
-    },
-    "license": "Apache-2.0",
-    "devDependencies": {
-        "@mermaid-js/mermaid-cli": "^11.16.0"
-    }
+  "name": "orchard",
+  "version": "0.1.0",
+  "description": "Content lifecycle tool for Project 42",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:db": "node scripts/build-content-db.mjs",
+    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs",
+    "test:gate1": "node scripts/test-gate1-review.mjs"
+  },
+  "dependencies": {
+    "@project42/platform": "github:project42dev/project42-platform#v0.72.0"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.16.0"
+  }
 }

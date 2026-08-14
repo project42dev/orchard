@@ -38,8 +38,15 @@ CREATE TABLE IF NOT EXISTS work_item (
   title        TEXT NOT NULL,
   -- rejected is terminal and permanent. A rebuild may never move a row out of
   -- it, for the same reason a rejected discovery candidate is never re-proposed.
-  state        TEXT NOT NULL DEFAULT 'queued'
-               CHECK (state IN ('queued','claimed','in-progress','blocked','done','rejected')),
+  --
+  -- GATE 1. New work enters as 'gate1-pending' and CANNOT be authored:
+  -- generate-briefs.mjs selects `WHERE state = 'queued'`, so only an explicit
+  -- owner approval, which moves the row to 'queued', authorises spending model
+  -- time on it. 'gate1-denied' is the decided-against state and carries the
+  -- reason in `note`. Before this, every candidate was queued on sight and
+  -- authored before the owner saw it.
+  state        TEXT NOT NULL DEFAULT 'gate1-pending'
+               CHECK (state IN ('gate1-pending','gate1-denied','queued','claimed','in-progress','blocked','done','rejected')),
   priority     REAL,
   claimed_by   TEXT,
   claimed_at   TEXT,
