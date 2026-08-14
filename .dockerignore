@@ -1,0 +1,12 @@
+node_modules
+.git
+.github
+.artifacts
+.ai
+docs
+pmo
+*.db
+*.db-shm
+*.db-wal
+*.log
+Test-*.ps1

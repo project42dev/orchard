@@ -48,22 +48,53 @@ jobs:
         working-directory: orchard
         run: npm ci
 
+      # GATE 2. Approval binds to the exact artifact.
+      #
+      # This step used to run `grep -qiE '^\s*approved\s*$'` on the comment
+      # body, so one bare word authorised a commit to the content platform with
+      # nothing bound to it: not the item, not the revision, not the bytes. An
+      # edited proposal stayed approvable and a stale approval could not be
+      # detected. ADR-0025 rejects exactly that shape.
+      #
+      # The comment body is now passed through the ENVIRONMENT rather than
+      # interpolated into the shell. `${{ github.event.comment.body }}` inside a
+      # run block is attacker-controlled text pasted straight into a script.
       - name: Determine decision
         id: decision
+        working-directory: orchard
+        env:
+          ORCHARD_COMMENT_BODY: ${{ github.event.comment.body }}
+          ORCHARD_COMMENT_ACTOR: ${{ github.event.comment.user.login }}
+          ORCHARD_GATE2_ACTORS: ${{ vars.ORCHARD_GATE2_ACTORS }}
         run: |
-          COMMENT="${{ github.event.comment.body }}"
-          echo "Comment: $COMMENT"
+          set -euo pipefail
+          node scripts/gate2-review.mjs --proposals delivery/proposals || true
 
-          if echo "$COMMENT" | grep -qiE '^\s*approved\s*$'; then
-            echo "decision=approved" >> $GITHUB_OUTPUT
-            echo "Decision: APPROVED"
-          elif echo "$COMMENT" | grep -qiE '^\s*denied\s*$'; then
-            echo "decision=denied" >> $GITHUB_OUTPUT
-            echo "Decision: DENIED"
-          else
-            echo "decision=ignore" >> $GITHUB_OUTPUT
-            echo "Decision: IGNORE — not a decision keyword"
+      - name: Explain a refused decision
+        if: steps.decision.outputs.authorised != 'true'
+        env:
+          ORCHARD_COMMENT_BODY: ${{ github.event.comment.body }}
+          ORCHARD_COMMENT_ACTOR: ${{ github.event.comment.user.login }}
+          ORCHARD_GATE2_ACTORS: ${{ vars.ORCHARD_GATE2_ACTORS }}
+        working-directory: orchard
+        run: |
+          set -euo pipefail
+          # Only answer comments that actually tried to be a decision, so
+          # ordinary discussion on the issue is not replied to.
+          if printf '%s' "$ORCHARD_COMMENT_BODY" | grep -qiE '^\s*(approved|denied)\s*$|^/orchard'; then
+            REASON=$(node scripts/gate2-review.mjs --proposals delivery/proposals \
+              | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s);console.log((r.errors||[]).map(e=>'- '+e).join('\n')||'- not a Gate 2 decision')})")
+            gh issue comment ${{ github.event.issue.number }} --repo project42dev/orchard --body "> [!CAUTION]
+          > **No action taken.** This comment did not authorise anything.
+          >
+          $REASON
+          >
+          > Gate 2 approval must name the item and the exact artifact digest:
+          > \`/orchard gate2 approve item=<id> digest=<sha256>\`
+          > Deny or request changes with a reason:
+          > \`/orchard gate2 deny item=<id> reason=\"...\"\`"
           fi
+        continue-on-error: true
 
       - name: Acknowledge receipt (approved)
         if: steps.decision.outputs.decision == 'approved'

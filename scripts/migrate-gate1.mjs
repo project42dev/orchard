@@ -83,7 +83,9 @@ function arg(name, fallback = null) {
   return i === -1 ? fallback : process.argv[i + 1];
 }
 
-if (process.argv[1] && process.argv[1].endsWith("migrate-gate1.mjs")) {
+const invokedDirectly = process.argv[1] &&
+  process.argv[1].replace(/\\/g, "/").split("/").pop() === "migrate-gate1.mjs";
+if (invokedDirectly) {
   const db = new DatabaseSync(arg("db", "content.db"));
   try {
     const r = migrate(db);
