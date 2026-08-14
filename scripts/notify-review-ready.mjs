@@ -108,9 +108,9 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
     /** Builds a markdown issue body summarizing all proposals ready for review.
      *  When localProposalsDir is provided, includes the actual proposal content
      *  in collapsible sections so reviewers can read it directly in the issue.
-     *  engineRunId is the GitHub Actions run ID of the engine workflow that
-     *  produced these proposals — embedded as an HTML comment so the
-     *  human-review workflow can find the right artifact. */
+     *  engineRunId is the container-generated run ID (GUID) from the ACA
+     *  engine job that produced these proposals, embedded as an HTML
+     *  comment so the human-review workflow can find the right artifact. */
 
     const lines = [
         '## Orchard proposals ready for review',

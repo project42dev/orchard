@@ -10,6 +10,7 @@ produce reviewed, evidence-backed content proposals.
 |---|---|
 | [Install guide](install.md) | Prerequisites, setup, and first run |
 | [Lifecycle](lifecycle.md) | How content flows from published to stale to proposed to delivered |
+| [Hosting architecture](hosting-architecture.mmd) | Azure Container Apps deployment topology (Mermaid diagram) |
 | [Decisions](decisions.md) | Architecture decisions and the failures that produced them |
 
 ## Quick reference

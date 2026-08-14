@@ -1,0 +1,58 @@
+%% ACA delivery platform architecture - 2026-08-11
+%% Shows the Azure Container Apps hosting for the Orchard 7-phase pipeline.
+%% This supersedes the GitHub Actions workflows (disabled 2026-08-11).
+
+flowchart LR
+    subgraph AZURE["Azure - rg-p42-delivery-prod-eus-01"]
+        subgraph ENV["Container Apps Environment - cae-p42-delivery-prod-eus-01"]
+            ENGINE["🔧 Engine Job<br/>caj-p42-engine-prod-eus-01<br/>0.5 vCPU / 1 GiB<br/>Schedule: Sun 06:00 UTC<br/>━━━━━━━━━━━━━━━<br/>7-phase pipeline:<br/>1. Discover<br/>2. Score<br/>3. Build DB<br/>4. Briefs<br/>5. Delivery<br/>6. Ingest<br/>7. Notify"]
+            HARNESS["🔨 Harness Job<br/>caj-p42-harness-prod-eus-01<br/>1.0 vCPU / 2 GiB<br/>Trigger: Manual only<br/>━━━━━━━━━━━━━━━<br/>Single-item delivery<br/>via Invoke-Project42Delivery.ps1"]
+        end
+
+        MI["🔑 Managed Identity<br/>mi-p42-delivery-prod-eus-01<br/>Role: Cognitive Services User<br/>on aif-studioai-prod-eus-01"]
+
+        ACR["📦 Container Registry<br/>crp42deliveryprodeus01.azurecr.io<br/>Image: p42-delivery:engine-7phase"]
+
+        STORAGE_CONFIG["📁 Storage - platformconfig<br/>stp42configprodeus01<br/>Mount: /mnt/config (RO)<br/>━━━━━━━━━━━━━━━<br/>deployed-models.json<br/>pricing.private.json<br/>briefs/engine-template.json<br/>schemas/"]
+        STORAGE_RUN["📁 Storage - runrecords<br/>stp42deliveryprodeus01<br/>Mount: /mnt/run-records (RW)<br/>━━━━━━━━━━━━━━━<br/>opportunity-registry.json<br/>orchard.db<br/>proposals/<br/>briefs/<br/>deliveries/<br/>ingest/<br/>state/"]
+        LOG["📊 Log Analytics<br/>log-p42-delivery-prod-eus-01<br/>Table: ContainerAppConsoleLogs_CL"]
+
+        AG["🚨 Action Group<br/>ag-p42-delivery-prod-eus-01<br/>Email: kris@hybridsolutions.cloud"]
+    end
+
+    subgraph EXTERNAL["External Services"]
+        FOUNDRY["🧠 Azure AI Foundry<br/>aif-studioai-prod-eus-01<br/>Models: GPT-5.6-Sol, Grok-4-20,<br/>DeepSeek-V4-Pro, Mistral-Large-3"]
+        GH["🐙 GitHub<br/>project42dev/orchard<br/>Issues created by Phase 7<br/>Auth: GITHUB_TOKEN from KV"]
+        KV["🔐 Key Vault<br/>kv-hcs-vault-01<br/>Secret: hcs-platform-github-org-pat"]
+    end
+
+    ENGINE -->|"reads (RO)"| STORAGE_CONFIG
+    ENGINE -->|"reads/writes (RW)"| STORAGE_RUN
+    ENGINE -->|"pulls image"| ACR
+    ENGINE -->|"authenticates via"| MI
+    ENGINE -->|"logs to"| LOG
+    ENGINE -->|"alerts via"| AG
+    ENGINE -->|"Phase 5: model inference"| FOUNDRY
+    ENGINE -->|"Phase 7: gh issue create"| GH
+
+    HARNESS -->|"reads (RO)"| STORAGE_CONFIG
+    HARNESS -->|"reads/writes (RW)"| STORAGE_RUN
+    HARNESS -->|"pulls image"| ACR
+    HARNESS -->|"authenticates via"| MI
+    HARNESS -->|"logs to"| LOG
+    HARNESS -->|"alerts via"| AG
+    HARNESS -->|"model inference"| FOUNDRY
+
+    MI -->|"Cognitive Services User"| FOUNDRY
+    GH -->|"reads token from"| KV
+
+    %% Styling
+    style ENGINE fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
+    style HARNESS fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style MI fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style ACR fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style FOUNDRY fill:#fce4ec,stroke:#c62828,stroke-width:2px
+    style GH fill:#f5f5f5,stroke:#616161,stroke-width:2px
+    style KV fill:#fff8e1,stroke:#f9a825,stroke-width:2px
+    style LOG fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style AG fill:#fbe9e7,stroke:#d84315,stroke-width:2px

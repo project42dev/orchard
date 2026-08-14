@@ -7,3 +7,5 @@ scores*.json
 
 # Operator-local runtime state. Never committed, in any repository.
 delivery/private/
+content.db-shm
+content.db-wal
