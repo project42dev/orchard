@@ -17,14 +17,14 @@
 
 import { DatabaseSync } from "node:sqlite";
 
-const NEW_STATES = "'gate1-pending','gate1-denied','queued','claimed','in-progress','blocked','done','rejected'";
+const NEW_STATES = "'gate1-pending','gate1-denied','queued','claimed','in-progress','gate2-denied','blocked','done','rejected'";
 
 export function needsMigration(db) {
   const row = db
     .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='work_item'")
     .get();
   if (!row) return false;
-  return !String(row.sql).includes("gate1-pending");
+  return !String(row.sql).includes("gate1-pending") || !String(row.sql).includes("gate2-denied");
 }
 
 export function migrate(db) {

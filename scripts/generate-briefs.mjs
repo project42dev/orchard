@@ -325,12 +325,39 @@ export function buildPrompt(item, evidence, citations, surfaceConfig) {
     }
   }
 
+  // REWORK. An item returned by Gate 2 with `request-changes` is re-queued
+  // carrying the owner's reason in `note`. It goes near the TOP of the
+  // instructions, before the form rules, because it is the only reason this
+  // item is being written a second time. A rework brief that omits it asks the
+  // drafter to produce the same piece again, which is how a denial loop burns
+  // money without converging.
+  const rework = parseReworkNote(item.note);
+  if (rework) {
+    lines.push(
+      '',
+      'THIS IS A REWORK. A previous version of this item was reviewed and returned.',
+      `The reviewer's reason, verbatim: ${rework}`,
+      'Address that reason specifically. Do not restate the previous version, and do not treat this as a fresh brief. If the reason names a factual error, correct it and say what changed. If it names an omission, add the missing material rather than rewriting what was already accepted.',
+    );
+  }
+
   const form = FORM_INSTRUCTIONS[surfaceConfig?.form];
   if (form) lines.push(...form);
 
   lines.push('', 'Constraints:');
   for (const c of STANDING_CONSTRAINTS) lines.push(`- ${c}`);
   return lines.join('\n');
+}
+
+// The note column carries operational text from several sources. Only a Gate 2
+// rework marker becomes drafting instruction; anything else is left alone, so
+// an unrelated operator note can never be mistaken for a reviewer's reason.
+export const REWORK_PREFIX = 'gate2 changes-requested: ';
+export function parseReworkNote(note) {
+  if (typeof note !== 'string') return null;
+  if (!note.startsWith(REWORK_PREFIX)) return null;
+  const reason = note.slice(REWORK_PREFIX.length).trim();
+  return reason.length > 0 ? reason : null;
 }
 
 const SURFACE_CRITERIA = {
@@ -436,8 +463,14 @@ export function generateBriefs({
   // Only queued work is eligible. A claimed or in-progress item already has a
   // brief somewhere, and re-issuing one produces two proposals racing for the
   // same subject id.
+  //
+  // REWORK. `note` is carried through because an item returned by Gate 2 with
+  // `request-changes` is re-queued with the owner's reason in that column. A
+  // rework brief that does not tell the drafter what was wrong is just a
+  // request to write the same thing again, which is how a denial loop burns
+  // money without converging.
   const rows = db.prepare(
-    `SELECT id, kind, subject_id, surface, title, state, priority
+    `SELECT id, kind, subject_id, surface, title, state, priority, note
      FROM work_item WHERE state = 'queued'
      ORDER BY priority DESC NULLS LAST, first_seen, subject_id`,
   ).all();

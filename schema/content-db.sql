@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS work_item (
   -- reason in `note`. Before this, every candidate was queued on sight and
   -- authored before the owner saw it.
   state        TEXT NOT NULL DEFAULT 'gate1-pending'
-               CHECK (state IN ('gate1-pending','gate1-denied','queued','claimed','in-progress','blocked','done','rejected')),
+               CHECK (state IN ('gate1-pending','gate1-denied','queued','claimed','in-progress','gate2-denied','blocked','done','rejected')),
   priority     REAL,
   claimed_by   TEXT,
   claimed_at   TEXT,

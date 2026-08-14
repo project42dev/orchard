@@ -70,6 +70,26 @@ jobs:
           set -euo pipefail
           node scripts/gate2-review.mjs --proposals delivery/proposals || true
 
+      # REWORK. A returned item goes back to authorable carrying the reviewer's
+      # reason, in the exact form generate-briefs.mjs reads, so the next
+      # authoring pass is told what was wrong before it writes anything. Before
+      # this, request-changes recorded a generic rejection and passed nothing
+      # back, so a returned item was either abandoned or rewritten blind.
+      - name: Return the item for rework
+        if: steps.decision.outputs.decision == 'changes-requested'
+        working-directory: orchard
+        env:
+          ORCHARD_COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          REASON=$(printf '%s' "$ORCHARD_COMMENT_BODY" | sed -n 's/.*reason="\([^"]*\)".*/\1/p' | head -1)
+          ORCHARD_DECISION_REASON="$REASON" node scripts/apply-gate2-rework.mjs \
+            --db content.db --item "${{ steps.decision.outputs.item }}" --decision request-changes
+          gh issue comment ${{ github.event.issue.number }} --repo project42dev/orchard --body "> [!NOTE]
+          > **Returned for rework.** \`${{ steps.decision.outputs.item }}\` is queued again and the next authoring pass will be given your reason verbatim:
+          >
+          > $REASON"
+
       - name: Explain a refused decision
         if: steps.decision.outputs.authorised != 'true'
         env:
