@@ -73,6 +73,10 @@ designed, in branch, connected, verified in production. **A capability is
    qualified role handoffs, immutable artifact binding, a second approval, a
    protected-main pull request, protected-main acknowledgement, and explicit
    owner acceptance before tracker closure.
+- **Request intake**, designed and not built, is a third way a topic reaches
+   the queue: a labeled GitHub issue, submitted through a form or written by
+   hand. It joins the same queue as a discovered candidate and passes through
+   the same Gate 1 approval; nothing about it skips a gate.
 
 The weekly tracks are independent. Manual runs default to dry-run. Neither
 track treats generated evidence as approval or publication.

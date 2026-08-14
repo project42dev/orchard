@@ -88,6 +88,38 @@ start:
 5. A second GitHub issue approves the written updates and the deletions.
 6. The agents update existing content, remove stale content, commit and push.
 
+### Request intake
+
+**Designed, not built.** A third intake path alongside discovery and the
+currency track, so a topic can be suggested rather than only discovered or
+found stale. Anyone can propose a topic through a GitHub issue form or by
+opening an ordinary issue and applying the `content-request` label; both
+converge on the same labeled issue and there is exactly one parser.
+
+1. Intake runs as the first step of the scheduled discovery run, before source
+   collection, and reads every open `content-request` issue.
+2. Each request is matched against the canonical corpus and against open
+   candidates. A subject already covered becomes a currency finding against
+   the existing item instead of a new candidate; a duplicate of an open
+   candidate links to it instead of creating a second one.
+3. What survives dedup and classification is written into the same discovery
+   queue a discovered candidate uses, recording its origin as requested, the
+   originating issue number, and the requester's immutable numeric actor id.
+4. A request never starts a run by itself. It waits for the next scheduled run
+   or a manual trigger, and it is scored on the same scale as a discovered
+   candidate, never bypassing scoring, the cutoff, or any cap.
+5. Requests are batched with discovered and currency items in the same Gate 1
+   manifest and issue, with an origin column, so **discovery, the currency
+   track, and request intake all feed the same queue and the same Gate 1
+   decision.** Only the owner's Gate 1 approval moves a requested item
+   forward.
+6. Everything after Gate 1 is identical regardless of origin: the same
+   tracker item, the same authoring ensemble, the same Gate 2, the same
+   publication and verification path.
+7. The loop closes on the requester. A verified publication comments the live
+   link on the original issue and closes it; a Gate 1 denial closes the issue
+   with the owner's reason.
+
 ### Known gaps against this mandate
 
 - **Approval before authoring is live (closed 2026-08-14).** Gate 1 runs inside the deployed engine: new work enters `gate1-pending` and only owner approval reaches a model. Remaining wiring: nothing posts the Gate 1 issue automatically, and the engine job has no `ORCHARD_GATE1_ISSUE` set, so decisions are pulled manually.
@@ -103,6 +135,11 @@ start:
   `verify-published-live.mjs` refuses bare 2xx responses and demands an
   item-derived marker in the body; it is not yet wired to any phase or
   workflow.
+- **Request intake is designed and not built.** No issue template, no intake
+  step in the scheduled run, and no code exists today. See the "Request
+  intake" section above for the design: the intent is that it reads
+  `content-request` issues, deduplicates and classifies them, and joins the
+  same queue and the same Gate 1 that discovery and the currency track use.
 
 ## Current authoritative lifecycle
 

@@ -11,6 +11,13 @@
 
 Orchard runs discovery and canonical-corpus inspection as independent evidence-producing workflows. Neither workflow approves content, creates or closes tracker work, publishes content, or mutates a target repository.
 
+A third intake path, request intake, is **designed and not built**. It is not
+a track: it is intended to run as the first step of Track 1, before source
+collection, reading open GitHub issues carrying the `content-request` label
+and joining the same discovery queue and the same Gate 1 as a discovered
+candidate. See the "Request intake" section of
+[`lifecycle.md`](lifecycle.md) for the design.
+
 ## Workflow boundary audit
 
 > **Scope correction, updated at the 2026-08-14 merge to `main`.**
@@ -32,7 +39,7 @@ Orchard runs discovery and canonical-corpus inspection as independent evidence-p
 
 ## Track 1
 
-[../.github/workflows/track-1-discovery.yml](../.github/workflows/track-1-discovery.yml) runs every Monday at 06:00 UTC and supports manual dispatch.
+[../.github/workflows/track-1-discovery.yml](../.github/workflows/track-1-discovery.yml) is manual dispatch only and carries no schedule. It validates reviewed source policy in dry-run; production discovery runs monthly on the 1st at 06:00 UTC as a container job, not as a GitHub workflow. Corrected 2026-08-14: this line previously claimed a weekly Monday schedule that the workflow does not have.
 
 - A scheduled run is always `full`.
 - A completed full run requires at least 50 distinct approved and enabled sources and at least 50 attempts.
@@ -43,6 +50,9 @@ Orchard runs discovery and canonical-corpus inspection as independent evidence-p
 - Fetches are HTTPS-only, bounded by time and bytes, and may redirect only to registry-approved hosts.
 - Hostnames must resolve only to public addresses, and the validated addresses are pinned into each TLS connection. Bodies are capped while streaming.
 - The workflow has `contents: read` permission and uploads evidence only for non-dry runs.
+- **Designed and not built:** request intake as the first step, before source
+  collection, reading open `content-request` issues into the same queue a
+  discovered candidate uses.
 
 Track completion means complete, reconciled attempt accounting. Individual
 source failures remain visible in coverage and evidence; they do not disappear
@@ -78,7 +88,7 @@ npm run digest:source-registry -- ../project42-platform/content/source-registry.
 
 ## Track 2
 
-[../.github/workflows/track-2-corpus-inspection.yml](../.github/workflows/track-2-corpus-inspection.yml) runs every Monday at 12:00 UTC and supports manual dispatch.
+[../.github/workflows/track-2-corpus-inspection.yml](../.github/workflows/track-2-corpus-inspection.yml) is manual dispatch only and carries no schedule. It validates an immutable corpus pin in dry-run; production inspection runs monthly on the 15th at 06:00 UTC as a container job, not as a GitHub workflow. Corrected 2026-08-14: this line previously claimed a weekly Monday schedule that the workflow does not have.
 
 - A scheduled run is always `full`.
 - A completed full run requires one valid evidence-bearing inspection for every canonical item and zero gaps.

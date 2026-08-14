@@ -12,6 +12,20 @@ already cover. Discovery proposes; a human decides; nothing is published.
 Nothing here is specific to any publisher. The watch list, the corpus, the probes
 and the surfaces are all supplied by you.
 
+## Another way an opportunity enters the list
+
+**Designed and not built.** Besides an automated discovery pass, a topic can
+be requested directly, through a GitHub issue form or an ordinary issue
+carrying the `content-request` label. Intake is meant to run as the first
+step of a scheduled discovery pass, before source collection: it reads open
+requests, deduplicates and classifies each against the corpus and the open
+candidates, and writes what survives into the same list a discovered
+candidate lands in, recording where it came from and who asked.
+
+A request never bypasses the approval this document describes. It is scored
+on the same scale, ranked in the same list, and reaches the owner through the
+same Gate 1 decision as anything discovery finds.
+
 ## The two commands
 
 ### 1. Run a discovery pass
