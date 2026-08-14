@@ -161,7 +161,7 @@ The current implementation separates evidence collection from mutation.
 8. The owner accepts the bound closure packet and completion notes before the
   tracker item may close.
 
-Weekly Track 1 and Track 2 runs are independent and always use full mode.
+Monthly Track 1 and Track 2 runs are independent and always use full mode.
 Manual runs support full, subset, and dry-run modes and default to dry-run.
 Run evidence never counts as either approval. See
 [`workflow-orchestration.md`](workflow-orchestration.md) for pins, permissions,

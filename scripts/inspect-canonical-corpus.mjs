@@ -11,7 +11,7 @@ usage: inspect-canonical-corpus.mjs --track track-2 --mode <full|subset|dry-run>
        --platform-root <path> --content-commit <40-char-sha>
        [--item-ids kind:id,kind:id] [--partition-size 50] [--concurrency 4]
     [--run-id <uuidv7>] [--started-at <iso-8601>]
-    [--implementation-commit SHA] [--trigger-type weekly|manual|replay]
+    [--implementation-commit SHA] [--trigger-type monthly|weekly|manual|replay]
     [--trigger-reference <text>] [--actor-kind scheduler|operator]
     [--actor-reference <text>]
     [--inspection-results <json-path>] [--state-db <path>] [--out <path>]
@@ -48,7 +48,11 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     const args = parseArgs(argv);
     if (args.track !== "track-2") throw new TypeError("--track must be track-2");
     if (!["full", "subset", "dry-run"].includes(args.mode)) throw new TypeError("--mode must be full, subset, or dry-run");
-    if (args["trigger-type"] && !["weekly", "manual", "replay"].includes(args["trigger-type"])) throw new TypeError("--trigger-type must be weekly, manual, or replay");
+    // Both schedules are monthly since 2026-08-13, so `monthly` is the correct
+    // label. `weekly` is still accepted because the deployed job passes it;
+    // remove it only after ORCHARD_TRIGGER_TYPE is changed on the live jobs,
+    // or the next scheduled run fails on its own trigger label.
+    if (args["trigger-type"] && !["monthly", "weekly", "manual", "replay"].includes(args["trigger-type"])) throw new TypeError("--trigger-type must be monthly, weekly, manual, or replay");
     if (args["actor-kind"] && !["scheduler", "operator"].includes(args["actor-kind"])) throw new TypeError("--actor-kind must be scheduler or operator");
     for (const name of ["platform-root", "content-commit"]) if (!args[name]) throw new TypeError(`--${name} is required`);
     verifyPinnedCommit(args["platform-root"], args["content-commit"]);

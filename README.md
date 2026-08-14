@@ -78,8 +78,9 @@ designed, in branch, connected, verified in production. **A capability is
    hand. It joins the same queue as a discovered candidate and passes through
    the same Gate 1 approval; nothing about it skips a gate.
 
-The weekly tracks are independent. Manual runs default to dry-run. Neither
-track treats generated evidence as approval or publication.
+The monthly tracks are independent, discovery on the 1st and currency on the
+15th. Manual runs default to dry-run. Neither track treats generated evidence
+as approval or publication.
 
 ## The model map
 
@@ -221,7 +222,7 @@ overrides a person**, because a recorded rejection remains authoritative.
 |---|---|
 | [docs/install.md](docs/install.md) | Connect Orchard to your own models. Start here. |
 | [docs/lifecycle.md](docs/lifecycle.md) | The whole content lifecycle, discovery through retirement. |
-| [docs/workflow-orchestration.md](docs/workflow-orchestration.md) | Independent weekly/manual tracks, configuration pins, and retired workflow audit. |
+| [docs/workflow-orchestration.md](docs/workflow-orchestration.md) | Independent monthly and manual tracks, configuration pins, and retired workflow audit. |
 | [docs/decisions.md](docs/decisions.md) | Why it works the way it does, and what failed first. |
 | [REPO-BOUNDARY.md](REPO-BOUNDARY.md) | What belongs here and what does not. |
 

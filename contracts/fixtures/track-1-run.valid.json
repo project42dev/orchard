@@ -4,8 +4,8 @@
     "replay_of": null,
     "track": "track-1",
     "trigger": {
-        "type": "weekly",
-        "reference": "track-1-weekly"
+        "type": "monthly",
+        "reference": "track-1-monthly"
     },
     "status": "completed",
     "configuration_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

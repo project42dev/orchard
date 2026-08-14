@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS verified_backup (
 CREATE TABLE IF NOT EXISTS workflow_run (
   run_id TEXT PRIMARY KEY,
   track TEXT NOT NULL CHECK (track IN ('track-1', 'track-2')),
-  trigger_type TEXT NOT NULL CHECK (trigger_type IN ('weekly', 'manual', 'replay')),
+  trigger_type TEXT NOT NULL CHECK (trigger_type IN ('monthly', 'weekly', 'manual', 'replay')),
   scope_mode TEXT NOT NULL CHECK (scope_mode IN ('full', 'subset', 'dry-run')),
   status TEXT NOT NULL CHECK (status IN ('created', 'running', 'incomplete', 'blocked', 'failed', 'completed')),
   replay_of TEXT REFERENCES workflow_run(run_id),

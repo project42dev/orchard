@@ -55,6 +55,7 @@
             "properties": {
                 "type": {
                     "enum": [
+                        "monthly",
                         "weekly",
                         "manual",
                         "replay"
