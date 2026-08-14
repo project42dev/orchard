@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "build:db": "node scripts/build-content-db.mjs",
-    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs && node scripts/test-gate2-review.mjs && node scripts/test-gate2-rework.mjs",
+    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs && node scripts/test-gate2-review.mjs && node scripts/test-gate2-rework.mjs && node scripts/test-verify-published-live.mjs",
     "test:gate1": "node scripts/test-gate1-review.mjs"
   },
   "dependencies": {
