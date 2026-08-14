@@ -1,5 +1,16 @@
 # Decisions behind Orchard
 
+> **What actually runs, verified 2026-08-13.**
+> The discovery engine performs discovery, scoring, database build, brief
+> generation, delivery, ingest, and ends by **opening a GitHub issue**. It has
+> a manual trigger and no schedule. The currency track runs monthly and
+> records findings.
+>
+> **No deployed job reads an approval comment.** Item-level gates, work-item
+> binding, the publication transaction and live verification are designed and
+> not built. Treat any lifecycle described below as **intended** behaviour
+> unless it is explicitly marked as running.
+
 The full architecture decision records live in a private planning repository, by
 deliberate decision: candid early analysis needs somewhere it can be candid, and
 public repositories receive a **sanitized summary of accepted decisions that

@@ -1,5 +1,16 @@
 # Connect Orchard to your own models
 
+> **What actually runs, verified 2026-08-13.**
+> The discovery engine performs discovery, scoring, database build, brief
+> generation, delivery, ingest, and ends by **opening a GitHub issue**. It has
+> a manual trigger and no schedule. The currency track runs monthly and
+> records findings.
+>
+> **No deployed job reads an approval comment.** Item-level gates, work-item
+> binding, the publication transaction and live verification are designed and
+> not built. Treat any lifecycle described below as **intended** behaviour
+> unless it is explicitly marked as running.
+
 Orchard needs one thing from you: **an OpenAI-compatible endpoint** and the model
 ids behind it. It does not care whose cloud that is, and it will never create
 anything in it.
