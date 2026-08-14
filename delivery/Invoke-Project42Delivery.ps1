@@ -258,9 +258,11 @@ function Get-DeliveryAccessToken {
         return 'synthetic-transport-no-credential'
     }
 
-    # GitHub Actions OIDC: token obtained by the workflow and passed in
+    # Local/dev OIDC path: token passed via environment variable.
+    # This is NOT the production path — production uses managed identity below.
+    # Retained for local development and emergency GHA fallback only.
     if (-not [string]::IsNullOrWhiteSpace($env:FOUNDRY_ACCESS_TOKEN)) {
-        Write-DeliveryLog INFO 'Authenticated via FOUNDRY_ACCESS_TOKEN (GitHub Actions OIDC).'
+        Write-DeliveryLog INFO 'Authenticated via FOUNDRY_ACCESS_TOKEN (local/dev OIDC path).'
         return $env:FOUNDRY_ACCESS_TOKEN
     }
 
