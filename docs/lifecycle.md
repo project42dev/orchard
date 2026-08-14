@@ -35,7 +35,7 @@ them is the main way a process like this rots:
 | Content database | what do we have, and what state is it in | content state, forever |
 | Work tracker | who did what work, and when was it done | the work, not the content |
 
-The database is the source of truth for **content**. The work tracker is the
+Version-controlled content files are canonical. The database is a **compiled index** of them and is authoritative only for **workflow state**, per ADR-0019 and ADR-0023. Corrected 2026-08-13: this line previously called the database the source of truth for content, contradicting the ADRs. The work tracker is the
 source of truth for **work**. A content item outlives any number of work items
 about it.
 
@@ -86,8 +86,8 @@ start:
 
 ### Known gaps against this mandate
 
-- **Nothing deployed reads the owner's approval comment.** Steps 7 through 14
-  are designed and not built, for both tracks.
+- **There is no approval BEFORE authoring.** The engine writes content in phase 5 and only opens an issue in phase 7, so every discovered item is authored at cost before the owner sees it. Steps 6 and 7 exist in no form.
+- **The approval that does exist is unbound.** `orchard-human-review.yml` acts on a bare `Approved` comment with no item, revision or digest binding and commits to the content platform. ADR-0025 rejects exactly this.
 - **Online search for the currency track is not designed.** It conflicts with
   the fail-closed approved-source rule and needs a decision.
 - **Batch approval is not designed.** Every decision command is per item and
@@ -206,7 +206,11 @@ flowchart TD
 
 </details>
 
-## The authoring ensemble: six roles, all built
+## The authoring ensemble: six roles designed, four running
+
+**Corrected 2026-08-13.** The heading previously said all six are built. Two are
+not in the deployed ensemble: **researcher** (AB#7047) and **finalizer**
+(AB#7048). The owner has asked three times for six roles.
 
 Every piece of content, whether written for the first time or corrected after a
 source changed, must pass through the same ordered ensemble. **The same ensemble
@@ -221,12 +225,12 @@ agree for reasons that have nothing to do with whether the content is right.
 
 | # | Role | Owns | State |
 |---|---|---|---|
-| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | Built |
+| 1 | **Researcher** | Gathers primary sources before anything is written, and hands the drafter evidence rather than a topic. | **Designed only. Not in the deployed ensemble** (AB#7047) |
 | 2 | **Drafter** | Writes the content from the brief and the researcher's evidence. | Built |
 | 3 | **Verifier** | Checks every claim against the supplied evidence. Different vendor family from the drafter, enforced. | Built |
 | 4 | **Adversary** | Attacks the draft rather than reviewing it. Looks for what is overstated, unsupported, or invented. | Built |
 | 5 | **Arbiter** | Breaks a tie when the verifier and adversary disagree. Never judges its own output. | Built |
-| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | Built |
+| 6 | **Finalizer** | Structure, formatting, citations rendered at the end, knowledge checks correct and answerable from the material, and the item placed correctly in its learning path. | **Designed only. Not in the deployed ensemble** (AB#7048) |
 
 ### Why the two bookend roles matter
 
