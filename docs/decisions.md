@@ -6,7 +6,7 @@
 > a manual trigger and no schedule. The currency track runs monthly and
 > records findings.
 >
-> **No deployed job reads an approval comment.** Item-level gates, work-item
+> **Approvals ARE read, by a mechanism the design forbids** (see below). Item-level gates, work-item
 > binding, the publication transaction and live verification are designed and
 > not built. Treat any lifecycle described below as **intended** behaviour
 > unless it is explicitly marked as running.

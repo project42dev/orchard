@@ -17,7 +17,7 @@ content database)
 > ends by **opening a GitHub issue**. It has trigger `Manual` and a null cron,
 > so nothing schedules it. The currency track runs monthly and records findings.
 >
-> **No deployed job reads an approval comment.** Item-level gates, ADO binding,
+> **Approvals ARE read, by a mechanism the design forbids** (see below). Item-level gates, ADO binding,
 > the publication transaction and live verification are designed and not built.
 >
 > Treat this page as the intended lifecycle. The record of what runs is
