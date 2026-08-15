@@ -145,6 +145,36 @@ test("decisions are contract-validated, immutable, replay-safe, and advance curr
     assert.throws(() => store.db.prepare("UPDATE decision_event SET decision = 'deny' WHERE event_id = ?").run(decision.event_id), /immutable/);
 });
 
+test("only a Gate 1 approval carries a queue work item, and a denial needs none", async (t) => {
+    // The queue work item ID is an Azure DevOps work item, and requiring one on
+    // every Gate 1 decision meant the owner could not record "no" without a
+    // work item first being created for work they were declining. A denial
+    // dispatches nothing, so it must carry nothing; an approval still binds.
+    const { store, item } = await storeFixture(t);
+    const approval = await gate1Authority(item);
+
+    await assert.rejects(
+        () => store.recordVerifiedDecision({ ...approval, queue_work_item_id: null }),
+        /Gate 1 approval requires the exact positive queue work item ID/,
+    );
+
+    const denial = await gate1Authority(item);
+    const body = `/orchard gate1 deny item=${item.item_id} revision=1 digest=${item.proposal_digest} reason="not a real gap"`;
+    denial.decision.decision = "deny";
+    denial.decision.reason = "not a real gap";
+    denial.decision.next_state = "denied";
+    denial.decision.source.comment_digest = sha256Digest(body);
+    denial.verified_event = { ...denial.verified_event, body };
+    denial.trust = { ...denial.trust, provider_event_digest: sha256Digest(denial.verified_event) };
+
+    await assert.rejects(
+        () => store.recordVerifiedDecision({ ...denial, queue_work_item_id: 77 }),
+        /only a Gate 1 approval may claim queue dispatch ownership/,
+    );
+    assert.deepEqual(await store.recordVerifiedDecision({ ...denial, queue_work_item_id: null }), denial.decision);
+    assert.equal(store.getItem(item.item_id).state, "denied");
+});
+
 test("dispatch binding is derived only from protected Gate 1 authority and exact persisted ADO evidence", async (t) => {
     const { store, item } = await storeFixture(t);
     const authority = await gate1Authority(item);

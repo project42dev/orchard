@@ -405,11 +405,18 @@ export class StateStore {
             throw new StateConflictError("verified decision revision or digest does not match its gate manifest");
         }
         const queueWorkItemId = authority.queue_work_item_id ?? null;
-        if (record.gate === "gate-1" && (!Number.isSafeInteger(queueWorkItemId) || queueWorkItemId < 1)) {
-            throw new StateConflictError("Gate 1 authority requires the exact positive queue work item ID");
+        // The queue work item ID binds an APPROVAL to the item it authorises
+        // for dispatch, which is why getDispatchBinding refuses to work without
+        // it. A denial, a deferral and a request for changes dispatch nothing,
+        // so requiring one made them impossible to record without first
+        // creating an Azure DevOps work item for work the owner has just said
+        // no to. Approval keeps the full binding; the negatives must carry none.
+        const authorisesDispatch = record.gate === "gate-1" && record.decision === "approve";
+        if (authorisesDispatch && (!Number.isSafeInteger(queueWorkItemId) || queueWorkItemId < 1)) {
+            throw new StateConflictError("Gate 1 approval requires the exact positive queue work item ID");
         }
-        if (record.gate === "gate-2" && queueWorkItemId !== null) {
-            throw new StateConflictError("Gate 2 authority cannot claim queue dispatch ownership");
+        if (!authorisesDispatch && queueWorkItemId !== null) {
+            throw new StateConflictError("only a Gate 1 approval may claim queue dispatch ownership");
         }
         const key = record.idempotency_key ?? `decision:${record.source.repository}:${record.source.comment_id}`;
         const json = canonicalJson(record);
