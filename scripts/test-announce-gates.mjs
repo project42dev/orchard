@@ -170,6 +170,9 @@ test('the body carries its marker and the normative decision grammar', async () 
   assert.ok(body.includes(manifest.items[0].item_id));
   assert.ok(body.includes(manifest.items[0].proposal_digest), 'a Gate 1 decision binds to the proposal digest');
   assert.ok(body.includes(`revision=${manifest.items[0].item_revision}`));
+  const embedded = /```json\n(.*)\n```/s.exec(body);
+  assert.ok(embedded, 'the issue must carry the exact manifest a capture can verify against');
+  assert.equal(sha256Digest(JSON.parse(embedded[1])), sha256Digest(manifest));
   store.close();
 });
 

@@ -27,6 +27,7 @@ import { ManagedIdentityCredential } from "@azure/identity";
 import { gateMarker, openOrUpdateGateIssue } from "./lib/github-issues.mjs";
 import { heldAtGate, heldSetDigest } from "./lib/gate-queue.mjs";
 import { generateGateManifests, renderGateIssueBody } from "./lib/gates.mjs";
+import { sha256Digest } from "./lib/identity.mjs";
 
 const GATES = Object.freeze({
     "gate-1": {
@@ -55,7 +56,7 @@ export function pendingForGate(db, gate, track = null) {
  * reader can copy but the engine will not parse is worse than no command.
  */
 export function renderGateIssue({ gate, track, items, marker, runId, manifest }) {
-    return [
+    const head = [
         marker,
         "",
         `## ${items.length} item${items.length === 1 ? "" : "s"} waiting`,
@@ -66,6 +67,35 @@ export function renderGateIssue({ gate, track, items, marker, runId, manifest })
         "",
         `Run \`${runId}\`, track \`${track}\`. Nothing proceeds until a decision is recorded, and no decision is inferred from silence.`,
     ].join("\n");
+
+    // The exact manifest, machine readable, folded away.
+    //
+    // A decision is captured by comparing the comment against the manifest the
+    // issue actually offered. Without the manifest ON the issue, that check can
+    // only compare the caller's copy against itself, and an issue whose
+    // rendered text has drifted from the manifest behind it would still accept
+    // decisions. The rendered tables above are for the human; this is what the
+    // capture reads.
+    const embedded = [
+        "",
+        "<details>",
+        `<summary>Manifest (machine readable, digest <code>${sha256Digest(manifest)}</code>)</summary>`,
+        "",
+        "```json",
+        JSON.stringify(manifest),
+        "```",
+        "",
+        "</details>",
+    ].join("\n");
+
+    // GitHub refuses a body over 65536 characters. A gate that cannot post
+    // because its manifest is long must still post: the human rendering is what
+    // makes the decision possible, and the omission is stated rather than
+    // silently dropped.
+    if (head.length + embedded.length > 60_000) {
+        return `${head}\n\n> The machine-readable manifest is omitted from this issue: it would exceed GitHub's body limit. Batch digest \`${manifest.batch_digest}\` still binds every decision below.`;
+    }
+    return head + embedded;
 }
 
 /**
