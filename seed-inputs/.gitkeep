@@ -1,0 +1,11 @@
+This directory is populated by Deploy-Orchard.ps1 immediately before the
+release image is built, and copied into the image as /app/seed-inputs.
+
+It holds the artifacts the seeding job writes into the private artifacts
+container: the approved source registry for Track 1, and the corpus archive
+and manifest for Track 2. Storage has no public network access and there is no
+bastion or VPN, so a job running inside the virtual network is the only way
+those files can be written. See scripts/seed-artifacts.mjs.
+
+Nothing here is source. The directory is committed empty so the image build
+always has a path to copy.

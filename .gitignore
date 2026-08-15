@@ -11,3 +11,9 @@ scores*.json
 # Operator-local runtime state. Never committed, in any repository.
 delivery/private/
 delivery/.orchard-issue-body.tmp
+
+# Seed inputs are staged into the image by the release, from the operator's own
+# corpus checkout and approved registry. The directory must exist so the image
+# build has something to copy; its contents are release output, never source.
+seed-inputs/*
+!seed-inputs/.gitkeep
