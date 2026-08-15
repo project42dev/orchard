@@ -1,0 +1,488 @@
+{
+  "schemaVersion": 1,
+  "description": "Approved source registry for Orchard discovery. Recovered from content.db on 2026-08-14, when the working copy of this file was found to be absent from disk and untracked. build-content-db.mjs reads this path and silently loads zero sources when it is missing.",
+  "recoveredOn": "2026-08-14T00:00:00Z",
+  "recoveredFrom": "content.db source table",
+  "sources": [
+    {
+      "id": "acrl-information-literacy",
+      "urlPrefix": "https://www.ala.org/acrl/standards/",
+      "publisher": "Association of College and Research Libraries",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "aider-docs",
+      "urlPrefix": "https://aider.chat/docs/",
+      "publisher": "Aider",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "anthropic-code-docs",
+      "urlPrefix": "https://code.claude.com/docs/",
+      "publisher": "Anthropic",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-anthropic"
+    },
+    {
+      "id": "anthropic-docs",
+      "urlPrefix": "https://docs.anthropic.com/",
+      "publisher": "Anthropic",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-anthropic"
+    },
+    {
+      "id": "anthropic-engineering",
+      "urlPrefix": "https://www.anthropic.com/engineering/",
+      "publisher": "Anthropic",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "provider-anthropic"
+    },
+    {
+      "id": "anthropic-help",
+      "urlPrefix": "https://support.claude.com/",
+      "publisher": "Anthropic",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-anthropic"
+    },
+    {
+      "id": "anthropic-platform-docs",
+      "urlPrefix": "https://platform.claude.com/docs/",
+      "publisher": "Anthropic",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-anthropic"
+    },
+    {
+      "id": "anthropic-research",
+      "urlPrefix": "https://www.anthropic.com/research/",
+      "publisher": "Anthropic",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "provider-anthropic"
+    },
+    {
+      "id": "cline-docs",
+      "urlPrefix": "https://docs.cline.bot/",
+      "publisher": "Cline",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "cloudflare-developer-docs",
+      "urlPrefix": "https://developers.cloudflare.com/",
+      "publisher": "Cloudflare",
+      "trustTier": "primary",
+      "reviewCadenceDays": 45,
+      "owner": "curriculum"
+    },
+    {
+      "id": "continue-docs",
+      "urlPrefix": "https://docs.continue.dev/",
+      "publisher": "Continue",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "cursor-docs",
+      "urlPrefix": "https://docs.cursor.com/",
+      "publisher": "Cursor",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "deepseek-api-docs",
+      "urlPrefix": "https://api-docs.deepseek.com/",
+      "publisher": "DeepSeek",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-deepseek"
+    },
+    {
+      "id": "devin-docs",
+      "urlPrefix": "https://docs.devin.ai/",
+      "publisher": "Cognition",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "docker-documentation",
+      "urlPrefix": "https://docs.docker.com/",
+      "publisher": "Docker",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "curriculum"
+    },
+    {
+      "id": "git-documentation",
+      "urlPrefix": "https://git-scm.com/",
+      "publisher": "Git",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "github-docs",
+      "urlPrefix": "https://docs.github.com/",
+      "publisher": "GitHub",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "google-adk-current-docs",
+      "urlPrefix": "https://adk.dev/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-google"
+    },
+    {
+      "id": "google-adk-docs",
+      "urlPrefix": "https://google.github.io/adk-docs/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-google"
+    },
+    {
+      "id": "google-ai-developer-docs",
+      "urlPrefix": "https://ai.google.dev/gemini-api/docs/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-google"
+    },
+    {
+      "id": "google-gemini-cli-docs",
+      "urlPrefix": "https://geminicli.com/docs/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-google"
+    },
+    {
+      "id": "google-gemini-help",
+      "urlPrefix": "https://support.google.com/gemini/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-google"
+    },
+    {
+      "id": "google-machine-learning-docs",
+      "urlPrefix": "https://developers.google.com/machine-learning/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "provider-google"
+    },
+    {
+      "id": "google-responsible-ai",
+      "urlPrefix": "https://ai.google.dev/responsible",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "provider-google"
+    },
+    {
+      "id": "hugging-face-docs",
+      "urlPrefix": "https://huggingface.co/docs/",
+      "publisher": "Hugging Face",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "curriculum"
+    },
+    {
+      "id": "jules-docs",
+      "urlPrefix": "https://jules.google/docs/",
+      "publisher": "Google",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "kilo-docs",
+      "urlPrefix": "https://kilo.ai/docs",
+      "publisher": "Kilo Code",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "kimi-platform-docs",
+      "urlPrefix": "https://platform.kimi.ai/docs/",
+      "publisher": "Moonshot AI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-kimi"
+    },
+    {
+      "id": "kserve-documentation",
+      "urlPrefix": "https://kserve.github.io/website/docs/",
+      "publisher": "KServe",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "curriculum"
+    },
+    {
+      "id": "kubernetes-documentation",
+      "urlPrefix": "https://kubernetes.io/docs/",
+      "publisher": "Kubernetes",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "curriculum"
+    },
+    {
+      "id": "mcp-official-docs",
+      "urlPrefix": "https://modelcontextprotocol.io/",
+      "publisher": "Model Context Protocol",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "curriculum"
+    },
+    {
+      "id": "microsoft-learn",
+      "urlPrefix": "https://learn.microsoft.com/",
+      "publisher": "Microsoft",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "mlcommons-benchmarks",
+      "urlPrefix": "https://mlcommons.org/benchmarks/",
+      "publisher": "MLCommons",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "nist-ai-rmf",
+      "urlPrefix": "https://www.nist.gov/itl/ai-risk-management-framework",
+      "publisher": "NIST",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "nist-csrc",
+      "urlPrefix": "https://csrc.nist.gov/",
+      "publisher": "NIST",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "nist-cybersecurity-framework",
+      "urlPrefix": "https://www.nist.gov/cyberframework",
+      "publisher": "NIST",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "nist-genai-profile",
+      "urlPrefix": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+      "publisher": "NIST",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "nist-incident-response",
+      "urlPrefix": "https://www.nist.gov/publications/incident-response-recommendations-and-considerations-cybersecurity-risk-management-csf",
+      "publisher": "NIST",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "onnx-runtime-documentation",
+      "urlPrefix": "https://onnxruntime.ai/docs/",
+      "publisher": "ONNX Runtime",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "curriculum"
+    },
+    {
+      "id": "openai-agents-sdk-docs",
+      "urlPrefix": "https://openai.github.io/openai-agents-js/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openai-business-guides",
+      "urlPrefix": "https://openai.com/business/guides-and-resources/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openai-chatgpt-learn-docs",
+      "urlPrefix": "https://learn.chatgpt.com/docs/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openai-developer-docs",
+      "urlPrefix": "https://developers.openai.com/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openai-help",
+      "urlPrefix": "https://help.openai.com/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openai-platform-docs",
+      "urlPrefix": "https://platform.openai.com/docs/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openai-product",
+      "urlPrefix": "https://openai.com/",
+      "publisher": "OpenAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-openai"
+    },
+    {
+      "id": "openclaw-docs",
+      "urlPrefix": "https://docs.openclaw.ai/",
+      "publisher": "OpenClaw",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "opencode-docs",
+      "urlPrefix": "https://opencode.ai/docs",
+      "publisher": "OpenCode",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "opentelemetry-docs",
+      "urlPrefix": "https://opentelemetry.io/",
+      "publisher": "OpenTelemetry",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "osi-open-source-ai",
+      "urlPrefix": "https://opensource.org/ai/",
+      "publisher": "Open Source Initiative",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "owasp-api-security",
+      "urlPrefix": "https://owasp.org/API-Security/",
+      "publisher": "OWASP",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "prometheus-documentation",
+      "urlPrefix": "https://prometheus.io/docs/",
+      "publisher": "Prometheus",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "pytorch-documentation",
+      "urlPrefix": "https://docs.pytorch.org/docs/",
+      "publisher": "PyTorch",
+      "trustTier": "primary",
+      "reviewCadenceDays": 60,
+      "owner": "curriculum"
+    },
+    {
+      "id": "roo-code-docs",
+      "urlPrefix": "https://roocodeinc.github.io/Roo-Code/",
+      "publisher": "Roo Code",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "slsa-specification",
+      "urlPrefix": "https://slsa.dev/spec/",
+      "publisher": "SLSA",
+      "trustTier": "primary",
+      "reviewCadenceDays": 90,
+      "owner": "curriculum"
+    },
+    {
+      "id": "spdx-specification",
+      "urlPrefix": "https://spdx.github.io/spdx-spec/",
+      "publisher": "SPDX",
+      "trustTier": "primary",
+      "reviewCadenceDays": 180,
+      "owner": "curriculum"
+    },
+    {
+      "id": "vllm-documentation",
+      "urlPrefix": "https://docs.vllm.ai/",
+      "publisher": "vLLM",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "curriculum"
+    },
+    {
+      "id": "w3c-provenance",
+      "urlPrefix": "https://www.w3.org/TR/prov-",
+      "publisher": "W3C",
+      "trustTier": "primary",
+      "reviewCadenceDays": 365,
+      "owner": "curriculum"
+    },
+    {
+      "id": "windsurf-docs",
+      "urlPrefix": "https://docs.windsurf.com/",
+      "publisher": "Windsurf",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "tooling"
+    },
+    {
+      "id": "xai-docs",
+      "urlPrefix": "https://docs.x.ai/",
+      "publisher": "xAI",
+      "trustTier": "primary",
+      "reviewCadenceDays": 30,
+      "owner": "provider-xai"
+    }
+  ]
+}
