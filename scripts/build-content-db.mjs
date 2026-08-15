@@ -89,25 +89,64 @@ export function resolveSourceId(url, sources) {
   return best ? best.id : null;
 }
 
-export function loadSources(registryPath) {
-  if (!registryPath || !existsSync(registryPath)) return [];
-  const doc = readJson(registryPath);
+// A missing registry used to produce an empty array, a zero exit and a build
+// that reported success. That is the worst failure mode this project has: the
+// operator sees "sources 0" in a wall of output, reads it as a small number
+// rather than as an absence, and ships a database that dropped every source.
+// A registry that cannot be read is now a hard stop. A build that genuinely has
+// no registry has to say so with --allow-missing-registries, because deciding
+// to index nothing is a decision and decisions get stated.
+function openRegistry(registryPath, what, allowMissing) {
+  if (!registryPath) throw new Error(`${what} path is required`);
+  if (existsSync(registryPath)) return readJson(registryPath);
+  if (allowMissing) {
+    console.error(`WARNING: ${what} absent at ${registryPath}, building without it as instructed.`);
+    return null;
+  }
+  throw new Error(
+    `${what} not found at ${registryPath}. Refusing to build, because an absent `
+    + 'registry writes an empty table and still exits 0. Restore the file, or pass '
+    + '--allow-missing-registries to build without it deliberately.',
+  );
+}
+
+// Rows that cannot be indexed are reported by id rather than dropped in
+// silence, for the same reason: a shrinking count nobody is watching is not a
+// signal.
+function reportDropped(dropped, what) {
+  if (!dropped.length) return;
+  console.error(`WARNING: ${dropped.length} ${what} entr(ies) skipped for missing required fields: ${dropped.join(', ')}`);
+}
+
+export function loadSources(registryPath, { allowMissing = false } = {}) {
+  const doc = openRegistry(registryPath, 'source registry', allowMissing);
+  if (doc === null) return [];
   const entries = Array.isArray(doc) ? doc : (doc.sources ?? []);
-  return entries.map((e) => ({
+  if (!Array.isArray(entries)) throw new Error(`source registry at ${registryPath} has no sources array`);
+  const dropped = [];
+  const rows = entries.map((e) => ({
     id: e.id,
     urlPrefix: e.urlPrefix,
     publisher: e.publisher ?? null,
     trustTier: e.trustTier ?? null,
     reviewCadenceDays: e.reviewCadenceDays ?? null,
     owner: e.owner ?? null,
-  })).filter((e) => e.id && e.urlPrefix);
+  })).filter((e) => {
+    if (e.id && e.urlPrefix) return true;
+    dropped.push(e.id ?? '<no id>');
+    return false;
+  });
+  reportDropped(dropped, 'source');
+  return rows;
 }
 
-export function loadCandidates(registryPath) {
-  if (!registryPath || !existsSync(registryPath)) return [];
-  const doc = readJson(registryPath);
+export function loadCandidates(registryPath, { allowMissing = false } = {}) {
+  const doc = openRegistry(registryPath, 'opportunity registry', allowMissing);
+  if (doc === null) return [];
   const rows = doc.opportunities ?? doc.candidates ?? doc.entries ?? [];
-  return rows.map((c) => ({
+  if (!Array.isArray(rows)) throw new Error(`opportunity registry at ${registryPath} has no opportunities array`);
+  const dropped = [];
+  const parsed = rows.map((c) => ({
     id: c.id,
     topicId: c.topicId ?? c.probeId ?? null,
     topicTitle: c.title ?? null,
@@ -118,7 +157,13 @@ export function loadCandidates(registryPath) {
       ?? c.supply?.occurrences ?? null,
     demandSources: c.marketMeasurement?.sourceCount
       ?? c.demand?.sourceCount ?? null,
-  })).filter((c) => c.id);
+  })).filter((c) => {
+    if (c.id) return true;
+    dropped.push(c.topicTitle ?? '<no id>');
+    return false;
+  });
+  reportDropped(dropped, 'candidate');
+  return parsed;
 }
 
 function readItem(path, surface, contentRoot) {
@@ -195,19 +240,24 @@ function loadVisualGuideItems(contentRoot) {
       });
     }
   } catch (error) {
-    // Silent failure - visual guides are optional if the platform package isn't available
+    // Visual guides are optional: the platform package may not be installed.
+    // Optional is not the same as invisible, so say which one happened rather
+    // than swallowing a real read or parse error along with the expected one.
+    console.error(`WARNING: visual guides not indexed (${error.message}). This is expected only when the platform package is absent.`);
   }
 
   return items;
 }
 
-export function buildContentDb({ contentRoot, dbPath, surfaces = DEFAULT_SURFACES, now = new Date().toISOString() }) {
+export function buildContentDb({ contentRoot, dbPath, surfaces = DEFAULT_SURFACES, now = new Date().toISOString(), allowMissingRegistries = false }) {
+  // Read both registries BEFORE touching the database, so a missing input
+  // fails without having created or altered anything.
+  const sources = loadSources(join(contentRoot, 'source-registry.json'), { allowMissing: allowMissingRegistries });
+  const candidates = loadCandidates(join(contentRoot, 'opportunity-registry.json'), { allowMissing: allowMissingRegistries });
+
   mkdirSync(dirname(resolve(dbPath)), { recursive: true });
   const db = new DatabaseSync(dbPath);
   db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
-
-  const sources = loadSources(join(contentRoot, 'source-registry.json'));
-  const candidates = loadCandidates(join(contentRoot, 'opportunity-registry.json'));
 
   const insertSource = db.prepare(
     'INSERT INTO source (id, url_prefix, publisher, trust_tier, review_cadence_days, owner) VALUES (?, ?, ?, ?, ?, ?)',
@@ -382,11 +432,15 @@ function main() {
   const contentRoot = args.content;
   const dbPath = args.db;
   if (!contentRoot || !dbPath) {
-    console.error('usage: build-content-db.mjs --content <content-root> --db <output.db>');
+    console.error('usage: build-content-db.mjs --content <content-root> --db <output.db> [--allow-missing-registries]');
     process.exit(2);
   }
 
-  const r = buildContentDb({ contentRoot: resolve(contentRoot), dbPath: resolve(dbPath) });
+  const r = buildContentDb({
+    contentRoot: resolve(contentRoot),
+    dbPath: resolve(dbPath),
+    allowMissingRegistries: args['allow-missing-registries'] === true,
+  });
 
   console.log(`content root: ${resolve(contentRoot)}`);
   console.log(`database:     ${resolve(dbPath)}`);
