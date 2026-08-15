@@ -1,0 +1,535 @@
+{
+  "schemaVersion": "1.0",
+  "registryVersion": "0.0.0",
+  "lastReviewed": "2026-08-14",
+  "purpose": "An empty opportunity registry to start from. Copy this somewhere outside the repository, point --registry at your copy, and let discovery fill it. It is content data rather than planning material: version it beside the content it governs, because a list the builder cannot see cannot drive a build.",
+  "usageRules": [
+    "Discovery inputs only. Never copy course outlines, lesson sequences, exercises, assessment items, artwork, branding, or proprietary teaching structure from any watched service.",
+    "Every delivered item needs original instruction, primary-source evidence, accessibility assets, and a named freshness owner.",
+    "A watch-list entry is evidence of market demand and topic vocabulary. It is never a content source.",
+    "A rejected entry stays rejected. No later run may propose it again."
+  ],
+  "coverageBaseline": {
+    "measuredOn": "1970-01-01",
+    "note": "Replace with your own measurement. Until discovery runs, nothing here has been measured."
+  },
+  "watchList": [
+    {
+      "id": "ms-learn-ai",
+      "label": "Microsoft Learn — AI and machine learning catalog",
+      "url": "https://learn.microsoft.com/en-us/training/browse/?products=ai-services",
+      "kind": "catalog"
+    },
+    {
+      "id": "ms-learn-data-ai",
+      "label": "Microsoft Learn — Data and AI engineer path",
+      "url": "https://learn.microsoft.com/en-us/training/browse/?roles=data-engineer&roles=ai-engineer",
+      "kind": "catalog"
+    },
+    {
+      "id": "github-skills",
+      "label": "GitHub Skills — Copilot paths",
+      "url": "https://skills.github.com/",
+      "kind": "catalog"
+    },
+    {
+      "id": "google-cloud-skills-boost",
+      "label": "Google Cloud Skills Boost",
+      "url": "https://www.cloudskillsboost.google/",
+      "kind": "catalog"
+    },
+    {
+      "id": "google-ai-essentials",
+      "label": "Google AI Essentials",
+      "url": "https://grow.google/ai-essentials/",
+      "kind": "catalog"
+    },
+    {
+      "id": "aws-skill-builder",
+      "label": "AWS Skill Builder — AI/ML",
+      "url": "https://explore.skillbuilder.aws/learn/catalog?ctldoc-catalog-0=se-%22AI%20and%20ML%22",
+      "kind": "catalog"
+    },
+    {
+      "id": "aws-mlu",
+      "label": "AWS Machine Learning University",
+      "url": "https://aws.amazon.com/machine-learning/mlu/",
+      "kind": "catalog"
+    },
+    {
+      "id": "nvidia-dli",
+      "label": "NVIDIA Deep Learning Institute",
+      "url": "https://www.nvidia.com/en-us/learn/",
+      "kind": "catalog"
+    },
+    {
+      "id": "ibm-skillsbuild",
+      "label": "IBM SkillsBuild — AI",
+      "url": "https://skillsbuild.org/",
+      "kind": "catalog"
+    },
+    {
+      "id": "ibm-cognitive-class",
+      "label": "IBM Cognitive Class — AI",
+      "url": "https://cognitiveclass.ai/",
+      "kind": "catalog"
+    },
+    {
+      "id": "oracle-university-ai",
+      "label": "Oracle University — AI courses",
+      "url": "https://education.oracle.com/",
+      "kind": "catalog"
+    },
+    {
+      "id": "databricks-academy",
+      "label": "Databricks Academy",
+      "url": "https://www.databricks.com/learn/training",
+      "kind": "catalog"
+    },
+    {
+      "id": "snowflake-learning",
+      "label": "Snowflake Learning — AI/ML",
+      "url": "https://www.snowflake.com/learn/",
+      "kind": "catalog"
+    },
+    {
+      "id": "red-hat-ai",
+      "label": "Red Hat AI Developer Program",
+      "url": "https://developers.redhat.com/ai",
+      "kind": "catalog"
+    },
+    {
+      "id": "intel-ai-developer",
+      "label": "Intel AI Developer Program",
+      "url": "https://www.intel.com/content/www/us/en/developer/topic-technology/artificial-intelligence/overview.html",
+      "kind": "catalog"
+    },
+    {
+      "id": "anthropic-learn",
+      "label": "Anthropic — Learn",
+      "url": "https://www.anthropic.com/learn",
+      "kind": "catalog"
+    },
+    {
+      "id": "openai-academy",
+      "label": "OpenAI Academy",
+      "url": "https://academy.openai.com/",
+      "kind": "catalog"
+    },
+    {
+      "id": "meta-llama-docs",
+      "label": "Meta Llama documentation",
+      "url": "https://www.llama.com/docs/",
+      "kind": "catalog"
+    },
+    {
+      "id": "coursera-ai",
+      "label": "Coursera — AI courses",
+      "url": "https://www.coursera.org/browse/data-science/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "coursera-ml",
+      "label": "Coursera — Machine Learning courses",
+      "url": "https://www.coursera.org/browse/data-science/machine-learning",
+      "kind": "catalog"
+    },
+    {
+      "id": "edx-ai",
+      "label": "edX — AI and ML courses",
+      "url": "https://www.edx.org/learn/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "udacity-ai",
+      "label": "Udacity — AI nanodegrees",
+      "url": "https://www.udacity.com/catalog/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "udemy-ai",
+      "label": "Udemy — AI courses",
+      "url": "https://www.udemy.com/topic/artificial-intelligence/",
+      "kind": "catalog"
+    },
+    {
+      "id": "pluralsight-ai",
+      "label": "Pluralsight — AI path",
+      "url": "https://www.pluralsight.com/paths/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "linkedin-learning-ai",
+      "label": "LinkedIn Learning — AI",
+      "url": "https://www.linkedin.com/learning/topics/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "datacamp-ai",
+      "label": "DataCamp — AI and ML",
+      "url": "https://www.datacamp.com/category/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "codecademy-ai",
+      "label": "Codecademy — AI courses",
+      "url": "https://www.codecademy.com/catalog/subject/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "educative-ai",
+      "label": "Educative — AI and ML",
+      "url": "https://www.educative.io/courses?category=artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "brilliant-ai",
+      "label": "Brilliant — AI and neural networks",
+      "url": "https://brilliant.org/courses/artificial-neural-networks/",
+      "kind": "catalog"
+    },
+    {
+      "id": "khan-academy-ai",
+      "label": "Khan Academy — AI courses",
+      "url": "https://www.khanacademy.org/computing/ai",
+      "kind": "catalog"
+    },
+    {
+      "id": "great-learning-ai",
+      "label": "Great Learning — AI courses",
+      "url": "https://www.mygreatlearning.com/artificial-intelligence/courses",
+      "kind": "catalog"
+    },
+    {
+      "id": "simplilearn-ai",
+      "label": "Simplilearn — AI and ML",
+      "url": "https://www.simplilearn.com/artificial-intelligence-and-machine-learning",
+      "kind": "catalog"
+    },
+    {
+      "id": "skillshare-ai",
+      "label": "Skillshare — AI courses",
+      "url": "https://www.skillshare.com/en/browse/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "oreilly-ai",
+      "label": "O'Reilly Learning — AI",
+      "url": "https://www.oreilly.com/online-learning/topics/artificial-intelligence.html",
+      "kind": "catalog"
+    },
+    {
+      "id": "cloud-guru-ai",
+      "label": "A Cloud Guru / Pluralsight — AI",
+      "url": "https://www.pluralsight.com/cloud-guru",
+      "kind": "catalog"
+    },
+    {
+      "id": "cloudacademy-ai",
+      "label": "CloudAcademy — AI and ML",
+      "url": "https://cloudacademy.com/library/ai/",
+      "kind": "catalog"
+    },
+    {
+      "id": "mit-xpro-ai",
+      "label": "MIT xPRO — AI",
+      "url": "https://xpro.mit.edu/programs/",
+      "kind": "catalog"
+    },
+    {
+      "id": "stanford-online-ai",
+      "label": "Stanford Online — AI courses",
+      "url": "https://online.stanford.edu/artificial-intelligence",
+      "kind": "catalog"
+    },
+    {
+      "id": "fast-ai",
+      "label": "fast.ai — Practical Deep Learning",
+      "url": "https://www.fast.ai/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "huggingface-learn",
+      "label": "Hugging Face Learn",
+      "url": "https://huggingface.co/learn",
+      "kind": "practitioner"
+    },
+    {
+      "id": "kaggle-learn",
+      "label": "Kaggle Learn — AI and ML",
+      "url": "https://www.kaggle.com/learn",
+      "kind": "practitioner"
+    },
+    {
+      "id": "papers-with-code",
+      "label": "Papers with Code",
+      "url": "https://paperswithcode.com/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "wandb-courses",
+      "label": "Weights & Biases courses",
+      "url": "https://www.wandb.courses/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "langchain-academy",
+      "label": "LangChain Academy",
+      "url": "https://academy.langchain.com/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "llamaindex-docs",
+      "label": "LlamaIndex documentation",
+      "url": "https://docs.llamaindex.ai/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "crewai-docs",
+      "label": "CrewAI documentation",
+      "url": "https://docs.crewai.com/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "autogen-docs",
+      "label": "AutoGen (Microsoft) documentation",
+      "url": "https://microsoft.github.io/autogen/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "dspy-docs",
+      "label": "DSPy documentation",
+      "url": "https://dspy.ai/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "haystack-docs",
+      "label": "Haystack documentation",
+      "url": "https://docs.haystack.deepset.ai/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "semantic-kernel-docs",
+      "label": "Semantic Kernel documentation",
+      "url": "https://learn.microsoft.com/en-us/semantic-kernel/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "ollama-docs",
+      "label": "Ollama documentation",
+      "url": "https://ollama.com/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "vllm-docs",
+      "label": "vLLM documentation",
+      "url": "https://docs.vllm.ai/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "roboflow-learn",
+      "label": "Roboflow Learn — computer vision",
+      "url": "https://roboflow.com/learn",
+      "kind": "practitioner"
+    },
+    {
+      "id": "madewithml",
+      "label": "Made With ML — MLOps",
+      "url": "https://madewithml.com/",
+      "kind": "practitioner"
+    },
+    {
+      "id": "mlops-zoomcamp",
+      "label": "MLOps Zoomcamp — DataTalks.Club",
+      "url": "https://github.com/DataTalksClub/mlops-zoomcamp",
+      "kind": "practitioner"
+    },
+    {
+      "id": "llm-zoomcamp",
+      "label": "LLM Zoomcamp — DataTalks.Club",
+      "url": "https://github.com/DataTalksClub/llm-zoomcamp",
+      "kind": "practitioner"
+    },
+    {
+      "id": "d2l-ai",
+      "label": "Dive into Deep Learning (d2l.ai)",
+      "url": "https://d2l.ai/",
+      "kind": "book"
+    },
+    {
+      "id": "statlearning",
+      "label": "Introduction to Statistical Learning",
+      "url": "https://www.statlearning.com/",
+      "kind": "book"
+    },
+    {
+      "id": "udlbook",
+      "label": "Understanding Deep Learning (Prince)",
+      "url": "https://udlbook.github.io/udlbook/",
+      "kind": "book"
+    },
+    {
+      "id": "sutton-barto-rl",
+      "label": "Sutton & Barto — Reinforcement Learning",
+      "url": "https://incompleteideas.net/book/the-book-2nd.html",
+      "kind": "book"
+    },
+    {
+      "id": "mml-book",
+      "label": "Mathematics for Machine Learning",
+      "url": "https://mml-book.github.io/",
+      "kind": "book"
+    },
+    {
+      "id": "deeplearningbook",
+      "label": "Deep Learning Book (Goodfellow)",
+      "url": "https://www.deeplearningbook.org/",
+      "kind": "book"
+    },
+    {
+      "id": "karpathy-zero-to-hero",
+      "label": "Andrej Karpathy — Zero to Hero",
+      "url": "https://karpathy.ai/zero-to-hero.html",
+      "kind": "explainer"
+    },
+    {
+      "id": "distill-pub",
+      "label": "Distill.pub — ML research explained",
+      "url": "https://distill.pub/",
+      "kind": "explainer"
+    },
+    {
+      "id": "jalammar",
+      "label": "Jay Alammar — Illustrated ML",
+      "url": "https://jalammar.github.io/",
+      "kind": "explainer"
+    },
+    {
+      "id": "lilian-weng",
+      "label": "Lil'Log — ML and LLM deep dives",
+      "url": "https://lilianweng.github.io/",
+      "kind": "explainer"
+    },
+    {
+      "id": "transformer-circuits",
+      "label": "Transformer Circuits — interpretability",
+      "url": "https://transformer-circuits.pub/",
+      "kind": "explainer"
+    },
+    {
+      "id": "3blue1brown-nn",
+      "label": "3Blue1Brown — Neural Networks",
+      "url": "https://www.3blue1brown.com/topics/neural-networks",
+      "kind": "explainer"
+    },
+    {
+      "id": "statquest",
+      "label": "StatQuest — ML and statistics",
+      "url": "https://statquest.org/",
+      "kind": "explainer"
+    },
+    {
+      "id": "ai-safety-fundamentals",
+      "label": "AI Safety Fundamentals — BlueDot Impact",
+      "url": "https://aisafetyfundamentals.com/",
+      "kind": "safety"
+    },
+    {
+      "id": "alignment-forum",
+      "label": "Alignment Forum",
+      "url": "https://www.alignmentforum.org/",
+      "kind": "safety"
+    },
+    {
+      "id": "stanford-hai",
+      "label": "Stanford HAI",
+      "url": "https://hai.stanford.edu/",
+      "kind": "safety"
+    },
+    {
+      "id": "eu-ai-act",
+      "label": "EU AI Act portal",
+      "url": "https://artificialintelligenceact.eu/",
+      "kind": "safety"
+    },
+    {
+      "id": "fastai-data-ethics",
+      "label": "fast.ai — Data Ethics course",
+      "url": "https://ethics.fast.ai/",
+      "kind": "safety"
+    },
+    {
+      "id": "ms-ai-900",
+      "label": "Microsoft AI-900 certification",
+      "url": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/",
+      "kind": "certification"
+    },
+    {
+      "id": "ms-ai-102",
+      "label": "Microsoft AI-102 certification",
+      "url": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-engineer/",
+      "kind": "certification"
+    },
+    {
+      "id": "aws-ml-specialty",
+      "label": "AWS ML Specialty certification",
+      "url": "https://aws.amazon.com/certification/certified-machine-learning-specialty/",
+      "kind": "certification"
+    },
+    {
+      "id": "google-professional-ml",
+      "label": "Google Professional ML Engineer certification",
+      "url": "https://cloud.google.com/learn/certification/machine-learning-engineer",
+      "kind": "certification"
+    },
+    {
+      "id": "nvidia-genai-cert",
+      "label": "NVIDIA Certified Associate — GenAI LLMs",
+      "url": "https://www.nvidia.com/en-us/learn/certification/generative-ai-llm-associate/",
+      "kind": "certification"
+    },
+    {
+      "id": "databricks-genai-cert",
+      "label": "Databricks GenAI Engineer Associate",
+      "url": "https://www.databricks.com/learn/training/certification",
+      "kind": "certification"
+    },
+    {
+      "id": "ibm-ai-engineering-cert",
+      "label": "IBM AI Engineering Professional Certificate",
+      "url": "https://www.coursera.org/professional-certificates/ai-engineer",
+      "kind": "certification"
+    },
+    {
+      "id": "kaggle-competitions",
+      "label": "Kaggle — competitions and community",
+      "url": "https://www.kaggle.com/competitions",
+      "kind": "community"
+    },
+    {
+      "id": "huggingface-spaces",
+      "label": "Hugging Face Spaces",
+      "url": "https://huggingface.co/spaces",
+      "kind": "community"
+    },
+    {
+      "id": "drivendata",
+      "label": "DrivenData — data science competitions",
+      "url": "https://www.drivendata.org/",
+      "kind": "community"
+    },
+    {
+      "id": "zindi",
+      "label": "Zindi — Africa AI community",
+      "url": "https://zindi.africa/",
+      "kind": "community"
+    },
+    {
+      "id": "aicrowd",
+      "label": "AIcrowd — AI challenges",
+      "url": "https://www.aicrowd.com/",
+      "kind": "community"
+    }
+  ],
+  "opportunities": []
+}
