@@ -52,10 +52,28 @@ async function call(path, { token, method = "GET", body, fetchImpl = fetch }) {
     });
     const text = await response.text();
     if (!response.ok) {
-        // The status is the useful part and the body can echo the token back
-        // in an error message, so only the status and path travel onward.
-        const error = new Error(`GitHub ${method} ${path} returned ${response.status}`);
+        // GitHub's own message travels onward, because the status alone is
+        // ambiguous in the one way that matters: a 403 is "you may not" AND
+        // "you have used your 5000 requests", and the two are indistinguishable
+        // until you read the body. That ambiguity cost a wrong diagnosis on
+        // 2026-08-15, reported to the owner as a permission problem when it was
+        // a rate limit.
+        //
+        // Only the `message` field is taken, never the whole body, and anything
+        // that looks like a credential is removed from it before it is logged.
+        let reason = "";
+        try {
+            const parsed = JSON.parse(text);
+            reason = typeof parsed?.message === "string" ? parsed.message : "";
+        } catch { /* a non-JSON error body tells us nothing worth risking */ }
+        reason = reason.replace(/\b(gh[pousr]_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{20,}|[A-Fa-f0-9]{40})\b/g, "[REDACTED]");
+        const error = new Error(`GitHub ${method} ${path} returned ${response.status}${reason ? `: ${reason}` : ""}`);
         error.status = response.status;
+        error.reason = reason;
+        // A rate limit is a wait, not a fault, and a caller that cannot tell
+        // them apart will either retry forever or give up on a working token.
+        error.rateLimited = response.status === 403 && /rate limit/i.test(reason);
+        error.resetAt = response.headers?.get?.("x-ratelimit-reset") ?? null;
         throw error;
     }
     return text ? JSON.parse(text) : null;

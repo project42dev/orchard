@@ -47,6 +47,23 @@ export function pendingForGate(db, gate, track = null) {
 }
 
 /**
+ * The run id the manifest is built against.
+ *
+ * It must be a UUIDv7, because the gate manifest contract says so and the
+ * capture path binds a decision to it. The runtime's own execution name is
+ * `caj-orch-t1-man-prod-eus-01-tpjwgnh`, which is not a UUID at all, and
+ * passing it produced a manifest that failed validation and an announcement
+ * that logged a contract error while thirteen items sat held and unmentioned.
+ *
+ * The right value is the run that most recently touched this track, which is
+ * the run whose work is being announced.
+ */
+export function manifestRunId(db, track, fallback) {
+    const row = db.prepare("SELECT run_id FROM workflow_run WHERE track = ? ORDER BY started_at DESC, rowid DESC LIMIT 1").get(track);
+    return row?.run_id ?? fallback;
+}
+
+/**
  * The issue body: the lead, then the normative manifest rendering.
  *
  * The decision grammar is NOT written here. renderGateIssueBody emits the exact
@@ -113,6 +130,9 @@ export function renderGateIssue({ gate, track, items, marker, runId, manifest })
  */
 export async function announceGates({ db, track, runId, repo, token, log, fetchImpl = fetch }) {
     const results = [];
+    // The execution name the runtime passes is not a UUID, and the manifest
+    // contract requires one. Resolve it to the run that produced the work.
+    const manifestRun = manifestRunId(db, track, runId);
     for (const gate of Object.keys(GATES)) {
         // Each gate is announced independently. One gate that cannot render is
         // not allowed to silence the other, and it must say WHICH gate failed
@@ -127,17 +147,17 @@ export async function announceGates({ db, track, runId, repo, token, log, fetchI
             }
             const manifests = await generateGateManifests({
                 gate,
-                runId,
+                runId: manifestRun,
                 track,
                 items: items.map(({ track: _track, ...entry }) => entry),
             });
             for (const manifest of manifests) {
-                const marker = gateMarker({ track, gate, runId, batchDigest: heldSetDigest(gate, manifest.items) });
+                const marker = gateMarker({ track, gate, runId: manifestRun, batchDigest: heldSetDigest(gate, manifest.items) });
                 const issue = await openOrUpdateGateIssue({
                     repo,
                     marker,
                     title: `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`,
-                    body: renderGateIssue({ gate, track, items: manifest.items, marker, runId, manifest }),
+                    body: renderGateIssue({ gate, track, items: manifest.items, marker, runId: manifestRun, manifest }),
                     labels: ["orchard", `orchard-${gate}`],
                     token,
                     fetchImpl,
