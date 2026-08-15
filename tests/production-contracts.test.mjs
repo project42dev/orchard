@@ -556,10 +556,20 @@ test("controller invocation restores the caller exit code on success and throw",
         assert.equal(process.exitCode, 23);
         await assert.rejects(() => runController("track-2", [], () => { }), /track must be track-2/);
         assert.equal(process.exitCode, 23);
-        // The 2026-08-14 merge kept main's engine discovery script, which has
-        // no exported main(). The track-1 controller entry stays unwired until
-        // Track 1 is deployed; the runtime must still restore the exit code.
-        await assert.rejects(() => runController("track-1", ["--help"], () => { }), /module\.main is not a function|main is not a function/);
+        // This assertion used to REQUIRE that Track 1 be broken. It read: "the
+        // track-1 controller entry stays unwired until Track 1 is deployed",
+        // and asserted the runtime rejects with "module.main is not a
+        // function". That is what actually happened on 2026-08-15 on the first
+        // production Track 1 execution, and the test had certified it as
+        // correct for a day. A check that locks in a defect is worse than no
+        // check. Track 1 now points at discover-approved-sources.mjs, which
+        // exports main like Track 2 does, so both tracks are asserted the same
+        // way.
+        const track1Events = [];
+        await runController("track-1", ["--help"], (_level, event) => track1Events.push(event));
+        assert.deepEqual(track1Events, ["controller.loading", "controller.loaded", "controller.executing", "controller.completed"]);
+        assert.equal(process.exitCode, 23);
+        await assert.rejects(() => runController("track-1", [], () => { }), /track must be track-1/);
         assert.equal(process.exitCode, 23);
     } finally { process.exitCode = original; }
 });

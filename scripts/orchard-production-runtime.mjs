@@ -15,8 +15,15 @@ import { openStateStore } from "./lib/state-store.mjs";
 import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 
+// Both entry points must export `main(argv, options)`, because that is what
+// runController calls. Track 1 pointed at discover-content-opportunities.mjs,
+// a LOCAL tool that exports no main and takes a completely different argument
+// set, so the first production Track 1 execution died with a TypeError 13ms
+// after loading it. The two are separate jobs and stay separate files: that one
+// measures a local corpus for gaps, discover-approved-sources.mjs runs the
+// governed survey of approved external sources.
 const TRACK_ENTRY_POINTS = Object.freeze({
-    "track-1": "./discover-content-opportunities.mjs",
+    "track-1": "./discover-approved-sources.mjs",
     "track-2": "./inspect-canonical-corpus.mjs",
 });
 
