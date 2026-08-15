@@ -17,7 +17,8 @@ pages reads as a claim it has not earned.
 | [Lifecycle](lifecycle.md) | How content flows from published to stale to proposed to delivered |
 | [Hosting architecture](hosting-architecture.mmd) | Azure Container Apps deployment topology (Mermaid diagram) |
 | [Workflow orchestration](workflow-orchestration.md) | Independent evidence tracks, protected pins, and the post-track lifecycle |
-| [Decisions](decisions.md) | Architecture decisions and the failures that produced them |
+| [Decisions](decisions.md) | The reasoning by theme, and the failures that produced it |
+| [Architecture decision records](adr/index.md) | One page per accepted decision, 13 of them |
 | [Repository boundary](../REPO-BOUNDARY.md) | What belongs in this repository and what does not |
 
 Everything Orchard needs is in this repository. Planning material and candid
