@@ -1,13 +1,19 @@
 # Two-track workflow orchestration
 
-> **What actually runs, verified 2026-08-14.**
-> The engine runs monthly (the 1st, 06:00 UTC) as an Azure Container Apps
-> job and holds new work at Gate 1 until the owner approves; only approved
-> work reaches a model. Gate 2 binds approval to the exact item and artifact
-> digest, with a denial-rework loop. Still designed and not built: gate
-> manifests and batching, revision binding, `defer`, PR-transaction
-> publication, wired live verification, and every currency-track step past
-> inspection.
+> **Status, 2026-08-15. Orchard is not running anywhere.**
+> The reference deployment was built, ran, and was torn down. On 2026-08-14
+> the solution was reset to a never-run state ahead of its first full
+> start-to-finish test.
+>
+> What that deployment demonstrated while it existed: the engine held new work
+> at Gate 1 so that only approved work reached a model, and Gate 2 bound
+> approval to the exact item and artifact digest with a denial-rework loop.
+>
+> Still designed and not built: gate manifests and batching, revision binding,
+> `defer`, PR-transaction publication, wired live verification, and every
+> currency-track step past inspection.
+>
+> [Status](status.md) is the record of what is built, deployed and proven.
 
 Orchard runs discovery and canonical-corpus inspection as independent evidence-producing workflows. Neither workflow approves content, creates or closes tracker work, publishes content, or mutates a target repository.
 
