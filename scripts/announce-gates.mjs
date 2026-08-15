@@ -25,55 +25,47 @@
 import { DatabaseSync } from "node:sqlite";
 import { ManagedIdentityCredential } from "@azure/identity";
 import { gateMarker, openOrUpdateGateIssue } from "./lib/github-issues.mjs";
+import { heldAtGate, heldSetDigest } from "./lib/gate-queue.mjs";
+import { generateGateManifests, renderGateIssueBody } from "./lib/gates.mjs";
 
 const GATES = Object.freeze({
     "gate-1": {
         state: "gate1-pending",
         title: (track, n) => `Orchard Gate 1: ${n} item${n === 1 ? "" : "s"} awaiting approval (${track})`,
         lead: "These items are held **before any model is called**. Nothing has been spent on them yet, and nothing will be until they are approved.",
-        grammar: ["/orchard gate1 approve item=<work_item_id>", "/orchard gate1 deny    item=<work_item_id> reason=\"<why>\""],
     },
     "gate-2": {
         state: "gate2-pending",
         title: (track, n) => `Orchard Gate 2: ${n} item${n === 1 ? "" : "s"} awaiting publication (${track})`,
         lead: "These items have been written and are held **before publication**. Approval is bound to the exact artifact digest, so an approval stops applying if the artifact changes.",
-        grammar: ["/orchard gate2 approve item=<work_item_id> digest=<sha256>", "/orchard gate2 deny    item=<work_item_id> reason=\"<why>\""],
     },
 });
 
-export function pendingForGate(db, state) {
-    return db.prepare(
-        `SELECT w.id, w.kind, w.subject_id, w.surface, w.title, w.state
-           FROM work_item w
-          WHERE w.state = ?
-          ORDER BY w.id`,
-    ).all(state);
+export function pendingForGate(db, gate, track = null) {
+    return heldAtGate(db, gate, track);
 }
 
-export function renderGateIssue({ gate, track, items, marker, runId }) {
-    const spec = GATES[gate];
-    const lines = [
+/**
+ * The issue body: the lead, then the normative manifest rendering.
+ *
+ * The decision grammar is NOT written here. renderGateIssueBody emits the exact
+ * command for each item, bound to its id, revision and digest, from
+ * lib/gates.mjs, which is the one place the grammar is defined. The earlier
+ * version of this file invented its own shorter grammar, and a command that a
+ * reader can copy but the engine will not parse is worse than no command.
+ */
+export function renderGateIssue({ gate, track, items, marker, runId, manifest }) {
+    return [
         marker,
         "",
         `## ${items.length} item${items.length === 1 ? "" : "s"} waiting`,
         "",
-        spec.lead,
+        GATES[gate].lead,
         "",
-        "| Work item | Surface | Title |",
-        "| --- | --- | --- |",
-        ...items.map((item) => `| \`${item.id}\` | ${item.surface ?? "-"} | ${(item.title ?? "").replace(/\|/g, "\\|")} |`),
-        "",
-        "### How to decide",
-        "",
-        "Comment on this issue, one command per line:",
-        "",
-        "```",
-        ...spec.grammar,
-        "```",
+        renderGateIssueBody(manifest),
         "",
         `Run \`${runId}\`, track \`${track}\`. Nothing proceeds until a decision is recorded, and no decision is inferred from silence.`,
-    ];
-    return lines.join("\n");
+    ].join("\n");
 }
 
 /**
@@ -83,28 +75,64 @@ export function renderGateIssue({ gate, track, items, marker, runId }) {
  * nothing waiting is reported as "empty" rather than skipped silently: on the
  * first run of a new estate that is the expected answer, and it needs to be
  * distinguishable from "we never looked".
+ *
+ * A gate holding more than twenty items produces more than one manifest, and
+ * each batch gets its own issue. The batch size is normative, not a display
+ * choice: a decision is bound to a batch digest, and one issue per batch is
+ * what makes that binding checkable.
  */
 export async function announceGates({ db, track, runId, repo, token, log, fetchImpl = fetch }) {
     const results = [];
-    for (const [gate, spec] of Object.entries(GATES)) {
-        const items = pendingForGate(db, spec.state);
-        if (items.length === 0) {
-            log("info", "gate.announce.empty", { gate, track, state: spec.state });
-            results.push({ gate, action: "empty", count: 0 });
-            continue;
+    for (const gate of Object.keys(GATES)) {
+        // Each gate is announced independently. One gate that cannot render is
+        // not allowed to silence the other, and it must say WHICH gate failed
+        // and why: a single catch around both would have reported "announcing
+        // failed" for a fault in a gate that was holding nothing.
+        try {
+            const items = pendingForGate(db, gate, track);
+            if (items.length === 0) {
+                log("info", "gate.announce.empty", { gate, track, state: GATES[gate].state });
+                results.push({ gate, action: "empty", count: 0 });
+                continue;
+            }
+            const manifests = await generateGateManifests({
+                gate,
+                runId,
+                track,
+                items: items.map(({ track: _track, ...entry }) => entry),
+            });
+            for (const manifest of manifests) {
+                const marker = gateMarker({ track, gate, runId, batchDigest: heldSetDigest(gate, manifest.items) });
+                const issue = await openOrUpdateGateIssue({
+                    repo,
+                    marker,
+                    title: `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`,
+                    body: renderGateIssue({ gate, track, items: manifest.items, marker, runId, manifest }),
+                    labels: ["orchard", `orchard-${gate}`],
+                    token,
+                    fetchImpl,
+                });
+                log("info", "gate.announced", {
+                    gate,
+                    track,
+                    count: manifest.items.length,
+                    batch: `${manifest.batch.ordinal}/${manifest.batch.count}`,
+                    batchDigest: manifest.batch_digest,
+                    action: issue.action,
+                    issue: issue.number,
+                });
+                results.push({ gate, ...issue, count: manifest.items.length, batch: manifest.batch.ordinal });
+            }
+        } catch (error) {
+            log("warn", "gate.announce.gate-failed", {
+                gate,
+                track,
+                status: error.status ?? null,
+                reason: error.message,
+                effect: "this gate still holds its work; nobody was told about it",
+            });
+            results.push({ gate, action: "failed", count: 0, reason: error.message });
         }
-        const marker = gateMarker({ track, gate, runId });
-        const issue = await openOrUpdateGateIssue({
-            repo,
-            marker,
-            title: spec.title(track, items.length),
-            body: renderGateIssue({ gate, track, items, marker, runId }),
-            labels: ["orchard", `orchard-${gate}`],
-            token,
-            fetchImpl,
-        });
-        log("info", "gate.announced", { gate, track, count: items.length, action: issue.action, issue: issue.number });
-        results.push({ gate, ...issue, count: items.length });
     }
     return results;
 }

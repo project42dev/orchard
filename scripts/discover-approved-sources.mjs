@@ -23,8 +23,10 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { writeControllerResult } from "./lib/controller-output.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
+import { sha256Digest } from "./lib/identity.mjs";
 import { countProbe, toPlainText } from "./discover-content-opportunities.mjs";
 import { partitionCandidates, runTrack1, semanticCandidateIdentity } from "./lib/track-1-controller.mjs";
+import { persistDiscoveryItems, surfaceForProbe } from "./lib/gate-queue.mjs";
 
 const HELP = `Track 1 approved-source discovery
 
@@ -94,26 +96,37 @@ export function candidatesFromOutcomes({ outcomes, probes, sources, gapThreshold
     const candidates = [];
     for (const probe of probes) {
         const evidence = [];
+        const evidenceRefs = [];
         let demand = 0;
         for (const outcome of withBody) {
             const hits = countProbe(toPlainText(outcome.body), probe);
             if (hits < 1) continue;
             demand += hits;
             evidence.push(`${outcome.sourceId}:${hits}`);
+            // The digest is of the exact bytes the count was taken from, so the
+            // Gate 1 approval binds to what was actually read rather than to
+            // the URL, which serves different content tomorrow.
+            evidenceRefs.push({ reference: outcome.finalUrl ?? byId.get(outcome.sourceId)?.url ?? outcome.sourceId, digest: sha256Digest(outcome.body) });
         }
         if (evidence.length <= gapThreshold) continue;
-        const subject = probe.subject ?? probe.term;
-        const surface = probe.surface ?? "learn";
+        const subject = probe.subject ?? probe.title ?? probe.term;
+        // The contract surface, not the probe's own vocabulary. item-record
+        // allows learning, guide, and guide-diagram and nothing else, and the
+        // surface is part of the semantic identity, so getting it from the
+        // probe kinds here keeps identity and lifecycle speaking one language.
+        const surface = surfaceForProbe(probe);
         const candidate = {
             subject,
             surface,
             outcome: probe.outcome ?? `teach ${subject}`,
             scope: "content",
+            title: probe.title ?? subject,
             term: probe.term,
             level: probe.level ?? null,
             demandOccurrences: demand,
             demandSourceCount: evidence.length,
             evidence: evidence.sort(),
+            evidenceRefs,
             observedAt: now,
             sourceLabels: evidence.map((entry) => byId.get(entry.split(":")[0])?.label ?? entry.split(":")[0]).sort(),
         };
@@ -167,9 +180,43 @@ export async function main(argv = process.argv.slice(2), options = {}) {
 
     try {
         let result;
+        let synthesis = { candidates: [], probeCount: probes.length, sourcesWithBody: 0 };
+        // Synthesis and persistence run inside the controller, between the last
+        // fetch and the run being finalized. Before this the candidates were
+        // computed after runTrack1 returned and written to a file that nothing
+        // reads, so a successful discovery run left the gate holding nothing.
+        const synthesize = async ({ outcomes, sources, runId, stateStore, mode }) => {
+            const observedAt = new Date().toISOString();
+            synthesis = candidatesFromOutcomes({
+                outcomes,
+                probes,
+                sources,
+                gapThreshold: Number.parseInt(args["gap-threshold"] ?? "0", 10) || 0,
+                now: observedAt,
+            });
+            log("info", "track1.candidates.proposed", {
+                candidates: synthesis.candidates.length,
+                probes: synthesis.probeCount,
+                sourcesWithBody: synthesis.sourcesWithBody,
+            });
+            if (mode === "dry-run" || !stateStore) {
+                log("info", "gate1.items.skipped", { mode, effect: "dry run proposes candidates and holds nothing" });
+                return { candidates: synthesis.candidates, items: null };
+            }
+            const items = await persistDiscoveryItems({
+                store: stateStore,
+                runId,
+                track: "track-1",
+                candidates: synthesis.candidates,
+                now: observedAt,
+                log,
+            });
+            return { candidates: synthesis.candidates, items };
+        };
         try {
             log("info", "track1.controller.started", { mode: args.mode });
             result = await runTrack1({
+                synthesize,
                 mode: args.mode,
                 registry,
                 registryDigest: args["registry-digest"],
@@ -202,20 +249,6 @@ export async function main(argv = process.argv.slice(2), options = {}) {
             throw stageError("ERR_ORCHARD_CONTROLLER_FAILED", error);
         }
 
-        const now = new Date().toISOString();
-        const synthesis = candidatesFromOutcomes({
-            outcomes: result.outcomes,
-            probes,
-            sources: result.sources,
-            gapThreshold: Number.parseInt(args["gap-threshold"] ?? "0", 10) || 0,
-            now,
-        });
-        log("info", "track1.candidates.proposed", {
-            candidates: synthesis.candidates.length,
-            probes: synthesis.probeCount,
-            sourcesWithBody: synthesis.sourcesWithBody,
-        });
-
         // The survey result carries the fetched bodies. They are evidence for
         // the fetch, not something to publish into a run artifact, and some run
         // to a megabyte each. Record the size, drop the payload.
@@ -225,6 +258,12 @@ export async function main(argv = process.argv.slice(2), options = {}) {
             outcomes,
             candidates: synthesis.candidates,
             candidateBatches: partitionCandidates(synthesis.candidates),
+            // What the gate now holds because of this run. The output file is a
+            // record of what happened, not the place work waits: the items are
+            // in the state database and the gate reads them from there.
+            gate1: result.items
+                ? { held: result.items.persisted, alreadyKnown: result.items.skipped, failed: result.items.failed }
+                : { held: 0, alreadyKnown: 0, failed: 0 },
         };
 
         writeControllerResult({ result: enriched, mode: args.mode, outputPath: args.out });

@@ -19,11 +19,23 @@
 const API = "https://api.github.com";
 const REPO = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 
-export function gateMarker({ track, gate, runId }) {
+/**
+ * The hidden marker that makes one issue the home of one gate decision.
+ *
+ * KEYED ON THE BATCH DIGEST WHEN THERE IS ONE, not on the run. A gate holds
+ * work until a human decides, which is deliberately longer than a run: keying
+ * on the run id would open a fresh issue every month for the same undecided
+ * items and split the conversation across all of them. The batch digest is the
+ * exact set of items and revisions on offer, so the same held set updates the
+ * same issue, and a changed set correctly gets a new one.
+ */
+export function gateMarker({ track, gate, runId, batchDigest }) {
     if (!["track-1", "track-2"].includes(track)) throw new TypeError("track must be track-1 or track-2");
     if (!["gate-1", "gate-2"].includes(gate)) throw new TypeError("gate must be gate-1 or gate-2");
     if (typeof runId !== "string" || runId.length === 0) throw new TypeError("runId is required");
-    return `<!-- orchard:gate track=${track} gate=${gate} run=${runId} -->`;
+    if (batchDigest === undefined) return `<!-- orchard:gate track=${track} gate=${gate} run=${runId} -->`;
+    if (!/^sha256:[a-f0-9]{64}$/.test(batchDigest)) throw new TypeError("batchDigest must be sha256:<64 hex>");
+    return `<!-- orchard:gate track=${track} gate=${gate} batch=${batchDigest} -->`;
 }
 
 async function call(path, { token, method = "GET", body, fetchImpl = fetch }) {

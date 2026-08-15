@@ -341,7 +341,10 @@ function runRecord(options, registry, coverage, status, startedAt, completedAt) 
         actor: { kind: options.actorKind ?? "operator", reference: options.actorReference ?? "local-controller" },
         scope: { mode: options.mode, expected_count: coverage.approved_enabled_source_count, concurrency_cap: 1 },
         coverage,
-        item_count: 0,
+        // The number of lifecycle items this run created. It was hardcoded to
+        // zero for as long as the run created none, which was true and stopped
+        // being true when candidates started reaching Gate 1.
+        item_count: options.itemCount ?? 0,
     };
     record.manifest_digest = sha256Digest(record);
     return record;
@@ -438,11 +441,24 @@ export async function runTrack1(options) {
 
     const reconciliation = reconcileTrack1Outcomes(sources.map((source) => source.id), outcomes);
     const coverage = coverageFor(sources, outcomes);
+
+    // Candidates are synthesised from what was fetched, so this cannot be an
+    // input. It runs here, BEFORE the run is finalized, for one reason: the run
+    // manifest records item_count, and a manifest that says zero while the
+    // database holds thirteen items is exactly the kind of check that measures
+    // the wrong thing. Persisting first makes the number a measurement.
+    let synthesis = { candidates: options.candidates ?? [], items: null };
+    if (options.synthesize) {
+        const produced = await options.synthesize({ outcomes, sources, runId, stateStore: options.stateStore, mode: options.mode });
+        if (produced) synthesis = { candidates: produced.candidates ?? [], items: produced.items ?? null };
+    }
+    const candidates = dedupeCandidates(synthesis.candidates ?? []);
+    const itemCount = synthesis.items?.persisted ?? 0;
+
     const fullSuccess = options.mode === "full" && coverage.attempted >= 50 && coverage.approved_enabled_source_count >= 50 && coverage.unevaluated === 0 && failures <= maxFailures && reconciliation.ok;
     const status = fullSuccess ? "completed" : reconciliation.ok ? "incomplete" : "failed";
     const completedAt = (options.now?.() ?? new Date()).toISOString();
-    const run = runRecord({ ...options, runId }, registry, coverage, status, startedAt, completedAt);
+    const run = runRecord({ ...options, runId, itemCount }, registry, coverage, status, startedAt, completedAt);
     if (options.mode !== "dry-run" && options.stateStore) await options.stateStore.finalizeRun(run);
-    const candidates = dedupeCandidates(options.candidates ?? []);
-    return { track: "track-1", mode: options.mode, status, registry: { version: registry.version, digest: registry.digest }, run, sources, outcomes, reconciliation, candidates, candidateBatches: partitionCandidates(candidates) };
+    return { track: "track-1", mode: options.mode, status, registry: { version: registry.version, digest: registry.digest }, run, sources, outcomes, reconciliation, candidates, items: synthesis.items, candidateBatches: partitionCandidates(candidates) };
 }
