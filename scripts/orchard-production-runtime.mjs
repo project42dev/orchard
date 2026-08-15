@@ -2,7 +2,7 @@
 import { createStructuredLogger } from "./lib/structured-logger.mjs";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ManagedIdentityCredential } from "@azure/identity";
 import { BlobServiceClient } from "@azure/storage-blob";
@@ -117,7 +117,15 @@ async function runAzure(track, log) {
         if (track === "track-1") {
             const registry = await downloadBoundArtifact(clients.artifacts, required("ORCHARD_SOURCE_REGISTRY_BLOB"), required("ORCHARD_SOURCE_REGISTRY_DIGEST"), join(root, "source-registry.json"), integer("ORCHARD_MAX_SOURCE_REGISTRY_BYTES", 4_194_304));
             loadApprovedSourceRegistry(JSON.parse(readFileSync(registry, "utf8")), { allowLegacyMetadata: false, requirePolicyReview: true, expectedDigest: required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST") });
-            await runController(track, ["--track", track, ...common, "--source-registry", registry, "--registry-digest", required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST"), "--content-commit", required("ORCHARD_CONTENT_COMMIT"), "--max-sources", process.env.ORCHARD_MAX_SOURCES ?? "100", "--max-failures", process.env.ORCHARD_MAX_FAILURES ?? "5"], log);
+            // Probes ship in the image rather than the artifacts container:
+            // they say what to measure, not what is approved to be fetched, so
+            // they are not a governed input and do not need a bound digest.
+            // Absent, the controller surveys and records but proposes nothing,
+            // and says so rather than reporting zero candidates in silence.
+            const probes = process.env.ORCHARD_PROBES_PATH && existsSync(process.env.ORCHARD_PROBES_PATH)
+                ? ["--probes", process.env.ORCHARD_PROBES_PATH]
+                : [];
+            await runController(track, ["--track", track, ...common, "--source-registry", registry, "--registry-digest", required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST"), "--content-commit", required("ORCHARD_CONTENT_COMMIT"), "--max-sources", process.env.ORCHARD_MAX_SOURCES ?? "100", "--max-failures", process.env.ORCHARD_MAX_FAILURES ?? "5", ...probes], log);
         } else {
             const commit = required("ORCHARD_CONTENT_COMMIT");
             const platformRoot = await materializeCorpusSnapshot({ containerClient: clients.artifacts, archiveBlob: required("ORCHARD_CORPUS_ARCHIVE_BLOB"), manifestBlob: required("ORCHARD_CORPUS_MANIFEST_BLOB"), expectedCommit: commit, destination: join(root, "platform"), maxArchiveBytes: integer("ORCHARD_MAX_CORPUS_ARCHIVE_BYTES", 268_435_456) });
