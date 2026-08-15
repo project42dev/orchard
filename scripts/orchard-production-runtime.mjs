@@ -14,6 +14,7 @@ import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
 import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
+import { announceGatesForRun } from "./announce-gates.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -182,6 +183,16 @@ async function runAzure(track, log) {
             await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--run-id", runId, "--started-at", startedAt, "--partition-size", "50", "--concurrency", String(concurrency)], log);
         }
         await assertCurrent();
+        // Tell someone. Both gates hold work by state machine, which is
+        // correct and was also completely silent: finding out that a run had
+        // stopped meant running a review script by hand. Each track announces
+        // its own two gates here, so all four are covered.
+        //
+        // After assertCurrent, so nothing is announced from a run that lost
+        // its lease, and inside the fence so the state file is still the one
+        // this run wrote. It cannot throw: a run that did its work must not be
+        // failed by a GitHub outage.
+        await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log });
         return { statePath: state.path, value: { track } };
     });
 }
