@@ -1,0 +1,1740 @@
+{
+  "registryVersion": "1.0.0",
+  "generatedFrom": "build-approved-source-registry.mjs",
+  "approvedSources": [
+    {
+      "id": "ms-learn-ai",
+      "label": "Microsoft Learn — AI and machine learning catalog",
+      "url": "https://learn.microsoft.com/en-us/training/browse/?products=ai-services",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://learn.microsoft.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. learn.microsoft.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "learn.microsoft.com"
+        ]
+      }
+    },
+    {
+      "id": "ms-learn-data-ai",
+      "label": "Microsoft Learn — Data and AI engineer path",
+      "url": "https://learn.microsoft.com/en-us/training/browse/?roles=data-engineer&roles=ai-engineer",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://learn.microsoft.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. learn.microsoft.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "learn.microsoft.com"
+        ]
+      }
+    },
+    {
+      "id": "github-skills",
+      "label": "GitHub Skills — Copilot paths",
+      "url": "https://skills.github.com/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://skills.github.com/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. skills.github.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "skills.github.com"
+        ]
+      }
+    },
+    {
+      "id": "google-cloud-skills-boost",
+      "label": "Google Cloud Skills Boost",
+      "url": "https://www.cloudskillsboost.google/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.cloudskillsboost.google/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. www.cloudskillsboost.google publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.cloudskillsboost.google"
+        ]
+      }
+    },
+    {
+      "id": "google-ai-essentials",
+      "label": "Google AI Essentials",
+      "url": "https://grow.google/ai-essentials/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://grow.google/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. grow.google publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "grow.google"
+        ]
+      }
+    },
+    {
+      "id": "aws-skill-builder",
+      "label": "AWS Skill Builder — AI/ML",
+      "url": "https://explore.skillbuilder.aws/learn/catalog?ctldoc-catalog-0=se-%22AI%20and%20ML%22",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://explore.skillbuilder.aws/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. explore.skillbuilder.aws publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "explore.skillbuilder.aws"
+        ]
+      }
+    },
+    {
+      "id": "aws-mlu",
+      "label": "AWS Machine Learning University",
+      "url": "https://aws.amazon.com/machine-learning/mlu/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://aws.amazon.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. aws.amazon.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "aws.amazon.com"
+        ]
+      }
+    },
+    {
+      "id": "nvidia-dli",
+      "label": "NVIDIA Deep Learning Institute",
+      "url": "https://www.nvidia.com/en-us/learn/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.nvidia.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.nvidia.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.nvidia.com"
+        ]
+      }
+    },
+    {
+      "id": "ibm-skillsbuild",
+      "label": "IBM SkillsBuild — AI",
+      "url": "https://skillsbuild.org/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://skillsbuild.org/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. skillsbuild.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "skillsbuild.org"
+        ]
+      }
+    },
+    {
+      "id": "ibm-cognitive-class",
+      "label": "IBM Cognitive Class — AI",
+      "url": "https://cognitiveclass.ai/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://cognitiveclass.ai/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. cognitiveclass.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "cognitiveclass.ai"
+        ]
+      }
+    },
+    {
+      "id": "oracle-university-ai",
+      "label": "Oracle University — AI courses",
+      "url": "https://education.oracle.com/",
+      "kind": "catalog",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for education.oracle.com could not be read (unreachable: This operation was aborted). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "unreachable: This operation was aborted"
+      }
+    },
+    {
+      "id": "databricks-academy",
+      "label": "Databricks Academy",
+      "url": "https://www.databricks.com/learn/training",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.databricks.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.databricks.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.databricks.com"
+        ]
+      }
+    },
+    {
+      "id": "snowflake-learning",
+      "label": "Snowflake Learning — AI/ML",
+      "url": "https://www.snowflake.com/learn/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.snowflake.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.snowflake.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.snowflake.com"
+        ]
+      }
+    },
+    {
+      "id": "red-hat-ai",
+      "label": "Red Hat AI Developer Program",
+      "url": "https://developers.redhat.com/ai",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://developers.redhat.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. developers.redhat.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "developers.redhat.com"
+        ]
+      }
+    },
+    {
+      "id": "intel-ai-developer",
+      "label": "Intel AI Developer Program",
+      "url": "https://www.intel.com/content/www/us/en/developer/topic-technology/artificial-intelligence/overview.html",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.intel.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.intel.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.intel.com"
+        ]
+      }
+    },
+    {
+      "id": "anthropic-learn",
+      "label": "Anthropic — Learn",
+      "url": "https://www.anthropic.com/learn",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.anthropic.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.anthropic.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.anthropic.com"
+        ]
+      }
+    },
+    {
+      "id": "openai-academy",
+      "label": "OpenAI Academy",
+      "url": "https://academy.openai.com/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://academy.openai.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. academy.openai.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "academy.openai.com"
+        ]
+      }
+    },
+    {
+      "id": "meta-llama-docs",
+      "label": "Meta Llama documentation",
+      "url": "https://www.llama.com/docs/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.llama.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.llama.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.llama.com"
+        ]
+      }
+    },
+    {
+      "id": "coursera-ai",
+      "label": "Coursera — AI courses",
+      "url": "https://www.coursera.org/browse/data-science/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.coursera.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.coursera.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.coursera.org"
+        ]
+      }
+    },
+    {
+      "id": "coursera-ml",
+      "label": "Coursera — Machine Learning courses",
+      "url": "https://www.coursera.org/browse/data-science/machine-learning",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.coursera.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.coursera.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.coursera.org"
+        ]
+      }
+    },
+    {
+      "id": "edx-ai",
+      "label": "edX — AI and ML courses",
+      "url": "https://www.edx.org/learn/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.edx.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 10 seconds, the Crawl-delay www.edx.org publishes in its own robots.txt. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.edx.org"
+        ]
+      }
+    },
+    {
+      "id": "udacity-ai",
+      "label": "Udacity — AI nanodegrees",
+      "url": "https://www.udacity.com/catalog/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.udacity.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.udacity.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.udacity.com"
+        ]
+      }
+    },
+    {
+      "id": "udemy-ai",
+      "label": "Udemy — AI courses",
+      "url": "https://www.udemy.com/topic/artificial-intelligence/",
+      "kind": "catalog",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for www.udemy.com could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "robots.txt returned 403"
+      }
+    },
+    {
+      "id": "pluralsight-ai",
+      "label": "Pluralsight — AI path",
+      "url": "https://www.pluralsight.com/paths/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.pluralsight.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.pluralsight.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.pluralsight.com"
+        ]
+      }
+    },
+    {
+      "id": "linkedin-learning-ai",
+      "label": "LinkedIn Learning — AI",
+      "url": "https://www.linkedin.com/learning/topics/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: www.linkedin.com robots.txt disallows a generic agent on this path (Disallow: /). Enabling this needs a licence holder to state a basis other than robots.",
+        "robotsEvidence": "longest match"
+      }
+    },
+    {
+      "id": "datacamp-ai",
+      "label": "DataCamp — AI and ML",
+      "url": "https://www.datacamp.com/category/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for www.datacamp.com could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "robots.txt returned 403"
+      }
+    },
+    {
+      "id": "codecademy-ai",
+      "label": "Codecademy — AI courses",
+      "url": "https://www.codecademy.com/catalog/subject/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.codecademy.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.codecademy.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.codecademy.com"
+        ]
+      }
+    },
+    {
+      "id": "educative-ai",
+      "label": "Educative — AI and ML",
+      "url": "https://www.educative.io/courses?category=artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.educative.io/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.educative.io publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.educative.io"
+        ]
+      }
+    },
+    {
+      "id": "brilliant-ai",
+      "label": "Brilliant — AI and neural networks",
+      "url": "https://brilliant.org/courses/artificial-neural-networks/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://brilliant.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. brilliant.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "brilliant.org"
+        ]
+      }
+    },
+    {
+      "id": "khan-academy-ai",
+      "label": "Khan Academy — AI courses",
+      "url": "https://www.khanacademy.org/computing/ai",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.khanacademy.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.khanacademy.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.khanacademy.org"
+        ]
+      }
+    },
+    {
+      "id": "great-learning-ai",
+      "label": "Great Learning — AI courses",
+      "url": "https://www.mygreatlearning.com/artificial-intelligence/courses",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.mygreatlearning.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.mygreatlearning.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.mygreatlearning.com"
+        ]
+      }
+    },
+    {
+      "id": "simplilearn-ai",
+      "label": "Simplilearn — AI and ML",
+      "url": "https://www.simplilearn.com/artificial-intelligence-and-machine-learning",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.simplilearn.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.simplilearn.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.simplilearn.com"
+        ]
+      }
+    },
+    {
+      "id": "skillshare-ai",
+      "label": "Skillshare — AI courses",
+      "url": "https://www.skillshare.com/en/browse/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.skillshare.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.skillshare.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.skillshare.com"
+        ]
+      }
+    },
+    {
+      "id": "oreilly-ai",
+      "label": "O'Reilly Learning — AI",
+      "url": "https://www.oreilly.com/online-learning/topics/artificial-intelligence.html",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.oreilly.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.oreilly.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.oreilly.com"
+        ]
+      }
+    },
+    {
+      "id": "cloud-guru-ai",
+      "label": "A Cloud Guru / Pluralsight — AI",
+      "url": "https://www.pluralsight.com/cloud-guru",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.pluralsight.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.pluralsight.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.pluralsight.com"
+        ]
+      }
+    },
+    {
+      "id": "cloudacademy-ai",
+      "label": "CloudAcademy — AI and ML",
+      "url": "https://cloudacademy.com/library/ai/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://cloudacademy.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. cloudacademy.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "cloudacademy.com"
+        ]
+      }
+    },
+    {
+      "id": "mit-xpro-ai",
+      "label": "MIT xPRO — AI",
+      "url": "https://xpro.mit.edu/programs/",
+      "kind": "catalog",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://xpro.mit.edu/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. xpro.mit.edu publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "xpro.mit.edu"
+        ]
+      }
+    },
+    {
+      "id": "stanford-online-ai",
+      "label": "Stanford Online — AI courses",
+      "url": "https://online.stanford.edu/artificial-intelligence",
+      "kind": "catalog",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for online.stanford.edu could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "robots.txt returned 403"
+      }
+    },
+    {
+      "id": "fast-ai",
+      "label": "fast.ai — Practical Deep Learning",
+      "url": "https://www.fast.ai/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.fast.ai/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. www.fast.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.fast.ai"
+        ]
+      }
+    },
+    {
+      "id": "huggingface-learn",
+      "label": "Hugging Face Learn",
+      "url": "https://huggingface.co/learn",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://huggingface.co/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. huggingface.co publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "huggingface.co"
+        ]
+      }
+    },
+    {
+      "id": "kaggle-learn",
+      "label": "Kaggle Learn — AI and ML",
+      "url": "https://www.kaggle.com/learn",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.kaggle.com/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. www.kaggle.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.kaggle.com"
+        ]
+      }
+    },
+    {
+      "id": "papers-with-code",
+      "label": "Papers with Code",
+      "url": "https://paperswithcode.com/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://paperswithcode.com/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. paperswithcode.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "paperswithcode.com"
+        ]
+      }
+    },
+    {
+      "id": "wandb-courses",
+      "label": "Weights & Biases courses",
+      "url": "https://www.wandb.courses/",
+      "kind": "practitioner",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for www.wandb.courses could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "robots.txt returned 403"
+      }
+    },
+    {
+      "id": "langchain-academy",
+      "label": "LangChain Academy",
+      "url": "https://academy.langchain.com/",
+      "kind": "practitioner",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for academy.langchain.com could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "robots.txt returned 403"
+      }
+    },
+    {
+      "id": "llamaindex-docs",
+      "label": "LlamaIndex documentation",
+      "url": "https://docs.llamaindex.ai/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://docs.llamaindex.ai/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. docs.llamaindex.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "docs.llamaindex.ai"
+        ]
+      }
+    },
+    {
+      "id": "crewai-docs",
+      "label": "CrewAI documentation",
+      "url": "https://docs.crewai.com/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://docs.crewai.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. docs.crewai.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "docs.crewai.com"
+        ]
+      }
+    },
+    {
+      "id": "autogen-docs",
+      "label": "AutoGen (Microsoft) documentation",
+      "url": "https://microsoft.github.io/autogen/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://microsoft.github.io/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. microsoft.github.io publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "microsoft.github.io"
+        ]
+      }
+    },
+    {
+      "id": "dspy-docs",
+      "label": "DSPy documentation",
+      "url": "https://dspy.ai/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://dspy.ai/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. dspy.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "dspy.ai"
+        ]
+      }
+    },
+    {
+      "id": "haystack-docs",
+      "label": "Haystack documentation",
+      "url": "https://docs.haystack.deepset.ai/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://docs.haystack.deepset.ai/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. docs.haystack.deepset.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "docs.haystack.deepset.ai"
+        ]
+      }
+    },
+    {
+      "id": "semantic-kernel-docs",
+      "label": "Semantic Kernel documentation",
+      "url": "https://learn.microsoft.com/en-us/semantic-kernel/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://learn.microsoft.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. learn.microsoft.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "learn.microsoft.com"
+        ]
+      }
+    },
+    {
+      "id": "ollama-docs",
+      "label": "Ollama documentation",
+      "url": "https://ollama.com/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://ollama.com/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. ollama.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "ollama.com"
+        ]
+      }
+    },
+    {
+      "id": "vllm-docs",
+      "label": "vLLM documentation",
+      "url": "https://docs.vllm.ai/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://docs.vllm.ai/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. docs.vllm.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "docs.vllm.ai"
+        ]
+      }
+    },
+    {
+      "id": "roboflow-learn",
+      "label": "Roboflow Learn — computer vision",
+      "url": "https://roboflow.com/learn",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://roboflow.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. roboflow.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "roboflow.com"
+        ]
+      }
+    },
+    {
+      "id": "madewithml",
+      "label": "Made With ML — MLOps",
+      "url": "https://madewithml.com/",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://madewithml.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. madewithml.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "madewithml.com"
+        ]
+      }
+    },
+    {
+      "id": "mlops-zoomcamp",
+      "label": "MLOps Zoomcamp — DataTalks.Club",
+      "url": "https://github.com/DataTalksClub/mlops-zoomcamp",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://github.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. github.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "github.com"
+        ]
+      }
+    },
+    {
+      "id": "llm-zoomcamp",
+      "label": "LLM Zoomcamp — DataTalks.Club",
+      "url": "https://github.com/DataTalksClub/llm-zoomcamp",
+      "kind": "practitioner",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://github.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. github.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "github.com"
+        ]
+      }
+    },
+    {
+      "id": "d2l-ai",
+      "label": "Dive into Deep Learning (d2l.ai)",
+      "url": "https://d2l.ai/",
+      "kind": "book",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://d2l.ai/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. d2l.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "d2l.ai"
+        ]
+      }
+    },
+    {
+      "id": "statlearning",
+      "label": "Introduction to Statistical Learning",
+      "url": "https://www.statlearning.com/",
+      "kind": "book",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.statlearning.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.statlearning.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.statlearning.com"
+        ]
+      }
+    },
+    {
+      "id": "udlbook",
+      "label": "Understanding Deep Learning (Prince)",
+      "url": "https://udlbook.github.io/udlbook/",
+      "kind": "book",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://udlbook.github.io/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. udlbook.github.io publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "udlbook.github.io"
+        ]
+      }
+    },
+    {
+      "id": "sutton-barto-rl",
+      "label": "Sutton & Barto — Reinforcement Learning",
+      "url": "https://incompleteideas.net/book/the-book-2nd.html",
+      "kind": "book",
+      "enabled": false,
+      "policy": {
+        "approval": "pending",
+        "statusReason": "Held: robots.txt for incompleteideas.net could not be read (unreachable: fetch failed). Unknown is not permission. Resolve by hand before enabling.",
+        "robotsEvidence": "unreachable: fetch failed"
+      }
+    },
+    {
+      "id": "mml-book",
+      "label": "Mathematics for Machine Learning",
+      "url": "https://mml-book.github.io/",
+      "kind": "book",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://mml-book.github.io/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. mml-book.github.io publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "mml-book.github.io"
+        ]
+      }
+    },
+    {
+      "id": "deeplearningbook",
+      "label": "Deep Learning Book (Goodfellow)",
+      "url": "https://www.deeplearningbook.org/",
+      "kind": "book",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.deeplearningbook.org/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. www.deeplearningbook.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.deeplearningbook.org"
+        ]
+      }
+    },
+    {
+      "id": "karpathy-zero-to-hero",
+      "label": "Andrej Karpathy — Zero to Hero",
+      "url": "https://karpathy.ai/zero-to-hero.html",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://karpathy.ai/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. karpathy.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "karpathy.ai"
+        ]
+      }
+    },
+    {
+      "id": "distill-pub",
+      "label": "Distill.pub — ML research explained",
+      "url": "https://distill.pub/",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://distill.pub/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. distill.pub publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "distill.pub"
+        ]
+      }
+    },
+    {
+      "id": "jalammar",
+      "label": "Jay Alammar — Illustrated ML",
+      "url": "https://jalammar.github.io/",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://jalammar.github.io/robots.txt permits a generic agent on this path (no applicable group).",
+        "ratePolicy": "At most one request per 30 seconds. jalammar.github.io publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "jalammar.github.io"
+        ]
+      }
+    },
+    {
+      "id": "lilian-weng",
+      "label": "Lil'Log — ML and LLM deep dives",
+      "url": "https://lilianweng.github.io/",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://lilianweng.github.io/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. lilianweng.github.io publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "lilianweng.github.io"
+        ]
+      }
+    },
+    {
+      "id": "transformer-circuits",
+      "label": "Transformer Circuits — interpretability",
+      "url": "https://transformer-circuits.pub/",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://transformer-circuits.pub/robots.txt permits a generic agent on this path (fetched).",
+        "ratePolicy": "At most one request per 30 seconds. transformer-circuits.pub publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "transformer-circuits.pub"
+        ]
+      }
+    },
+    {
+      "id": "3blue1brown-nn",
+      "label": "3Blue1Brown — Neural Networks",
+      "url": "https://www.3blue1brown.com/topics/neural-networks",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.3blue1brown.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.3blue1brown.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.3blue1brown.com"
+        ]
+      }
+    },
+    {
+      "id": "statquest",
+      "label": "StatQuest — ML and statistics",
+      "url": "https://statquest.org/",
+      "kind": "explainer",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://statquest.org/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. statquest.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "statquest.org"
+        ]
+      }
+    },
+    {
+      "id": "ai-safety-fundamentals",
+      "label": "AI Safety Fundamentals — BlueDot Impact",
+      "url": "https://aisafetyfundamentals.com/",
+      "kind": "safety",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://aisafetyfundamentals.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. aisafetyfundamentals.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "aisafetyfundamentals.com"
+        ]
+      }
+    },
+    {
+      "id": "alignment-forum",
+      "label": "Alignment Forum",
+      "url": "https://www.alignmentforum.org/",
+      "kind": "safety",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.alignmentforum.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 3 seconds, the Crawl-delay www.alignmentforum.org publishes in its own robots.txt. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.alignmentforum.org"
+        ]
+      }
+    },
+    {
+      "id": "stanford-hai",
+      "label": "Stanford HAI",
+      "url": "https://hai.stanford.edu/",
+      "kind": "safety",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://hai.stanford.edu/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. hai.stanford.edu publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "hai.stanford.edu"
+        ]
+      }
+    },
+    {
+      "id": "eu-ai-act",
+      "label": "EU AI Act portal",
+      "url": "https://artificialintelligenceact.eu/",
+      "kind": "safety",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://artificialintelligenceact.eu/robots.txt permits a generic agent on this path (fetched).",
+        "ratePolicy": "At most one request per 30 seconds. artificialintelligenceact.eu publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "artificialintelligenceact.eu"
+        ]
+      }
+    },
+    {
+      "id": "fastai-data-ethics",
+      "label": "fast.ai — Data Ethics course",
+      "url": "https://ethics.fast.ai/",
+      "kind": "safety",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://ethics.fast.ai/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. ethics.fast.ai publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "ethics.fast.ai"
+        ]
+      }
+    },
+    {
+      "id": "ms-ai-900",
+      "label": "Microsoft AI-900 certification",
+      "url": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-fundamentals/",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://learn.microsoft.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. learn.microsoft.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "learn.microsoft.com"
+        ]
+      }
+    },
+    {
+      "id": "ms-ai-102",
+      "label": "Microsoft AI-102 certification",
+      "url": "https://learn.microsoft.com/en-us/credentials/certifications/azure-ai-engineer/",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://learn.microsoft.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. learn.microsoft.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "learn.microsoft.com"
+        ]
+      }
+    },
+    {
+      "id": "aws-ml-specialty",
+      "label": "AWS ML Specialty certification",
+      "url": "https://aws.amazon.com/certification/certified-machine-learning-specialty/",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://aws.amazon.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. aws.amazon.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "aws.amazon.com"
+        ]
+      }
+    },
+    {
+      "id": "google-professional-ml",
+      "label": "Google Professional ML Engineer certification",
+      "url": "https://cloud.google.com/learn/certification/machine-learning-engineer",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://cloud.google.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. cloud.google.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "cloud.google.com"
+        ]
+      }
+    },
+    {
+      "id": "nvidia-genai-cert",
+      "label": "NVIDIA Certified Associate — GenAI LLMs",
+      "url": "https://www.nvidia.com/en-us/learn/certification/generative-ai-llm-associate/",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.nvidia.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.nvidia.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.nvidia.com"
+        ]
+      }
+    },
+    {
+      "id": "databricks-genai-cert",
+      "label": "Databricks GenAI Engineer Associate",
+      "url": "https://www.databricks.com/learn/training/certification",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.databricks.com/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. www.databricks.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.databricks.com"
+        ]
+      }
+    },
+    {
+      "id": "ibm-ai-engineering-cert",
+      "label": "IBM AI Engineering Professional Certificate",
+      "url": "https://www.coursera.org/professional-certificates/ai-engineer",
+      "kind": "certification",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.coursera.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.coursera.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.coursera.org"
+        ]
+      }
+    },
+    {
+      "id": "kaggle-competitions",
+      "label": "Kaggle — competitions and community",
+      "url": "https://www.kaggle.com/competitions",
+      "kind": "community",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.kaggle.com/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. www.kaggle.com publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.kaggle.com"
+        ]
+      }
+    },
+    {
+      "id": "huggingface-spaces",
+      "label": "Hugging Face Spaces",
+      "url": "https://huggingface.co/spaces",
+      "kind": "community",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://huggingface.co/robots.txt permits a generic agent on this path (matched \"Allow: /\").",
+        "ratePolicy": "At most one request per 30 seconds. huggingface.co publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "huggingface.co"
+        ]
+      }
+    },
+    {
+      "id": "drivendata",
+      "label": "DrivenData — data science competitions",
+      "url": "https://www.drivendata.org/",
+      "kind": "community",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.drivendata.org/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 30 seconds. www.drivendata.org publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.drivendata.org"
+        ]
+      }
+    },
+    {
+      "id": "zindi",
+      "label": "Zindi — Africa AI community",
+      "url": "https://zindi.africa/",
+      "kind": "community",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://zindi.africa/robots.txt permits a generic agent on this path (no robots.txt published).",
+        "ratePolicy": "At most one request per 30 seconds. zindi.africa publishes no Crawl-delay, so this is the conservative default. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "zindi.africa"
+        ]
+      }
+    },
+    {
+      "id": "aicrowd",
+      "label": "AIcrowd — AI challenges",
+      "url": "https://www.aicrowd.com/",
+      "kind": "community",
+      "enabled": true,
+      "policy": {
+        "approval": "approved",
+        "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list.",
+        "owner": "Project 42 content operations",
+        "licenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+        "robotsPolicy": "Honoured. Checked 2026-08-15: https://www.aicrowd.com/robots.txt permits a generic agent on this path (no matching rule).",
+        "ratePolicy": "At most one request per 10 seconds, the Crawl-delay www.aicrowd.com publishes in its own robots.txt. One request per run; Track 1 reads the listing page only.",
+        "evidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+        "reviewedAt": "2026-08-15",
+        "reviewCadenceDays": 180,
+        "allowedHosts": [
+          "www.aicrowd.com"
+        ]
+      }
+    }
+  ]
+}

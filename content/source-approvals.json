@@ -1,0 +1,440 @@
+{
+  "reviewedAt": "2026-08-15",
+  "defaultOwner": "Project 42 content operations",
+  "defaultReviewCadenceDays": 180,
+  "defaultEvidenceRetentionClass": "public-listing-metadata: title, URL, description and publication date only, retained for one review cadence; no page body is stored.",
+  "defaultLicenseTermsReview": "Track 1 reads the public listing page only, to record that a piece of content exists. It records title, URL and description, does not fetch or store course bodies, and does not authenticate or bypass any paywall. The host publishes this listing page for public indexing and its robots.txt permits a generic agent on this path.",
+  "note": "Machine-gathered robots evidence decided the initial split: permitted means approved, disallowed or unreadable means held. Commercial terms of service are a separate judgement from robots.txt; strike any source here whose terms you read differently.",
+  "decisions": [
+    {
+      "id": "ms-learn-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ms-learn-data-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "github-skills",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "google-cloud-skills-boost",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "google-ai-essentials",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "aws-skill-builder",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "aws-mlu",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "nvidia-dli",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ibm-skillsbuild",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ibm-cognitive-class",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "oracle-university-ai",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for education.oracle.com could not be read (unreachable: This operation was aborted). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "databricks-academy",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "snowflake-learning",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "red-hat-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "intel-ai-developer",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "anthropic-learn",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "openai-academy",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "meta-llama-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "coursera-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "coursera-ml",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "edx-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "udacity-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "udemy-ai",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for www.udemy.com could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "pluralsight-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "linkedin-learning-ai",
+      "approval": "pending",
+      "statusReason": "Held: www.linkedin.com robots.txt disallows a generic agent on this path (Disallow: /). Enabling this needs a licence holder to state a basis other than robots."
+    },
+    {
+      "id": "datacamp-ai",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for www.datacamp.com could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "codecademy-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "educative-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "brilliant-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "khan-academy-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "great-learning-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "simplilearn-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "skillshare-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "oreilly-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "cloud-guru-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "cloudacademy-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "mit-xpro-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "stanford-online-ai",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for online.stanford.edu could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "fast-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "huggingface-learn",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "kaggle-learn",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "papers-with-code",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "wandb-courses",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for www.wandb.courses could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "langchain-academy",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for academy.langchain.com could not be read (robots.txt returned 403). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "llamaindex-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "crewai-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "autogen-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "dspy-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "haystack-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "semantic-kernel-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ollama-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "vllm-docs",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "roboflow-learn",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "madewithml",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "mlops-zoomcamp",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "llm-zoomcamp",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "d2l-ai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "statlearning",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "udlbook",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "sutton-barto-rl",
+      "approval": "pending",
+      "statusReason": "Held: robots.txt for incompleteideas.net could not be read (unreachable: fetch failed). Unknown is not permission. Resolve by hand before enabling."
+    },
+    {
+      "id": "mml-book",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "deeplearningbook",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "karpathy-zero-to-hero",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "distill-pub",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "jalammar",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "lilian-weng",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "transformer-circuits",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "3blue1brown-nn",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "statquest",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ai-safety-fundamentals",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "alignment-forum",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "stanford-hai",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "eu-ai-act",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "fastai-data-ethics",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ms-ai-900",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ms-ai-102",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "aws-ml-specialty",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "google-professional-ml",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "nvidia-genai-cert",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "databricks-genai-cert",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "ibm-ai-engineering-cert",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "kaggle-competitions",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "huggingface-spaces",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "drivendata",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "zindi",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    },
+    {
+      "id": "aicrowd",
+      "approval": "approved",
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+    }
+  ]
+}
