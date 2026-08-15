@@ -77,6 +77,41 @@ export async function findIssueByMarker({ repo, marker, token, fetchImpl = fetch
 }
 
 /**
+ * Every open issue this repository is holding a gate decision on.
+ *
+ * The marker is the filter, not a label or a title: labels get removed and
+ * titles get edited, and an issue that stops looking like a gate issue while
+ * still holding a decision is how a decision goes unread.
+ */
+export async function listOpenGateIssues({ repo, gate, track, token, fetchImpl = fetch, maxPages = 5 }) {
+    if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
+    const prefix = `<!-- orchard:gate track=${track} gate=${gate} `;
+    const found = [];
+    for (let page = 1; page <= maxPages; page += 1) {
+        const issues = await call(`/repos/${repo}/issues?state=open&per_page=100&page=${page}`, { token, fetchImpl });
+        if (!Array.isArray(issues) || issues.length === 0) break;
+        for (const issue of issues) {
+            if (typeof issue.body === "string" && issue.body.includes(prefix)) found.push(issue);
+        }
+        if (issues.length < 100) break;
+    }
+    return found;
+}
+
+/** Every comment on one issue, oldest first, which is the order decisions were made in. */
+export async function listIssueComments({ repo, issueNumber, token, fetchImpl = fetch, maxPages = 5 }) {
+    if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
+    const comments = [];
+    for (let page = 1; page <= maxPages; page += 1) {
+        const batch = await call(`/repos/${repo}/issues/${Number(issueNumber)}/comments?per_page=100&page=${page}`, { token, fetchImpl });
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        comments.push(...batch);
+        if (batch.length < 100) break;
+    }
+    return comments;
+}
+
+/**
  * Create the gate issue, or update the one this marker already owns.
  *
  * Returns { action, number, url }. `action` is "created" or "updated", never a

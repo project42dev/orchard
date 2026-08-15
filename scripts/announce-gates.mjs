@@ -186,26 +186,44 @@ async function readVaultSecret({ vaultUrl, secretName, clientId, fetchImpl = fet
  * Never throws. A failure to announce must not fail a run that otherwise
  * succeeded, and must not be silent either, so every path logs.
  */
-export async function announceGatesForRun({ stateDbPath, track, runId, log, env = process.env }) {
-    const repo = env.ORCHARD_GITHUB_REPO;
+/**
+ * The GitHub token both halves of the gate loop need, read once per run.
+ *
+ * Announcing and applying use the same credential, and reading the vault twice
+ * per run is two chances to fail for one secret. Returns null rather than
+ * throwing, with the reason logged, because neither half may fail a run.
+ */
+export async function readGateToken({ log, env = process.env, prefix = "gate" }) {
     const vaultUrl = env.ORCHARD_GATE_VAULT_URL;
     const secretName = env.ORCHARD_GATE_TOKEN_SECRET;
-    if (!repo || !vaultUrl || !secretName) {
-        log("warn", "gate.announce.unconfigured", { effect: "gates hold as designed but announce nothing" });
-        return [];
+    if (!env.ORCHARD_GITHUB_REPO || !vaultUrl || !secretName) {
+        log("warn", `${prefix}.token.unconfigured`, { effect: "gates hold as designed; nothing is announced and no decision is read" });
+        return null;
     }
-    let token;
     try {
-        token = await readVaultSecret({ vaultUrl, secretName, clientId: env.AZURE_CLIENT_ID });
+        return await readVaultSecret({ vaultUrl, secretName, clientId: env.AZURE_CLIENT_ID });
     } catch (error) {
         // A 404 means the vault exists and nobody has put a token in it yet,
         // which is the expected state until an operator does. Anything else is
         // a real fault worth separating.
-        log("warn", error.status === 404 ? "gate.announce.no-token" : "gate.announce.token-unavailable", {
+        log("warn", error.status === 404 ? `${prefix}.token.absent` : `${prefix}.token.unavailable`, {
             secretName,
             status: error.status ?? null,
-            effect: "gates hold as designed but announce nothing",
+            effect: "gates hold as designed; nothing is announced and no decision is read",
         });
+        return null;
+    }
+}
+
+export async function announceGatesForRun({ stateDbPath, track, runId, log, env = process.env, token: suppliedToken }) {
+    const repo = env.ORCHARD_GITHUB_REPO;
+    if (!repo) {
+        log("warn", "gate.announce.unconfigured", { effect: "gates hold as designed but announce nothing" });
+        return [];
+    }
+    const token = suppliedToken ?? await readGateToken({ log, env, prefix: "gate.announce" });
+    if (!token) {
+        log("warn", "gate.announce.no-token", { effect: "gates hold as designed but announce nothing" });
         return [];
     }
     let db;

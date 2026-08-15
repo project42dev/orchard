@@ -14,7 +14,8 @@ import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
 import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
-import { announceGatesForRun } from "./announce-gates.mjs";
+import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
+import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -114,6 +115,25 @@ async function runAzure(track, log) {
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
     return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
         const execution = process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local-execution";
+
+        // Read the answer to the LAST run before doing anything in this one.
+        //
+        // The order is the point. What the owner decided is what says whether
+        // held work may proceed, so it has to be applied before the controller
+        // spends a request or a dollar. It runs inside the fence, as the single
+        // writer, because the state database is behind a private endpoint and
+        // nothing outside the subnet can reach it to apply a decision itself.
+        //
+        // It cannot fail a run: no anchor, no token, GitHub down all log and
+        // return, and the work stays exactly where it was.
+        const gateToken = await readGateToken({ log });
+        const decisionStore = openStateStore(state.path);
+        try {
+            await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
+        } finally {
+            decisionStore.close();
+        }
+
         const common = ["--mode", required("ORCHARD_RUN_MODE"), "--state-db", state.path, "--implementation-commit", required("ORCHARD_IMPLEMENTATION_COMMIT"), "--trigger-type", required("ORCHARD_TRIGGER_TYPE"), "--trigger-reference", process.env.ORCHARD_TRIGGER_REFERENCE ?? execution, "--actor-kind", required("ORCHARD_ACTOR_KIND"), "--actor-reference", process.env.ORCHARD_ACTOR_REFERENCE ?? execution, "--out", join(root, `${track}-controller-output.json`)];
         if (track === "track-1") {
             const registry = await downloadBoundArtifact(clients.artifacts, required("ORCHARD_SOURCE_REGISTRY_BLOB"), required("ORCHARD_SOURCE_REGISTRY_DIGEST"), join(root, "source-registry.json"), integer("ORCHARD_MAX_SOURCE_REGISTRY_BYTES", 4_194_304));
@@ -192,7 +212,7 @@ async function runAzure(track, log) {
         // its lease, and inside the fence so the state file is still the one
         // this run wrote. It cannot throw: a run that did its work must not be
         // failed by a GitHub outage.
-        await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log });
+        await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
         return { statePath: state.path, value: { track } };
     });
 }
