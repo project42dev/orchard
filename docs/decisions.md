@@ -1,27 +1,27 @@
 # Decisions behind Orchard
 
-> **What actually runs, verified 2026-08-14.**
-> The engine runs monthly (the 1st, 06:00 UTC) as an Azure Container Apps
-> job and holds new work at Gate 1 until the owner approves; only approved
-> work reaches a model. Gate 2 binds approval to the exact item and artifact
-> digest, with a denial-rework loop. Still designed and not built: gate
-> manifests and batching, revision binding, `defer`, PR-transaction
-> publication, wired live verification, and every currency-track step past
-> inspection.
+> **Status, 2026-08-15. Orchard is not running anywhere.**
+> The reference deployment was built, run, and then torn down. On 2026-08-14
+> the solution was reset to a never-run state ahead of its first full
+> start-to-finish test: the work queue and the candidate list are empty, and
+> every artifact of the previous runs has been removed. See
+> [Status](status.md) for what is built, what is deployed, and what has been
+> proven, kept honestly separate.
 
 The full architecture decision records live in a private planning repository, by
 deliberate decision: candid early analysis needs somewhere it can be candid, and
 public repositories receive a **sanitized summary of accepted decisions that
-contributors need**. This is that summary.
+contributors need**. This is that summary. It is written to stand on its own, so
+nothing here links to a repository you cannot open.
 
 Nothing here is a preference. Each one exists because the alternative failed, and
 the failure is recorded with it.
 
-> **Hosting note (2026-08-11):** The delivery pipeline runs as Azure Container
-> Apps Jobs in the reference deployment. The container image is the portable
-> artifact — any adopter can run it on any container platform against their own
-> OpenAI-compatible endpoint. See [ADR-0007](https://github.com/project42dev/project42dev-ops/blob/main/docs/adrs/0007-foundry-delivery-platform-boundary.md)
-> for the hosting decision.
+> **Hosting.** The delivery pipeline runs as Azure Container Apps Jobs in the
+> reference deployment, but **the container image is the portable artifact**.
+> Any adopter can run it on any container platform against their own
+> OpenAI-compatible endpoint. Orchard consumes an endpoint and never provisions
+> one, which is what keeps that promise true rather than aspirational.
 
 ---
 
@@ -120,6 +120,139 @@ Three things followed, and they are part of the design rather than a patch:
    registry, which does not go blind on a surface missing a field. The work queue
    reads both.
 3. The build **prints the blind spot on every run.**
+
+---
+
+## Two tracks, and neither one waits for the other
+
+Orchard runs **two independent evidence tracks**. Discovery looks outward at an
+approved list of primary sources and asks what the world teaches that this
+estate does not. Currency looks inward at the published corpus and asks what has
+gone stale. They produce different evidence, they run on their own schedules,
+and **neither blocks the other.**
+
+**Why not one pipeline.** A single pipeline makes the slowest stage the speed of
+everything, and it couples a failure in outward research to the ability to
+notice that a published page has rotted. The two questions are genuinely
+different and deserve to fail separately.
+
+Both tracks converge on the same place: a work queue, and a human at Gate 1.
+
+---
+
+## Two gates, and the second one binds to bytes
+
+**Gate 1 comes before any model is reached.** New work is held at
+`gate1-pending`, and approval is the only route from there to a model. This is
+the spend control and the editorial control at the same time: nothing is drafted
+because a schedule fired.
+
+**Gate 2 comes before anything is published**, and it binds the decision to an
+exact artifact digest rather than to a title or an item id. An approval means
+*these bytes*, not *this idea*. A denial goes into a rework loop rather than
+ending the item.
+
+**Why bind to a digest.** Approving a proposal and publishing something else is
+the failure mode that makes review theatre, and it does not need bad intent to
+happen. Regenerating between approval and publication is enough. The record of
+each revision carries the run that produced it, the proposal digest, the
+artifact digest, and the exact repository and path it is destined for, so the
+question "is this the thing that was approved" has a mechanical answer.
+
+---
+
+## The state is a leased object, not a file on a machine
+
+The working database is pulled from object storage at the start of a run,
+mutated, and written back under a digest manifest. Concurrent runs are kept out
+of each other's way by a **lease on a coordination object**, and there is a
+separate backup container.
+
+Leases are scoped deliberately narrowly: to a track run, to an item, and to a
+**target path**. That last one matters because two different items can be
+correct on their own and still collide by both wanting to write the same file.
+
+**Why not keep state on the job.** A container job is disposable by design. Any
+state that lives only on it is lost on the next run, and worse, two runs that
+overlap silently diverge.
+
+---
+
+## The work tracker is a projection, never the source of truth
+
+Work items are mirrored into a tracker so humans can see and schedule the work,
+and each queue row carries the tracker id it maps to. **The queue is
+authoritative; the tracker is a view of it.**
+
+**Why one direction only.** Two systems that can both originate a state change
+will disagree, and the disagreement surfaces at the worst moment. Closure is
+evidence-backed: an item closes because something verifiable happened, not
+because somebody dragged a card.
+
+---
+
+## Six roles, each with its own budget
+
+Authoring is an ensemble, not a single model call: **researcher, drafter,
+verifier, adversary, arbiter, finalizer**, run in that order. The researcher
+gathers primary sources before any prose exists. The adversary exists to attack
+the draft rather than to improve it. The arbiter decides.
+
+**Token budgets are declared per role and never globally.** A researcher
+gathering structured evidence and a drafter writing a module need different
+ceilings, and one global number is either wasteful for the first or truncating
+for the second. Truncation in an arbiter is particularly expensive, because it
+looks like a decision.
+
+Roles may be mapped across different vendors, which is deliberate: an adversary
+sharing a model family with the drafter it is attacking is a weaker check.
+
+---
+
+## Detecting that a source moved, not that a page changed
+
+Currency does not diff web pages. It works from the **approved source
+registry**, where every source carries a publisher, a trust tier, a review
+cadence and an owner, and it tracks change against a checkpoint so a run knows
+what it has already seen.
+
+Two signals feed staleness rather than one: the declared review cadence, and
+citation dates measured against the source registry. That second signal exists
+because the first goes blind on any surface missing a field, which is exactly
+the defect recorded above.
+
+---
+
+## Instructor-led delivery is a rendering, not a separate track
+
+An instructor-led version of a module is the **same content rendered
+differently**, not a parallel body of work with its own lifecycle. Narration,
+stage directions, captions and transcripts attach to the item; they do not fork
+it.
+
+**Why this matters practically.** The alternative produces two copies that drift,
+and the drift is invisible until a learner is taught something the written
+version has already corrected. The runtime that plays it is a media player, not
+an inference surface: no model is called at learn time.
+
+---
+
+## One deployment, and nothing about the deployer inside it
+
+The whole reference deployment is a **single template**, and it carries **no
+deployer-specific values at all**. Resource names derive from the deployment
+scope rather than being typed in, storage is private unconditionally with no
+bootstrap window that opens it, and things that identify one organisation, such
+as a cost centre, are required parameters with no defaults rather than
+convenient constants.
+
+**Why required with no default.** A default that happens to be someone's real
+cost centre is worse than a missing value, because it deploys successfully and
+bills the wrong owner quietly.
+
+Monitoring is part of the same template rather than a second one. Splitting them
+means a deployment can succeed while its alerting does not exist, and nobody
+finds out until the thing that needed alerting happens.
 
 ---
 

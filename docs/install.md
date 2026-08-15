@@ -41,15 +41,28 @@ The delivery pipeline (`delivery/Invoke-Project42Delivery.ps1`) runs in a
 container. The reference deployment uses **Azure Container Apps Jobs**, but the
 container image is portable and runs on any container platform:
 
-- **Azure Container Apps Jobs** (reference deployment; Bicep in `project42dev-ops/deployment/infra/`)
+- **Azure Container Apps Jobs** (the reference deployment)
 - **AKS CronJobs** (Kubernetes `CronJob` with the same image)
 - **Docker Compose** (one-off `docker compose run`)
 - **Any Kubernetes distribution** (Deployment or CronJob)
 
 The image is `mcr.microsoft.com/powershell:7.5-ubuntu-22.04` plus three
-PowerShell modules. See the [delivery platform README](https://github.com/project42dev/project42dev-ops/blob/main/deployment/infra/README.md)
-for the full environment contract (19 variables, two storage mounts, managed
-identity).
+PowerShell modules.
+
+**The environment contract is declared in this repository**, in the `ENV` block
+of [`delivery/Dockerfile`](../delivery/Dockerfile). Read it there rather than
+anywhere else: it is the list the entry point actually reads, so it cannot drift
+away from the code. In outline the job needs three things.
+
+| What | Where it comes from |
+|---|---|
+| Your endpoint and identity | `FOUNDRY_ENDPOINT` and `AZURE_CLIENT_ID`, supplied per deployment |
+| Your run caps | `MAX_REQUESTS_PER_RUN`, `MAX_SPEND_USD_PER_RUN`, `RUN_TIMEOUT_SECONDS`, `MAX_FETCHES_PER_RUN`, supplied by the job definition rather than defaulted generously in the image |
+| Two mounts | A **config** mount holding operator files you supply (approved source registry, pricing, schemas, deployed-model inventory) and a **run records** mount holding everything a run produces (the content database, proposals, run records, checkpoints) |
+
+Nothing private resolves inside the image. Every deployment-specific value
+arrives at runtime, which is what makes the same image portable across
+platforms and across organisations.
 
 ## 1. Describe what you have deployed
 

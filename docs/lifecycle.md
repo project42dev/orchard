@@ -12,20 +12,25 @@ content database)
 > tense is how this project came to believe a lifecycle was running when it was
 > not.
 >
-> What is actually deployed, verified 2026-08-14: the 8-phase engine runs
-> monthly (the 1st, 06:00 UTC) performing discovery, scoring, database build,
-> **Gate 1**, brief generation, delivery against Foundry, ingest, and
-> notification. New work holds at `gate1-pending` until the owner approves.
-> Gate 2 binds the publication approval to the exact item and artifact
-> digest, with a denial-rework loop. The currency track runs monthly (the
-> 15th) and records findings.
+> **Superseded 2026-08-15: Orchard is not running anywhere.** The reference
+> deployment was built, ran, and was torn down. On 2026-08-14 the solution was
+> reset to a never-run state ahead of its first full start-to-finish test, so
+> the work queue and the candidate list are empty and every artifact of the
+> previous runs has been removed.
+>
+> What that deployment did demonstrate while it existed: an 8-phase engine
+> running monthly and performing discovery, scoring, database build,
+> **Gate 1**, brief generation, delivery, ingest and notification, with new
+> work held at `gate1-pending` until approved. Gate 2 binds a publication
+> approval to the exact item and artifact digest, with a denial-rework loop.
+> The currency track ran on its own monthly schedule and recorded findings.
 >
 > Still designed and not built: gate manifests and batching, revision
 > binding, `defer`, the PR-transaction publication, wired live verification,
 > and every currency-track step past inspection.
 >
-> Treat this page as the intended lifecycle. The record of what runs is
-> `how-orchard-works.md` in the operations repository design package.
+> **Treat this page as the intended lifecycle.** [Status](status.md) is the
+> record of what is built, what is deployed and what has been proven.
 
 One content item, from the moment a discovery pass first notices the topic to
 the moment it is retired. The states below are the **intended** lifecycle.
