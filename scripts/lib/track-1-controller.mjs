@@ -8,7 +8,25 @@ export const TRACK_1_OUTCOMES = Object.freeze([
     "success", "redirected", "rate-limited", "failed", "skipped", "blocked", "unevaluated"
 ]);
 
-const FAILURE_OUTCOMES = new Set(["rate-limited", "failed", "blocked"]);
+// What counts against the failure cap, and deliberately what does not.
+//
+// The cap exists to stop a run that is going wrong: the network is down, or
+// every host is throttling us. `blocked` is neither. It means OUR OWN guards
+// refused the fetch, for an unapproved redirect, a byte cap, or a
+// non-public address. That is the policy working, and counting it as a failure
+// makes the system treat its own correctness as a reason to give up.
+//
+// Measured on 2026-08-15, first real survey: of 14 sources attempted, 9
+// succeeded, 3 redirected, 1 failed and 4 were blocked. With `blocked`
+// counted, the cap of 5 was reached at source 14 of 78 and the remaining 64
+// were never looked at. Off-host redirects and oversized pages are ordinary
+// on a list of 78 third-party catalogues, so this was not an unlucky run.
+//
+// Blocks are still bounded, by their own cap, because a flood of them is worth
+// stopping for: it can mean the registry no longer matches what those hosts
+// serve.
+const FAILURE_OUTCOMES = new Set(["rate-limited", "failed"]);
+const BLOCKED_OUTCOMES = new Set(["blocked"]);
 const IPV6_GLOBAL_UNICAST = ipaddr.parseCIDR("2000::/3");
 const BLOCKED_IPV6_RANGES = Object.freeze([
     "64:ff9b::/96", "64:ff9b:1::/48", "100::/64", "2001::/23",
@@ -369,11 +387,17 @@ export async function runTrack1(options) {
     const fetchAdapter = options.fetchAdapter ?? createBoundedFetchAdapter(options.limits);
     const maxSources = options.limits?.maxSources ?? Number.MAX_SAFE_INTEGER;
     const maxFailures = options.limits?.maxFailures ?? Number.MAX_SAFE_INTEGER;
+    // Blocks get their own budget, defaulting to four times the failure cap.
+    // Generous, because a policy refusal is a correct outcome, but still
+    // bounded so a registry that has drifted away from what its hosts serve
+    // stops the run instead of grinding through every source.
+    const maxBlocked = options.limits?.maxBlocked ?? (options.limits?.maxFailures ? options.limits.maxFailures * 4 : Number.MAX_SAFE_INTEGER);
     const maxBytes = options.limits?.maxBytes ?? 1_000_000;
     const maxDurationMs = options.limits?.timeoutMs ?? 15_000;
     const outcomes = [];
     let attempted = 0;
     let failures = 0;
+    let blocked = 0;
 
     if (options.mode !== "dry-run" && options.stateStore) {
         const initialCoverage = coverageFor(sources, []);
@@ -385,6 +409,7 @@ export async function runTrack1(options) {
         if (options.mode === "dry-run") result = { outcome: "unevaluated", reason: "dry-run" };
         else if (attempted >= maxSources) result = { outcome: "unevaluated", reason: "source-cap" };
         else if (failures >= maxFailures) result = { outcome: "unevaluated", reason: "failure-cap" };
+        else if (blocked >= maxBlocked) result = { outcome: "unevaluated", reason: "blocked-cap" };
         else {
             attempted += 1;
             try {
@@ -404,6 +429,7 @@ export async function runTrack1(options) {
                 result = { outcome: "failed", reason: "adapter-error", error: error.message };
             }
             if (FAILURE_OUTCOMES.has(result.outcome)) failures += 1;
+            if (BLOCKED_OUTCOMES.has(result.outcome)) blocked += 1;
         }
         const outcome = { sourceId: source.id, ...result };
         outcomes.push(outcome);
