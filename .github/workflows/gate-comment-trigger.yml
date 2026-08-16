@@ -53,10 +53,14 @@ jobs:
           fi
           echo "shaped=$shaped" >> "$GITHUB_OUTPUT"
 
+          # Matches both the current title wording and the "(track-1)" /
+          # "(track-2)" wording every issue open before that rename still
+          # carries: titles do not retroactively update, so both forms will
+          # exist side by side until the older issues close.
           track=""
-          if [[ "$TITLE" == *"(Discovery)"* ]]; then
+          if [[ "$TITLE" == *"(Discovery)"* || "$TITLE" == *"(track-1)"* ]]; then
             track="caj-p42orch-t1-man-prod-eus-01"
-          elif [[ "$TITLE" == *"(Currency)"* ]]; then
+          elif [[ "$TITLE" == *"(Currency)"* || "$TITLE" == *"(track-2)"* ]]; then
             track="caj-p42orch-t2-man-prod-eus-01"
           fi
           echo "job=$track" >> "$GITHUB_OUTPUT"
