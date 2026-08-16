@@ -16,11 +16,11 @@
 // must never happen is silence: a decision that did not apply has to be
 // visible, so every refusal names the comment and the reason.
 //
-// WHAT IT CANNOT DO YET, stated rather than hidden. recordVerifiedDecision
-// requires a positive queue work item ID for a Gate 1 APPROVAL, which is an
-// Azure DevOps work item, and the job has no ADO credential. So approvals are
-// reported as blocked with the reason, and denials, deferrals and requests for
-// changes apply normally.
+// AN APPROVAL RECORDS WITHOUT A TRACKER ITEM, because the tracker item is
+// created after approval, never before. The approval moves the item to
+// gate1-approved; ado-sync.mjs then creates the Azure DevOps work item,
+// records the external link, and advances the item to ado-linked, which is
+// the state that proves the tracker item exists.
 
 import { captureGateDecision } from "./capture-gate-decision.mjs";
 import { manifestFromIssueBody } from "./adapters/github-gate/adapter.mjs";
@@ -180,20 +180,10 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     });
                     const decision = captured.event;
 
-                    // A Gate 1 approval authorises dispatch and must name the
-                    // queue work item it authorises. That is an ADO work item
-                    // and the job cannot create one, so the approval is
-                    // reported blocked with the exact reason rather than
-                    // failing quietly or being weakened.
-                    if (decision.gate === "gate-1" && decision.decision === "approve") {
-                        summary.blocked += 1;
-                        log("warn", "gate.apply.approval-needs-ado", {
-                            gate, item: decision.item_id, comment: comment.id,
-                            effect: "the approval was read and validated; recording it needs an Azure DevOps work item the job cannot create",
-                        });
-                        continue;
-                    }
-
+                    // A Gate 1 approval records with no queue work item id:
+                    // the ADO work item does not exist yet, because approval
+                    // is what causes it to be created. ado-sync.mjs creates
+                    // it next and binds it on the external_link row.
                     await store.recordVerifiedDecision({
                         schema_version: "1.0.0",
                         queue_work_item_id: null,

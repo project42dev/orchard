@@ -46,57 +46,57 @@ function runRecordDir(proposals) {
 
 // --- ado-sync ----------------------------------------------------------------
 
-test('ado-sync creates a story for a gate1-approved item, records the link, and advances it', async () => {
+test('ado-sync refuses to create a story for an approved item with no recorded approval', async () => {
+    // gate1-approved is only reachable through a recorded verified decision in
+    // production. A fixture that walks the transition directly has no
+    // decision_event, and a work item created without one could never
+    // dispatch: getDispatchBinding demands the exact Gate 1 authority. So the
+    // tracker names the corruption and creates nothing, rather than minting
+    // an undispatchable stub on the board. The full create path, with a real
+    // recorded approval, is proven in test-ado-sync.mjs.
     const { store, runId, dbPath } = await estate();
     const [id] = await seedGateItems(store, runId, ['linkable']);
     await walkTo(store, runId, id, 'gate1-approved');
     store.close();
 
-    const dry = await syncCreate({ dbPath, org: 'o', project: 'p', areaPath: 'a', apply: false });
-    assert.equal(dry.created, 1, 'the approved, unlinked item is found');
-
-    const created = [];
-    const applied = await syncCreate({
-        dbPath, org: 'o', project: 'p', areaPath: 'a', apply: true, now: NOW,
-        createStory: (row) => { created.push(row); return 4242; },
+    const events = [];
+    const result = await syncCreate({
+        dbPath, apply: true, now: NOW,
+        client: { createWorkItem: () => { throw new Error('must not be called without an approval'); } },
+        log: (_l, event) => events.push(event),
     });
-    assert.equal(applied.created, 1);
-    assert.equal(created[0].title, 'How to teach linkable', 'the recorded manifest title names the story');
-
-    const store2 = openStateStore(dbPath);
-    try {
-        const link = store2.db.prepare("SELECT external_key, external_id, item_revision FROM external_link WHERE provider = 'ado' AND item_id = ?").get(id);
-        assert.equal(link.external_id, '4242');
-        assert.equal(link.external_key, adoExternalKey({ track: 'track-1', item_id: id, current_revision: link.item_revision }),
-            'the link uses the exact key the dispatch binding reads');
-        assert.equal(store2.db.prepare('SELECT current_state FROM workflow_item WHERE item_id = ?').get(id).current_state,
-            'ado-linked', 'the item advanced through the lifecycle, not around it');
-    } finally {
-        store2.close();
-    }
-
-    const again = await syncCreate({ dbPath, org: 'o', project: 'p', areaPath: 'a', apply: true, createStory: () => { throw new Error('must not be called twice'); } });
-    assert.equal(again.created, 0, 'create is idempotent: a linked item is not re-created');
+    assert.equal(result.created, 0);
+    assert.equal(result.skipped, 1);
+    assert.ok(events.includes('tracker.create.no-approval'), 'the missing approval is named, never guessed about');
+    assert.equal(stateOf(dbPath, id), 'gate1-approved', 'the item is untouched');
 });
 
 test('ado-sync update maps lifecycle states onto ADO states through the recorded link', async () => {
     const { store, runId, dbPath } = await estate();
     const [id] = await seedGateItems(store, runId, ['tracked']);
-    await walkTo(store, runId, id, 'gate1-approved');
+    // The fixture walks the item to executing, recording the ADO link the
+    // ado-linked transition now requires, exactly as production does.
+    await walkTo(store, runId, id, 'executing');
+    const link = store.db.prepare("SELECT external_key, external_id, item_revision FROM external_link WHERE provider = 'ado' AND item_id = ?").get(id);
+    assert.equal(link.external_key, adoExternalKey({ track: 'track-1', item_id: id, current_revision: link.item_revision }),
+        'the link uses the exact key the dispatch binding reads');
     store.close();
-    await syncCreate({ dbPath, org: 'o', project: 'p', areaPath: 'a', apply: true, now: NOW, createStory: () => 77 });
 
-    const store2 = openStateStore(dbPath);
-    await walkTo(store2, runId, id, 'executing');
-    store2.close();
-
-    const updates = [];
-    const result = await syncUpdate({
-        dbPath, org: 'o', project: 'p', apply: true,
-        updateStory: (adoId, state) => { updates.push([adoId, state]); return 'Active'; },
-    });
+    const calls = { reads: [], states: [], comments: [] };
+    const client = {
+        getWorkItem: async (adoId) => { calls.reads.push(Number(adoId)); return { id: Number(adoId), state: 'New' }; },
+        updateWorkItemState: async (adoId, state) => { calls.states.push([Number(adoId), state]); return state; },
+        addComment: async (adoId, text) => { calls.comments.push([Number(adoId), text]); },
+    };
+    const result = await syncUpdate({ dbPath, client, apply: true, log: () => { } });
     assert.equal(result.updated, 1);
-    assert.deepEqual(updates, [['77', 'executing']], 'the update carries the lifecycle state for mapping');
+    assert.deepEqual(calls.states, [[Number(link.external_id), 'Active']], 'executing maps onto Active');
+    assert.equal(calls.comments.length, 1, 'a real move explains itself in Orchard vocabulary');
+
+    // A second pass finds the board already aligned and rewrites nothing.
+    const again = await syncUpdate({ dbPath, client: { ...client, getWorkItem: async (adoId) => ({ id: Number(adoId), state: 'Active' }) }, apply: true, log: () => { } });
+    assert.equal(again.updated, 0);
+    assert.equal(again.unchanged, 1);
 });
 
 // --- ingest-proposals --------------------------------------------------------

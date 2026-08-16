@@ -139,7 +139,7 @@ test('a denial comment moves the item out of the gate', async () => {
     store.close();
 });
 
-test('a Gate 1 approval is validated, reported blocked, and changes nothing', async () => {
+test('a Gate 1 approval records with no tracker item, because approval is what creates one', async () => {
     const { store, item, issue } = await estate();
     const body = `/orchard gate1 approve item=${item.item_id} revision=1 digest=${item.proposal_digest}`;
     const events = [];
@@ -149,10 +149,13 @@ test('a Gate 1 approval is validated, reported blocked, and changes nothing', as
         fetchImpl: github({ issue, comments: [comment(body)] }),
         adapter: await pinnedAdapter(store), policy: POLICY,
     });
-    assert.equal(summary.blocked, 1);
-    assert.equal(summary.applied, 0);
-    assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending', 'a blocked approval must leave the item held');
-    assert.ok(events.some(([event]) => event === 'gate.apply.approval-needs-ado'), 'the reason must be stated, not inferred');
+    assert.equal(summary.applied, 1, JSON.stringify(events));
+    assert.equal(summary.blocked, 0);
+    assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved',
+        'the approval must move the item without demanding an ADO work item that cannot exist yet');
+    const [decision] = store.listDecisions(item.item_id);
+    const authority = store.getGateDecisionAuthority(decision.event_id);
+    assert.equal(authority.queue_work_item_id, null, 'the queue binding is written later, on the external link');
     store.close();
 });
 

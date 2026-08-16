@@ -109,6 +109,30 @@ export async function walkTo(store, runId, itemId, targetState, { now = NOW, act
     for (const [from, to, cause] of CHAIN) {
         if (!started && from !== current.current_state) continue;
         started = true;
+        if (to === 'ado-linked') {
+            // The lifecycle now proves the tracker item exists before it will
+            // say so: ado-linked requires a persisted ADO external link, so
+            // the fixture records one exactly as ado-sync.mjs does in
+            // production. Through the store's own API, never raw SQL.
+            const revision = Number(current.current_revision);
+            const linked = store.db.prepare(
+                "SELECT 1 FROM external_link WHERE provider = 'ado' AND item_id = ? AND item_revision = ?",
+            ).get(itemId, revision);
+            if (!linked) {
+                const track = store.db.prepare('SELECT track FROM workflow_item WHERE item_id = ?').get(itemId).track;
+                store.recordExternalLink({
+                    link_id: generateUuidV7(),
+                    run_id: runId,
+                    item_id: itemId,
+                    item_revision: revision,
+                    provider: 'ado',
+                    operation: 'ado-link',
+                    external_key: `orchard:${track}:${itemId}:r${revision}`,
+                    external_id: '424242',
+                    linked_at: now,
+                });
+            }
+        }
         await store.recordTransition({
             schema_version: '1.0.0',
             transition_id: generateUuidV7(),

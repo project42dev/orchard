@@ -145,17 +145,19 @@ test("decisions are contract-validated, immutable, replay-safe, and advance curr
     assert.throws(() => store.db.prepare("UPDATE decision_event SET decision = 'deny' WHERE event_id = ?").run(decision.event_id), /immutable/);
 });
 
-test("only a Gate 1 approval carries a queue work item, and a denial needs none", async (t) => {
-    // The queue work item ID is an Azure DevOps work item, and requiring one on
-    // every Gate 1 decision meant the owner could not record "no" without a
-    // work item first being created for work they were declining. A denial
-    // dispatches nothing, so it must carry nothing; an approval still binds.
+test("an approval records without a tracker item, and only an approval may ever carry one", async (t) => {
+    // The tracker item is created AFTER approval, never before: the approval
+    // is what causes the Azure DevOps work item to exist, so demanding its id
+    // WITH the approval made an approval impossible to record at all. An
+    // approval therefore records with a null queue work item id; the binding
+    // is written later, on the external_link row. A denial dispatches
+    // nothing, so it must still carry nothing.
     const { store, item } = await storeFixture(t);
     const approval = await gate1Authority(item);
 
     await assert.rejects(
-        () => store.recordVerifiedDecision({ ...approval, queue_work_item_id: null }),
-        /Gate 1 approval requires the exact positive queue work item ID/,
+        () => store.recordVerifiedDecision({ ...approval, queue_work_item_id: 0 }),
+        /must be null or a positive integer/,
     );
 
     const denial = await gate1Authority(item);
@@ -171,16 +173,22 @@ test("only a Gate 1 approval carries a queue work item, and a denial needs none"
         () => store.recordVerifiedDecision({ ...denial, queue_work_item_id: 77 }),
         /only a Gate 1 approval may claim queue dispatch ownership/,
     );
-    assert.deepEqual(await store.recordVerifiedDecision({ ...denial, queue_work_item_id: null }), denial.decision);
-    assert.equal(store.getItem(item.item_id).state, "denied");
+
+    assert.deepEqual(await store.recordVerifiedDecision({ ...approval, queue_work_item_id: null }), approval.decision);
+    assert.equal(store.getItem(item.item_id).state, "gate1-approved");
+    assert.equal(store.getGateDecisionAuthority(approval.decision.event_id).queue_work_item_id, null,
+        "the queue binding is not on the decision; it lives on the external link");
 });
 
 test("dispatch binding is derived only from protected Gate 1 authority and exact persisted ADO evidence", async (t) => {
     const { store, item } = await storeFixture(t);
-    const authority = await gate1Authority(item);
+    // The approval carries no queue work item id, because the work item is
+    // created after it. The id dispatch verifies is the one on the persisted
+    // external link, written when the tracker item was created.
+    const authority = await gate1Authority(item, { queue_work_item_id: null });
     await store.recordVerifiedDecision(authority);
     const binding = {
-        queue_work_item_id: 77, run_id: item.run_id, track: item.track, item_id: item.item_id,
+        queue_work_item_id: 5001, run_id: item.run_id, track: item.track, item_id: item.item_id,
         item_revision: 1, proposal_digest: item.proposal_digest, target: item.target,
         gate1_decision_event_id: authority.decision.event_id,
         ado_external_key: `orchard:${item.track}:${item.item_id}:r1`, ado_work_item_id: 5001
@@ -190,15 +198,25 @@ test("dispatch binding is derived only from protected Gate 1 authority and exact
         item_revision: 1, provider: "ado", operation: "user-story", external_key: binding.ado_external_key,
         external_id: 5001, linked_at: "2026-08-12T10:01:00Z", binding
     });
-    const reference = { queue_work_item_id: 77, gate1_decision_event_id: authority.decision.event_id };
+    const reference = { queue_work_item_id: 5001, gate1_decision_event_id: authority.decision.event_id };
     assert.deepEqual(store.getDispatchBinding(reference), binding);
     assert.throws(() => store.getDispatchBinding({ ...reference, manifest: authority.manifest }), /only immutable/);
-    assert.throws(() => store.getDispatchBinding({ ...reference, queue_work_item_id: 78 }), /no exact persisted/);
+    assert.throws(() => store.getDispatchBinding({ ...reference, queue_work_item_id: 78 }),
+        /does not match the persisted ADO binding/,
+        "a queue reference that names a different work item than the link recorded must be refused");
 });
 
 test("state transitions are legal, append-only, replay-safe, and fail on stale revisions", async (t) => {
     const { store, item } = await storeFixture(t);
     await store.recordVerifiedDecision(await gate1Authority(item));
+    // ado-linked asserts the tracker item exists, so the link must be
+    // persisted before the transition will record, exactly as in production.
+    store.recordExternalLink({
+        link_id: "018f7000-0000-7000-8000-000000000002", run_id: item.run_id, item_id: item.item_id,
+        item_revision: 1, provider: "ado", operation: "ado-link",
+        external_key: `orchard:${item.track}:${item.item_id}:r1`,
+        external_id: 5001, linked_at: "2026-08-12T10:01:00Z"
+    });
     const legal = transition(item);
     assert.deepEqual(await store.recordTransition(legal), legal);
     assert.deepEqual(await store.recordTransition(legal), legal);

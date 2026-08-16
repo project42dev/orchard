@@ -130,6 +130,20 @@ export async function listIssueComments({ repo, issueNumber, token, fetchImpl = 
 }
 
 /**
+ * Add one comment to an issue. Used by the tracker sync to write the Azure
+ * DevOps work item id and URL back onto the gate issue that produced it, so
+ * the two sides link: the issue names the item and the item names the issue.
+ */
+export async function commentOnIssue({ repo, issueNumber, body, token, fetchImpl = fetch }) {
+    if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
+    if (typeof body !== "string" || body.length === 0) throw new TypeError("a comment body is required");
+    const created = await call(`/repos/${repo}/issues/${Number(issueNumber)}/comments`, {
+        token, fetchImpl, method: "POST", body: { body },
+    });
+    return { id: created.id, url: created.html_url };
+}
+
+/**
  * Create the gate issue, or update the one this marker already owns.
  *
  * Returns { action, number, url }. `action` is "created" or "updated", never a

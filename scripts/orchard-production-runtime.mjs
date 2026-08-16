@@ -16,6 +16,7 @@ import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANON
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
+import { runTrackerSyncForRun } from "./ado-sync.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -133,6 +134,15 @@ async function runAzure(track, log) {
         } finally {
             decisionStore.close();
         }
+
+        // The tracker follows the decisions immediately: an approval the
+        // block above just recorded is what creates the Azure DevOps work
+        // item, and every already-linked item is moved to the state its
+        // lifecycle is in now. Inside the fence, as the single writer, and
+        // it cannot fail the run: the job's managed identity is a registered
+        // ADO service principal user, and any ADO or GitHub fault logs and
+        // leaves the board to catch up on the next run.
+        await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
 
         const common = ["--mode", required("ORCHARD_RUN_MODE"), "--state-db", state.path, "--implementation-commit", required("ORCHARD_IMPLEMENTATION_COMMIT"), "--trigger-type", required("ORCHARD_TRIGGER_TYPE"), "--trigger-reference", process.env.ORCHARD_TRIGGER_REFERENCE ?? execution, "--actor-kind", required("ORCHARD_ACTOR_KIND"), "--actor-reference", process.env.ORCHARD_ACTOR_REFERENCE ?? execution, "--out", join(root, `${track}-controller-output.json`)];
         if (track === "track-1") {

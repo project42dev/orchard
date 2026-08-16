@@ -306,6 +306,15 @@ export class StateStore {
             revision: Number(item.current_revision),
             supersededByItemId: item.superseded_by_item_id
         });
+        if (record.to_state === "ado-linked") {
+            // The external_link demand lives HERE, not on the approval:
+            // ado-linked is the state that asserts the tracker item exists,
+            // so it is the transition that must prove it. Moved off
+            // gate1-approved on 2026-08-15 per the remediation plan's Part 1.
+            const link = this.db.prepare("SELECT 1 FROM external_link WHERE provider = 'ado' AND item_id = ? AND item_revision = ?")
+                .get(record.item_id, record.item_revision);
+            if (!link) throw new StateConflictError("the ado-linked transition requires a persisted ADO external link");
+        }
         if (["ado-closure-ready", "closed"].includes(record.to_state)) {
             const packet = this.db.prepare("SELECT packet_digest FROM closure_packet WHERE item_id = ? AND item_revision = ?")
                 .get(record.item_id, record.item_revision);
@@ -405,15 +414,19 @@ export class StateStore {
             throw new StateConflictError("verified decision revision or digest does not match its gate manifest");
         }
         const queueWorkItemId = authority.queue_work_item_id ?? null;
-        // The queue work item ID binds an APPROVAL to the item it authorises
-        // for dispatch, which is why getDispatchBinding refuses to work without
-        // it. A denial, a deferral and a request for changes dispatch nothing,
-        // so requiring one made them impossible to record without first
-        // creating an Azure DevOps work item for work the owner has just said
-        // no to. Approval keeps the full binding; the negatives must carry none.
+        // The tracker item is created AFTER approval, never before: the owner
+        // reads a GitHub issue and says yes, and that yes is what causes the
+        // Azure DevOps work item to exist. The first version of this check
+        // demanded a positive work item id WITH the approval, which inverted
+        // the ordering and made an approval impossible to record at all. The
+        // external_link demand now sits on the ado-linked transition in
+        // recordTransition, which is the state that means "the tracker item
+        // exists". An approval may still carry the id when a reconciler
+        // replays one that is already linked, and then it must be exact.
         const authorisesDispatch = record.gate === "gate-1" && record.decision === "approve";
-        if (authorisesDispatch && (!Number.isSafeInteger(queueWorkItemId) || queueWorkItemId < 1)) {
-            throw new StateConflictError("Gate 1 approval requires the exact positive queue work item ID");
+        if (authorisesDispatch && queueWorkItemId !== null
+            && (!Number.isSafeInteger(queueWorkItemId) || queueWorkItemId < 1)) {
+            throw new StateConflictError("a Gate 1 approval's queue work item ID must be null or a positive integer");
         }
         if (!authorisesDispatch && queueWorkItemId !== null) {
             throw new StateConflictError("only a Gate 1 approval may claim queue dispatch ownership");
@@ -879,7 +892,14 @@ export class StateStore {
             throw new StateConflictError("dispatch queue work item reference must be a positive integer");
         }
         const authority = this.getGateDecisionAuthority(reference.gate1_decision_event_id);
-        if (!authority || authority.queue_work_item_id !== reference.queue_work_item_id) {
+        if (!authority) {
+            throw new StateConflictError("no exact persisted dispatch authority exists for the queue work item");
+        }
+        // The work item is created after the approval, so the id lives on the
+        // external_link row written at creation time (checked below), not on
+        // the decision. An authority recorded before that ordering fix may
+        // still carry the id, and then it must agree exactly.
+        if (authority.queue_work_item_id !== null && authority.queue_work_item_id !== reference.queue_work_item_id) {
             throw new StateConflictError("no exact persisted dispatch authority exists for the queue work item");
         }
         const { decision, manifest, current_item: reviewedItem } = authority;
@@ -899,6 +919,9 @@ export class StateStore {
             expectedKey, decision.item_id, decision.item_revision);
         if (links.length !== 1 || !Number.isSafeInteger(Number(links[0].external_id)) || Number(links[0].external_id) < 1) {
             throw new StateConflictError("dispatch requires exactly one positive persisted ADO binding");
+        }
+        if (Number(links[0].external_id) !== reference.queue_work_item_id) {
+            throw new StateConflictError("dispatch queue work item does not match the persisted ADO binding");
         }
         const linkRecord = JSON.parse(links[0].record_json);
         const persistedBinding = linkRecord.binding ?? linkRecord;
