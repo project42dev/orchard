@@ -1,0 +1,77 @@
+name: Gate comment trigger
+
+# The moment an authorized decision comment lands on a gate issue, this
+# starts the matching track's manual job so apply-gate-decisions.mjs picks
+# it up immediately, instead of waiting for the next scheduled or manual
+# run. This workflow decides nothing: it only starts the job. Every
+# authorization, binding, and integrity check still happens exactly where
+# it always has, inside the container, against the state database GitHub
+# has no path to.
+#
+# The credential (App ID: 19e1b293-2027-478e-b6d6-2aba63e8f663) is OIDC
+# federated to this exact repo and branch, no client secret exists anywhere
+# for it to leak. Its Azure RBAC grant is a single custom role,
+# "Orchard Gate Job Starter", carrying exactly one permission
+# (Microsoft.App/jobs/start/action), assigned only on the two manual jobs
+# it needs to start. It cannot read state, read secrets, or manage any
+# other resource.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  id-token: write
+  contents: read
+  issues: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    if: >
+      contains(github.event.issue.labels.*.name, 'orchard-gate-1') ||
+      contains(github.event.issue.labels.*.name, 'orchard-gate-2')
+    steps:
+      - name: Decide whether this comment could be a gate decision
+        id: shape
+        env:
+          BODY: ${{ github.event.comment.body }}
+          TITLE: ${{ github.event.issue.title }}
+        run: |
+          set -euo pipefail
+          # A cheap pre-filter, not a security boundary: apply-gate-decisions.mjs
+          # re-verifies everything from the real comment and the real issue
+          # manifest regardless. This only decides whether starting a job is
+          # worth doing at all, so an unrelated comment on a gate issue never
+          # spends anything.
+          trimmed="$(printf '%s' "$BODY" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+          shaped=false
+          if [[ "$trimmed" == "approve" || "$trimmed" == "approved" || "$trimmed" == "deny" || "$trimmed" == "denied" ]]; then
+            shaped=true
+          elif printf '%s' "$BODY" | grep -qE '^/orchard gate[12] (approve|deny|defer|request-changes) item='; then
+            shaped=true
+          fi
+          echo "shaped=$shaped" >> "$GITHUB_OUTPUT"
+
+          track=""
+          if [[ "$TITLE" == *"(Discovery)"* ]]; then
+            track="caj-p42orch-t1-man-prod-eus-01"
+          elif [[ "$TITLE" == *"(Currency)"* ]]; then
+            track="caj-p42orch-t2-man-prod-eus-01"
+          fi
+          echo "job=$track" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC, no stored secret)
+        if: steps.shape.outputs.shaped == 'true' && steps.shape.outputs.job != ''
+        uses: azure/login@v2
+        with:
+          client-id: 19e1b293-2027-478e-b6d6-2aba63e8f663
+          tenant-id: d6fc73cf-2a7a-4876-b67f-ca48961a6e83
+          subscription-id: be069ae1-fc96-4a07-9f8e-5994d83a137d
+
+      - name: Start the matching track's manual job
+        if: steps.shape.outputs.shaped == 'true' && steps.shape.outputs.job != ''
+        run: |
+          set -euo pipefail
+          az rest --method post \
+            --url "https://management.azure.com/subscriptions/be069ae1-fc96-4a07-9f8e-5994d83a137d/resourceGroups/rg-p42-orchard-prod-eus-01/providers/Microsoft.App/jobs/${{ steps.shape.outputs.job }}/start?api-version=2024-03-01"
