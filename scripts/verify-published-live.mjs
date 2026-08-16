@@ -115,28 +115,53 @@ function arg(name, fallback = null) {
   return i === -1 ? fallback : process.argv[i + 1];
 }
 
+// SCHEMA. Published work is read from publication_transaction and
+// workflow_item (schema/migrations/002), the ONLY tables the deployed database
+// has. The first version read `publication` and `item` from
+// schema/content-db.sql, a developer-local schema no migration ever applies,
+// so live verification would have failed `no such table` on every run and
+// been logged as a serving fault rather than the schema mistake it was.
+//
+// Exported so a test can prove the statement compiles against the migrated
+// schema: a query with a wrong table name is exactly the defect class that
+// shipped here once already.
+export const PUBLISHED_ITEMS_SQL =
+  `SELECT p.item_id AS id, p.created_at AS published_at, i.surface,
+          p.target_repository, p.target_path AS path
+     FROM publication_transaction p
+     LEFT JOIN workflow_item i ON i.item_id = p.item_id
+    WHERE (? IS NULL OR p.created_at >= ?)
+    ORDER BY p.created_at DESC`;
+
+// The marker for a published item is its recorded Gate 1 manifest title, the
+// same detail every other reader of the lifecycle uses.
+export const ITEM_TITLE_SQL =
+  `SELECT record_json FROM observation_event
+    WHERE item_id = ? AND evidence_reference = ?
+    ORDER BY observed_at DESC LIMIT 1`;
+
 const invokedDirectly = process.argv[1] &&
   process.argv[1].replace(/\\/g, "/").split("/").pop() === "verify-published-live.mjs";
 if (invokedDirectly) {
-  const { DatabaseSync } = await import("node:sqlite");
+  const { openStateStore } = await import("./lib/state-store.mjs");
+  const { GATE_MANIFEST_REFERENCE_PREFIX } = await import("./lib/gate-queue.mjs");
   const { readFileSync } = await import("node:fs");
-  const db = new DatabaseSync(arg("db", "content.db"));
+  const store = openStateStore(arg("db", "content.db"));
+  const db = store.db;
   try {
     const surfaces = JSON.parse(readFileSync(arg("surfaces", "config/surface-targets.json"), "utf8")).surfaces ?? {};
     const since = arg("since");
-    const rows = db
-      .prepare(
-        `SELECT p.subject_id AS id, p.published_at, i.surface, i.title, i.path
-           FROM publication p LEFT JOIN item i ON i.id = p.item_id
-          WHERE (? IS NULL OR p.published_at >= ?)
-          ORDER BY p.published_at DESC`,
-      )
-      .all(since, since);
+    const titleFor = db.prepare(ITEM_TITLE_SQL);
+    const rows = db.prepare(PUBLISHED_ITEMS_SQL).all(since, since).map((row) => {
+      const observed = titleFor.get(row.id, `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${row.id}`);
+      const manifest = observed ? JSON.parse(observed.record_json).manifest_item ?? null : null;
+      return { ...row, title: manifest?.title ?? null };
+    });
     const out = await verifyAll(rows, surfaces);
     process.stdout.write(JSON.stringify(out, null, 2) + "\n");
     process.stderr.write(`live verification: ${out.serving}/${out.checked} serving\n`);
     process.exitCode = out.failed.length === 0 ? 0 : 1;
   } finally {
-    db.close();
+    store.close();
   }
 }

@@ -9,18 +9,36 @@
 // no list of what to re-check, and the day a reviewer asks where a claim came
 // from the answer is a hunt through a file share.
 //
+// SCHEMA. This tool targets workflow_item and publication_transaction from
+// schema/migrations/002, the ONLY tables the deployed database has. The first
+// version wrote into `publication` from schema/content-db.sql, which no
+// migration ever applies, so it would have failed `no such table` on first
+// use against production data.
+//
+// WHAT CHANGED WITH THE SCHEMA, and why. publication_transaction is immutable
+// engine evidence: every row binds a protected Gate 2 approval, an artifact
+// digest, and an ADO link, and the state store refuses a row without them.
+// A human cannot hand-write one, by design. What a human CAN truthfully
+// record is the acceptance itself, so this tool:
+//   - reads the item's publication transactions and reports them
+//   - records the named acceptance as immutable observation evidence bound to
+//     the item revision (`orchard/manual-acceptance/...`)
+//   - never moves lifecycle state: 'published' is reached only through the
+//     publication engine's acknowledged transaction, and pretending otherwise
+//     is exactly the push-equals-publication defect verify-published-live.mjs
+//     exists to catch.
+//
 // THIS IS A HUMAN'S TOOL, and the shape of it says so:
 //   - --accepted-by is required and has no default. A publication with no named
 //     accepter is an automated publication, and this pipeline does not do those
 //     (ADR-0004: it proposes only).
-//   - It moves the work item to 'done', which is a terminal state a build may
-//     never write. That is exactly why a person runs this and a build does not.
-//   - It refuses an item a person already moved to 'rejected'. Reversing that
-//     is a decision, not a bookkeeping step.
+//   - It refuses an item at 'denied'. Reversing that is a decision, not a
+//     bookkeeping step.
 
-import { DatabaseSync } from 'node:sqlite';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { openStateStore } from './lib/state-store.mjs';
+import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { readProposals, matchToWorkItem } from './ingest-proposals.mjs';
 
 export class PublicationError extends Error {
@@ -32,7 +50,7 @@ export class PublicationError extends Error {
   }
 }
 
-// The proposal that produced this subject's content, newest last so a re-run
+// The proposal that produced this item's content, newest last so a re-run
 // supersedes an earlier attempt.
 export function findProposalFor(subjectId, runRecordDir) {
   const set = new Set([subjectId]);
@@ -44,13 +62,11 @@ export function findProposalFor(subjectId, runRecordDir) {
   return found;
 }
 
-export function recordPublication({
+export async function recordPublication({
   dbPath,
   subjectId,
   acceptedBy,
   runRecordDir = null,
-  itemId = null,
-  kind = null,
   note = null,
   now = new Date().toISOString(),
   apply = false,
@@ -62,75 +78,69 @@ export function recordPublication({
     );
   }
 
-  const db = new DatabaseSync(dbPath);
+  const store = openStateStore(dbPath);
   try {
-    const rows = db.prepare('SELECT id, kind, state, title FROM work_item WHERE subject_id = ?')
-      .all(subjectId)
-      .filter((r) => !kind || r.kind === kind);
-    if (!rows.length) {
+    const db = store.db;
+    const item = db.prepare(
+      `SELECT item_id, track, outcome, current_state, current_revision, origin_run_id, semantic_identity
+         FROM workflow_item WHERE item_id = ? OR semantic_identity = ?`,
+    ).get(subjectId, subjectId);
+    if (!item) {
       throw new PublicationError(
-        `no work item with subject id "${subjectId}"${kind ? ` and kind "${kind}"` : ''}`,
-        'check the id against v_queue. A publication is recorded against the queue item it closes.',
+        `no workflow item matches "${subjectId}"`,
+        'check the id against workflow_item. A publication is recorded against the lifecycle item it closes.',
       );
     }
-    // One subject can carry a completed creation and an open update at the same
-    // time. Closing the wrong one marks work done that nobody did.
-    if (rows.length > 1) {
+    if (item.current_state === 'denied') {
       throw new PublicationError(
-        `subject "${subjectId}" has ${rows.length} work items (${rows.map((r) => r.kind).join(', ')})`,
-        'pass --kind needs-creating or --kind needs-updating to say which one this publication closes.',
-      );
-    }
-    const item = rows[0];
-    if (item.state === 'rejected') {
-      throw new PublicationError(
-        `work item "${subjectId}" is rejected, which is terminal`,
-        'a person rejected this. Reversing it is a decision, not a bookkeeping step, and this tool will not make it.',
+        `workflow item "${item.item_id}" is denied, which is terminal for this revision`,
+        'a person denied this. Reversing it is a decision, not a bookkeeping step, and this tool will not make it.',
       );
     }
 
-    const proposal = runRecordDir ? findProposalFor(subjectId, runRecordDir) : null;
+    const transactions = db.prepare(
+      `SELECT transaction_id, item_revision, artifact_digest, target_repository, target_path, created_at
+         FROM publication_transaction WHERE item_id = ? ORDER BY created_at DESC`,
+    ).all(item.item_id);
+    const transaction = transactions[0] ?? null;
 
-    // A publication with no proposal behind it is legitimate: content written
-    // by hand still deserves a provenance row saying so, and saying that no
+    const proposal = runRecordDir ? findProposalFor(item.item_id, runRecordDir) : null;
+
+    // An acceptance with no proposal behind it is legitimate: content written
+    // by hand still deserves an evidence row saying so, and saying that no
     // ensemble ran is more useful than leaving a gap that reads the same as
     // "we never looked".
-    const row = {
-      subject_id: subjectId,
-      item_id: itemId,
+    const acceptance = {
+      kind: 'manual-acceptance',
+      item_id: item.item_id,
+      item_revision: Number(item.current_revision),
       run_id: proposal?.runId ?? null,
       brief_id: proposal?.doc?.briefId ?? null,
       proposal_file: proposal?.file ?? null,
       proposal_digest: proposal?.doc?.proposalDigest ?? null,
       disposition: proposal?.doc?.disposition ?? null,
+      publication_transaction_id: transaction?.transaction_id ?? null,
       accepted_by: acceptedBy,
-      published_at: now,
+      accepted_at: now,
       note: note ?? (proposal ? null : 'no ensemble proposal found; recorded as hand-authored'),
     };
 
     if (apply) {
-      db.prepare(
-        `INSERT INTO publication
-           (subject_id, item_id, run_id, brief_id, proposal_file, proposal_digest,
-            disposition, accepted_by, published_at, note)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (subject_id, run_id, proposal_file) DO UPDATE SET
-           item_id = excluded.item_id,
-           accepted_by = excluded.accepted_by,
-           published_at = excluded.published_at,
-           note = excluded.note`,
-      ).run(
-        row.subject_id, row.item_id, row.run_id, row.brief_id, row.proposal_file,
-        row.proposal_digest, row.disposition, row.accepted_by, row.published_at, row.note,
-      );
-      db.prepare(
-        "UPDATE work_item SET state = 'done', note = ?, updated_at = ? WHERE id = ?",
-      ).run(`published by ${acceptedBy}${row.run_id ? `, from run ${row.run_id}` : ''}`, now, item.id);
+      store.recordObservation({
+        observation_id: generateUuidV7(),
+        run_id: item.origin_run_id,
+        item_id: item.item_id,
+        item_revision: Number(item.current_revision),
+        evidence_reference: `orchard/manual-acceptance/${item.item_id}:r${Number(item.current_revision)}`,
+        evidence_digest: sha256Digest(acceptance),
+        observed_at: now,
+        acceptance,
+      });
     }
 
-    return { row, workItem: item, from: item.state, to: 'done', proposal };
+    return { row: acceptance, workItem: item, state: item.current_state, proposal, transaction, transactions };
   } finally {
-    db.close();
+    store.close();
   }
 }
 
@@ -146,24 +156,21 @@ function parseArgs(argv) {
   return args;
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.db || !args.subject || !args['accepted-by']) {
-    console.error('usage: record-publication.mjs --db <content.db> --subject <subject-id> --accepted-by <name>');
-    console.error('       [--run-records <dir>] [--item-id <id>] [--kind needs-creating|needs-updating]');
-    console.error('       [--note <text>] [--apply]');
+    console.error('usage: record-publication.mjs --db <state.db> --subject <item-id-or-semantic-identity> --accepted-by <name>');
+    console.error('       [--run-records <dir>] [--note <text>] [--apply]');
     process.exit(2);
   }
 
   let r;
   try {
-    r = recordPublication({
+    r = await recordPublication({
       dbPath: resolve(args.db),
       subjectId: args.subject,
       acceptedBy: args['accepted-by'] === true ? null : args['accepted-by'],
       runRecordDir: args['run-records'] && args['run-records'] !== true ? resolve(args['run-records']) : null,
-      itemId: args['item-id'] && args['item-id'] !== true ? args['item-id'] : null,
-      kind: args.kind && args.kind !== true ? args.kind : null,
       note: args.note && args.note !== true ? args.note : null,
       apply: Boolean(args.apply),
     });
@@ -176,22 +183,27 @@ function main() {
     throw err;
   }
 
-  console.log(`${r.workItem.title}`);
-  console.log(`  subject     ${r.row.subject_id}`);
-  console.log(`  work item   ${r.from} -> ${r.to}`);
-  if (r.proposal) {
-    console.log(`  run         ${r.row.run_id}`);
-    console.log(`  proposal    ${r.row.proposal_file} (${r.row.disposition})`);
+  console.log(`${r.workItem.item_id} [${r.workItem.outcome}]`);
+  console.log(`  lifecycle    ${r.state}`);
+  if (r.transaction) {
+    console.log(`  transaction  ${r.transaction.transaction_id} -> ${r.transaction.target_repository}/${r.transaction.target_path}`);
   } else {
-    console.log('  proposal    none found. Recorded as hand-authored, which is a fact worth having.');
+    console.log('  transaction  none. The publication engine has recorded nothing for this item;');
+    console.log('               this acceptance is evidence of a hand publication, not a lifecycle change.');
   }
-  console.log(`  accepted by ${r.row.accepted_by}`);
+  if (r.proposal) {
+    console.log(`  run          ${r.row.run_id}`);
+    console.log(`  proposal     ${r.row.proposal_file} (${r.row.disposition})`);
+  } else {
+    console.log('  proposal     none found. Recorded as hand-authored, which is a fact worth having.');
+  }
+  console.log(`  accepted by  ${r.row.accepted_by}`);
 
   if (r.row.disposition === 'blocked') {
-    console.log('\nNOTE: the ensemble\'s own reviewers BLOCKED this proposal, and a human is publishing it');
+    console.log('\nNOTE: the ensemble\'s own reviewers BLOCKED this proposal, and a human is accepting it');
     console.log('anyway. That is allowed and it is recorded. The disposition is kept as it was.');
   }
   if (!args.apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

@@ -3,23 +3,26 @@
 //
 // These assert the PROMISES that make the handoff a handoff. The arithmetic of
 // building a prompt string does not matter much; what matters is that the link
-// back to the queue survives, that the tool refuses rather than guesses, and
-// that a count of stranded work is a real count and not an artefact of where a
-// loop stopped.
+// back to the lifecycle survives, that the tool refuses rather than guesses,
+// and that a count of stranded work is a real count and not an artefact of
+// where a loop stopped.
+//
+// EVERY database fixture is built through openStateStore on the real migrated
+// schema and walked to its state through the lifecycle's own transitions. The
+// previous version hand-applied schema/content-db.sql, a schema production
+// does not have, which is exactly how the generator shipped querying a table
+// the deployed database lacks.
 
-import { DatabaseSync } from 'node:sqlite';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import {
   generateBriefs, resolveRoles, loadInventory, normalizeStableId, briefIdFor,
-  briefFor, topicSlug, BriefGenerationError, ROLE_JOBS,
+  briefFor, topicSlug, BriefGenerationError, ROLE_JOBS, OUTCOME_KIND, surfaceConfigFor,
 } from './generate-briefs.mjs';
 import { matchToWorkItem } from './ingest-proposals.mjs';
-
-const HERE = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = resolve(HERE, '..', 'schema', 'content-db.sql');
+import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
+import { estate, seedGateItems, walkTo, cleanupFixtures, NOW, candidate } from './test-fixtures.mjs';
 
 let passed = 0;
 const failures = [];
@@ -43,29 +46,62 @@ function throws(label, fn, predicate) {
   }
 }
 
+/** An item recorded directly through the store, for outcomes discovery never proposes. */
+async function seedItemWithOutcome(store, runId, term, outcome, { surface = 'learning', evidence } = {}) {
+  const itemId = generateUuidV7();
+  await store.recordItem({
+    schema_version: '1.0.0',
+    item_id: itemId,
+    run_id: runId,
+    track: 'track-1',
+    item_revision: 1,
+    semantic_identity: `sid:v1:${sha256Digest(`outcome:${term}`).slice(7)}`,
+    surface,
+    outcome,
+    state: 'observed',
+    proposal_digest: sha256Digest({ term, outcome }),
+    artifact_digest: null,
+    target: { repository: 'project42dev/project42-platform', path: `content/modules/discovery/${term}.json` },
+    evidence: evidence ?? [{ reference: `https://example.invalid/${term}`, digest: sha256Digest(term) }],
+    created_at: NOW,
+    updated_at: NOW,
+  });
+  for (const [from, to, cause] of [['observed', 'proposed', 'observation-recorded'], ['proposed', 'gate1-pending', 'proposal-ready']]) {
+    await store.recordTransition({
+      schema_version: '1.0.0', transition_id: generateUuidV7(), run_id: runId,
+      item_id: itemId, item_revision: 1, from_state: from, to_state: to, cause,
+      actor: 'test-fixture', occurred_at: NOW, correlation_id: generateUuidV7(),
+    });
+  }
+  return itemId;
+}
+
 // --- fixture -----------------------------------------------------------------
 
 const root = mkdtempSync(join(tmpdir(), 'orchard-briefs-'));
-const dbPath = join(root, 'content.db');
 
-const db = new DatabaseSync(dbPath);
-db.exec(readFileSync(SCHEMA_PATH, 'utf8'));
-const insert = db.prepare(
-  `INSERT INTO work_item (id, kind, subject_id, surface, title, state, priority, first_seen, updated_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-);
-const NOW = '2026-08-04T00:00:00.000Z';
-insert.run('create:alpha-learn', 'needs-creating', 'alpha-learn', 'learn', 'Alpha', 'queued', 9, NOW, NOW);
-insert.run('create:beta-learn', 'needs-creating', 'beta-learn', 'learn', 'Beta', 'queued', 5, NOW, NOW);
-insert.run('create:gamma-field-guide', 'needs-creating', 'gamma-field-guide', 'field-guide', 'Gamma', 'queued', 1, NOW, NOW);
-// Three on an unmapped surface, so a stranded count has something to be wrong about.
-insert.run('create:d-visual-guide', 'needs-creating', 'd-visual-guide', 'visual-guide', 'D', 'queued', 4, NOW, NOW);
-insert.run('create:e-visual-guide', 'needs-creating', 'e-visual-guide', 'visual-guide', 'E', 'queued', 3, NOW, NOW);
-insert.run('create:f-visual-guide', 'needs-creating', 'f-visual-guide', 'visual-guide', 'F', 'queued', 2, NOW, NOW);
-// Already picked up, and one a person finished. Neither may be re-issued.
-insert.run('create:claimed-learn', 'needs-creating', 'claimed-learn', 'learn', 'Claimed', 'claimed', 8, NOW, NOW);
-insert.run('create:done-learn', 'needs-creating', 'done-learn', 'learn', 'Done', 'done', 8, NOW, NOW);
-db.close();
+const { store, runId, dbPath } = await estate();
+
+// Three discovery items approved and linked, so they are authorable.
+const [alphaId, betaId, gammaId] = await seedGateItems(store, runId, ['alpha', 'beta', 'gamma']);
+for (const id of [alphaId, betaId, gammaId]) await walkTo(store, runId, id, 'ado-linked');
+// One the owner has not decided. It must be unreachable.
+const [pendingId] = await seedGateItems(store, runId, ['undecided']);
+// One already picked up. It must not be re-issued.
+const [executingId] = await seedGateItems(store, runId, ['already-claimed']);
+await walkTo(store, runId, executingId, 'executing');
+// One with an outcome that is not an authorable brief form. It must be
+// reported as stranded, not silently dropped and not written anyway.
+const removalId = await seedItemWithOutcome(store, runId, 'obsolete-topic', 'removal');
+await walkTo(store, runId, removalId, 'ado-linked');
+// One update, carrying the evidence an update brief hands the drafter.
+const updateId = await seedItemWithOutcome(store, runId, 'stale-topic', 'update', {
+  evidence: [{ reference: 'https://vendor.example/page', digest: sha256Digest('page') }],
+});
+await walkTo(store, runId, updateId, 'ado-linked');
+
+const alphaSemanticIdentity = candidate('alpha').semanticIdentity;
+store.close();
 
 const inventoryPath = join(root, 'inventory.json');
 writeFileSync(inventoryPath, JSON.stringify({
@@ -94,39 +130,25 @@ const goodMap = mapWith({
   [ROLE_JOBS.finalizer]: 'model-d',
 });
 
+// The operator's surface config, in the operator's own (older) key spelling,
+// which the generator must keep honouring for the form instructions.
 const targetsPath = join(root, 'targets.json');
 writeFileSync(targetsPath, JSON.stringify({
   repository: 'example/content',
   surfaces: {
     learn: { pathTemplates: ['content/modules/{topic}/'], suffix: '-learn' },
-    // Deliberately the older singular form, which must keep working.
     'field-guide': { pathTemplate: 'content/resources/{topic}/', suffix: '-field-guide' },
-    'visual-guide': { pathTemplates: null, suffix: '-visual-guide' },
+    'visual-guide': { pathTemplates: ['diagrams/{topic}.mmd'], suffix: '-visual-guide', form: 'mermaid' },
   },
 }));
 
-// A second map where the visual surface has the home it really has: a different
-// repository, two paths, and a non-prose deliverable.
-const targetsMappedPath = join(root, 'targets-mapped.json');
-writeFileSync(targetsMappedPath, JSON.stringify({
-  repository: 'example/content',
-  surfaces: {
-    learn: { pathTemplates: ['content/modules/{topic}/'], suffix: '-learn' },
-    'field-guide': { pathTemplates: ['content/resources/{topic}/'], suffix: '-field-guide' },
-    'visual-guide': {
-      repository: 'example/site',
-      pathTemplates: ['diagrams/{topic}.mmd', 'config/diagrams.json'],
-      suffix: '-visual-guide',
-      form: 'mermaid',
-    },
-  },
-}));
-
+// Discovery evidence, keyed the way the registry knows the work: by semantic
+// identity, because the lifecycle's item ids did not exist at discovery time.
 const registryPath = join(root, 'registry.json');
 writeFileSync(registryPath, JSON.stringify({
   opportunities: [
     {
-      id: 'alpha-learn', title: 'Alpha', surface: 'learn', level: 'advanced',
+      id: alphaSemanticIdentity, title: 'Alpha', surface: 'learning', level: 'advanced',
       gapEvidence: 'zero occurrences in the measured corpus',
       marketSignal: 'Present in 9 of 27 surveyed sources.',
       provenance: { suggestedBy: ['source-one', 'source-two'] },
@@ -136,30 +158,35 @@ writeFileSync(registryPath, JSON.stringify({
 
 const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPath };
 
-// --- the link back to the queue ----------------------------------------------
+// --- the link back to the lifecycle -------------------------------------------
 
 {
-  const r = generateBriefs({ ...base, limit: 10 });
+  const r = await generateBriefs({ ...base, limit: 10 });
 
-  equal('only queued work is eligible; claimed and done are not', r.eligible, 6);
-  equal('a brief is written for every eligible item on a mapped surface', r.briefs.length, 3);
+  equal('only ado-linked work is eligible; pending and executing are not', r.eligible, 5);
+  equal('a brief is written for every eligible item with an authorable outcome', r.briefs.length, 4);
 
-  const alpha = r.briefs.find((b) => b.subjectId === 'alpha-learn');
-  check('every brief carries the subject id of the queue item it serves', Boolean(alpha));
-  equal('and the brief id ends with that subject id, which is the channel that survives the round trip',
-    alpha.id, 'p42-create-alpha-learn');
+  const alpha = r.briefs.find((b) => b.subjectId === alphaId);
+  check('every brief carries the item id of the lifecycle item it serves', Boolean(alpha));
+  equal('and the brief id ends with that item id, which is the channel that survives the round trip',
+    alpha.id, `p42-create-${alphaId}`);
   equal('and the brief also carries the work item id, for a human reading it',
-    alpha.workItemId, 'create:alpha-learn');
+    alpha.workItemId, alphaId);
+  equal('and a lifecycle item id survives the platform filename normalizer intact',
+    normalizeStableId(alpha.id), alpha.id);
 
   // The real proof: the ingest, given only what the delivery platform writes
-  // into a proposal filename, gets back to the right queue row.
-  const subjectIds = new Set(['alpha-learn', 'beta-learn', 'gamma-field-guide']);
-  const match = matchToWorkItem({ doc: { briefId: alpha.id } }, subjectIds);
-  equal('and the ingest recovers the subject from the brief id alone', match?.subjectId, 'alpha-learn');
+  // into a proposal filename, gets back to the right lifecycle row.
+  const itemIds = new Set([alphaId, betaId, gammaId]);
+  const match = matchToWorkItem({ doc: { briefId: alpha.id } }, itemIds);
+  equal('and the ingest recovers the item from the brief id alone', match?.subjectId, alphaId);
 
-  equal('a needs-creating brief names where the content goes',
-    alpha.targets[0].pathPrefixes[0], 'content/modules/alpha/');
-  equal('and which repository', alpha.targets[0].repository, 'example/content');
+  equal('a brief names where the content goes, from the RECORDED item target',
+    alpha.targets[0].pathPrefixes[0], 'content/modules/discovery/alpha.json');
+  equal('and which repository', alpha.targets[0].repository, 'project42dev/project42-platform');
+
+  check('the recorded Gate 1 manifest title reaches the brief',
+    alpha.title === 'How to teach alpha');
 
   check('evidence from the discovery list reaches the drafter, not just the title',
     alpha.prompt.includes('zero occurrences in the measured corpus')
@@ -169,75 +196,56 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
     alpha.prompt.includes('at advanced level')
     && alpha.acceptanceCriteria.some((c) => c.includes('advanced level')));
 
-  const beta = r.briefs.find((b) => b.subjectId === 'beta-learn');
+  const beta = r.briefs.find((b) => b.subjectId === betaId);
   check('an item with no discovery evidence still gets a usable brief',
-    beta.prompt.includes('Write the learn content') && beta.acceptanceCriteria.length > 0);
+    beta.prompt.includes('Write the learning content') && beta.acceptanceCriteria.length > 0);
 
   check('every brief carries acceptance criteria, or nothing can verify it',
     r.briefs.every((b) => b.acceptanceCriteria.length >= 3));
   check('every role carries its own completion budget, never a global one',
     r.briefs.every((b) => Object.values(b.roles).every((role) => role.maxCompletionTokens >= 4096)));
+
+  check('an outcome with no brief form is stranded and says so',
+    r.skipped.length === 1 && r.skipped[0].subjectId === removalId
+    && r.skipped[0].reason.includes('removal'));
 }
 
-// --- a surface in a different repository ---------------------------------------
+// --- needs-updating ------------------------------------------------------------
 
 {
-  const r = generateBriefs({ ...base, targetsPath: targetsMappedPath, limit: 10 });
-  equal('nothing is stranded once every surface has a home', r.skipped.length, 0);
-  equal('and every eligible item gets a brief', r.briefs.length, 6);
-
-  const visual = r.briefs.find((b) => b.subjectId === 'd-visual-guide');
-  equal('a surface may live in a different repository from the others',
-    visual.targets[0].repository, 'example/site');
-  check('and may name more than one path, so the artifact and its catalogue entry both land',
-    visual.targets[0].pathPrefixes.length === 2
-    && visual.targets[0].pathPrefixes[0] === 'diagrams/d.mmd'
-    && visual.targets[0].pathPrefixes[1] === 'config/diagrams.json');
-  check('a non-prose surface tells the drafter what form the deliverable takes',
-    visual.prompt.includes('The deliverable is not prose') && visual.prompt.includes('Mermaid'));
-  check('and forbids hand-authoring the generated artifact',
-    visual.prompt.includes('Do not produce an SVG'));
-  check('and its criteria are about the diagram, not about prose',
-    visual.acceptanceCriteria.some((c) => c.includes('altText'))
-    && visual.acceptanceCriteria.some((c) => c.includes('renders on its own')));
-
-  const learn = r.briefs.find((b) => b.subjectId === 'alpha-learn');
-  check('a prose surface gets no form instruction', !learn.prompt.includes('Mermaid'));
-  equal('and still lands in the default repository', learn.targets[0].repository, 'example/content');
+  const r = await generateBriefs({ ...base, limit: 10 });
+  const update = r.briefs.find((b) => b.subjectId === updateId);
+  check('an update outcome produces an update brief', Boolean(update));
+  equal('with an id that says so', update.id, `p42-update-${updateId}`);
+  check('the prompt tells the drafter this is a correction, not a rewrite',
+    update.prompt.includes('This is an update, not a rewrite'));
+  check('and hands it the recorded evidence references it has to check',
+    update.prompt.includes('https://vendor.example/page'));
+  check('and the criteria require the diff to show the correction and nothing else',
+    update.acceptanceCriteria.some((c) => c.includes('left as it was')));
 }
 
 // --- stranded work is counted, not stopped at ---------------------------------
 
 {
-  const r = generateBriefs({ ...base, limit: 1 });
+  const r = await generateBriefs({ ...base, limit: 1 });
   equal('the limit caps what is EMITTED', r.briefs.length, 1);
-  equal('and every stranded item is still counted, whatever the limit', r.skipped.length, 3);
-  equal('and the rest are reported as not reached rather than silently dropped', r.notReached, 2);
+  equal('and every stranded item is still counted, whatever the limit', r.skipped.length, 1);
+  equal('and the rest are reported as not reached rather than silently dropped', r.notReached, 3);
   equal('emitted plus stranded plus not-reached accounts for every eligible item',
     r.briefs.length + r.skipped.length + r.notReached, r.eligible);
-  check('and the reason names the surface and what is missing',
-    r.skipped[0].reason.includes('visual-guide') && r.skipped[0].reason.includes('pathTemplate'));
 }
 
 // --- claiming -----------------------------------------------------------------
 
 {
-  const r = generateBriefs({ ...base, limit: 2, apply: true, now: NOW, claimedBy: 'tester' });
-  equal('under --apply the emitted items are claimed', r.claimed.length, 2);
+  const r = await generateBriefs({ ...base, limit: 2, apply: true, now: NOW, claimedBy: 'tester' });
+  equal('under --apply the emitted items are moved to executing', r.claimed.length, 2);
 
-  const after = new DatabaseSync(dbPath);
-  const states = after.prepare('SELECT subject_id, state, claimed_by FROM work_item WHERE state = ?').all('claimed');
-  check('and the claim names who took it', states.every((s) => s.claimed_by === 'tester' || s.subject_id === 'claimed-learn'));
-
-  const again = generateBriefs({ ...base, limit: 10 });
-  check('so a second run does not re-issue them, which would race two proposals at one subject',
-    !again.briefs.some((b) => r.claimed.includes(b.subjectId)));
-  after.close();
-
-  // Put them back for the remaining cases.
-  const reset = new DatabaseSync(dbPath);
-  reset.prepare("UPDATE work_item SET state = 'queued', claimed_by = NULL WHERE claimed_by = 'tester'").run();
-  reset.close();
+  const after = await generateBriefs({ ...base, limit: 10 });
+  check('so a second run does not re-issue them, which would race two proposals at one item',
+    !after.briefs.some((b) => r.claimed.includes(b.subjectId)));
+  equal('and the eligible count shrinks by exactly the claimed items', after.eligible, 3);
 }
 
 // --- refusing rather than guessing --------------------------------------------
@@ -320,38 +328,23 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
     topicSlug('alpha', '-learn'), 'alpha');
 }
 
-// --- needs-updating ------------------------------------------------------------
+// --- the outcome and surface vocabularies -------------------------------------
 
 {
-  const u = new DatabaseSync(dbPath);
-  u.prepare(
-    `INSERT INTO work_item (id, kind, subject_id, surface, title, state, priority, first_seen, updated_at)
-     VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
-  ).run('update:mod-x', 'needs-updating', 'mod-x', 'learn', 'Module X', 10, NOW, NOW);
-  u.prepare('INSERT INTO source (id, url_prefix, publisher, review_cadence_days) VALUES (?, ?, ?, ?)')
-    .run('vendor', 'https://vendor.example/', 'Vendor', 30);
-  u.prepare(
-    `INSERT INTO item (id, surface, path, title, content_sha256, indexed_at)
-     VALUES ('mod-x', 'learn', 'modules/x.json', 'Module X', 'abc', ?)`,
-  ).run(NOW);
-  u.prepare('INSERT INTO citation (item_id, source_id, url, title, last_verified) VALUES (?, ?, ?, ?, ?)')
-    .run('mod-x', 'vendor', 'https://vendor.example/page', 'Page', '2020-01-01');
-  u.close();
+  equal('a discovery outcome maps to a creation brief', OUTCOME_KIND['new-module'], 'needs-creating');
+  equal('a currency outcome maps to an update brief', OUTCOME_KIND.correction, 'needs-updating');
+  equal('removal is deliberately unauthorable', OUTCOME_KIND.removal, undefined);
 
-  const r = generateBriefs({ ...base, limit: 1 });
-  const brief = r.briefs[0];
-  equal('a needs-updating item leads the queue and gets an update brief', brief.subjectId, 'mod-x');
-  equal('with an id that says so', brief.id, 'p42-update-mod-x');
-  check('the prompt tells the drafter this is a correction, not a rewrite',
-    brief.prompt.includes('This is an update, not a rewrite'));
-  check('and hands it the cited sources it has to check',
-    brief.prompt.includes('https://vendor.example/page') && brief.prompt.includes('2020-01-01'));
-  check('and the criteria require the diff to show the correction and nothing else',
-    brief.acceptanceCriteria.some((c) => c.includes('left as it was')));
+  const targets = JSON.parse(readFileSync(targetsPath, 'utf8'));
+  check('the contract surface name finds the operator\'s older config key',
+    surfaceConfigFor(targets, 'guide-diagram')?.form === 'mermaid');
+  check('and a surface with no config resolves to nothing rather than a guess',
+    surfaceConfigFor(targets, 'nonsense') === null);
 }
 
 // --- report ------------------------------------------------------------------
 
+cleanupFixtures();
 rmSync(root, { recursive: true, force: true });
 
 if (failures.length) {

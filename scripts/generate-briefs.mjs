@@ -19,13 +19,24 @@
 //     proposal that cannot name a repository and paths.
 //   - It never substitutes a model. A job mapped to a model nobody deployed
 //     stops the run and names both, the same rule the model map validator uses.
-//   - It never marks work done. Under --apply it moves a queued item to
-//     'claimed', which is what "a worker picked this up" means. Nothing else.
+//   - It never marks work done. Under --apply it records the 'executing'
+//     transition on an ado-linked item, which is what "a worker picked this
+//     up" means in the lifecycle. Nothing else.
+//
+// SCHEMA. This generator reads workflow_item from schema/migrations/002, the
+// ONLY item table the deployed database has. The first version read work_item
+// from schema/content-db.sql, a developer-local schema no migration ever
+// applies, so the queue query would have failed `no such table` on every
+// production run. Eligibility is current_state = 'ado-linked': Gate 1 has
+// approved the item and the ADO work item exists, and 'executing' is the one
+// legal next step. See lib/gate-queue.mjs for the two-queue trap in full.
 
-import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { openStateStore } from './lib/state-store.mjs';
+import { GATE_MANIFEST_REFERENCE_PREFIX } from './lib/gate-queue.mjs';
+import { generateUuidV7 } from './lib/identity.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MAP_PATH = resolve(HERE, '..', 'config', 'model-map.json');
@@ -51,6 +62,36 @@ export const KIND_TAG = {
   'needs-creating': 'create',
   'needs-updating': 'update',
 };
+
+// The lifecycle outcome vocabulary (item-record contract) collapsed onto the
+// two brief forms. removal and no-change are deliberately absent: neither is
+// an authorable piece of prose, and an item carrying one is reported as
+// stranded rather than written anyway.
+export const OUTCOME_KIND = {
+  'new-course': 'needs-creating',
+  'new-module': 'needs-creating',
+  addition: 'needs-creating',
+  update: 'needs-updating',
+  correction: 'needs-updating',
+  replacement: 'needs-updating',
+};
+
+// The contract surface names (item-record schema) and the operator-config
+// surface keys grew up separately. Both spellings are honoured so an adopter's
+// existing surface-targets file keeps working.
+const SURFACE_CONFIG_ALIASES = {
+  learning: ['learning', 'learn'],
+  guide: ['guide', 'field-guide'],
+  'guide-diagram': ['guide-diagram', 'visual-guide'],
+};
+
+export function surfaceConfigFor(targets, surface) {
+  for (const key of SURFACE_CONFIG_ALIASES[surface] ?? [surface]) {
+    const config = targets?.surfaces?.[key];
+    if (config) return config;
+  }
+  return null;
+}
 
 export const BRIEF_ID_PREFIX = 'p42';
 
@@ -276,16 +317,16 @@ export function loadCandidateEvidence(registryPath) {
   return out;
 }
 
-function citationEvidence(db, itemId) {
-  try {
-    return db.prepare(
-      `SELECT c.url, c.title, c.last_verified, s.publisher, s.review_cadence_days
-       FROM citation c LEFT JOIN source s ON s.id = c.source_id
-       WHERE c.item_id = ? ORDER BY c.last_verified`,
-    ).all(itemId);
-  } catch {
-    return [];
-  }
+// The evidence recorded ON the item revision itself, in citation shape.
+//
+// The developer-local schema had citation and source tables; the deployed
+// schema records evidence references on the item record (item-record contract,
+// `evidence: [{reference, digest}]`), which is what an update brief hands the
+// drafter. The reference is the URL-shaped thing a reader can follow.
+function evidenceCitations(record) {
+  return (record?.evidence ?? [])
+    .filter((entry) => entry?.reference)
+    .map((entry) => ({ url: entry.reference, title: null, publisher: null, last_verified: null }));
 }
 
 const STANDING_CONSTRAINTS = [
@@ -376,6 +417,24 @@ export function parseReworkNote(note) {
   return reason.length > 0 ? reason : null;
 }
 
+// The reviewer's reason, read back from the lifecycle rather than a column.
+//
+// apply-gate2-rework.mjs records a `changes-requested` transition carrying the
+// reason. The most recent one is the reason this item is being written again,
+// and it is rendered in the exact `note` form buildPrompt already reads, so an
+// item with no rework history costs nothing.
+export function reworkNoteFor(db, itemId) {
+  const row = db.prepare(
+    `SELECT record_json FROM state_transition_event
+      WHERE item_id = ? AND to_state = 'changes-requested'
+      ORDER BY occurred_at DESC, transition_id DESC LIMIT 1`,
+  ).get(itemId);
+  if (!row) return null;
+  const reason = JSON.parse(row.record_json).reason;
+  if (typeof reason !== 'string' || !reason) return null;
+  return reason.startsWith(REWORK_PREFIX) ? reason : `${REWORK_PREFIX}${reason}`;
+}
+
 const SURFACE_CRITERIA = {
   learn: [
     'The module states what a learner can do after it that they could not do before.',
@@ -432,9 +491,14 @@ export function briefFor({ item, roles, targets, evidence, citations }) {
     };
   }
 
-  const resolved = resolveTarget(item, targets);
+  // The item revision records where the content goes, decided at Gate 1. It is
+  // authoritative when present; the surface templates remain the fallback for
+  // callers that carry no recorded target.
+  const resolved = item.recordedTarget
+    ? { target: { repository: item.recordedTarget.repository, pathPrefixes: [item.recordedTarget.path] } }
+    : resolveTarget(item, targets);
   if (resolved.error) return { error: resolved.error };
-  const surfaceConfig = targets.surfaces?.[item.surface];
+  const surfaceConfig = surfaceConfigFor(targets, item.surface) ?? targets.surfaces?.[item.surface];
 
   return {
     brief: {
@@ -454,7 +518,7 @@ export function briefFor({ item, roles, targets, evidence, citations }) {
   };
 }
 
-export function generateBriefs({
+export async function generateBriefs({
   dbPath,
   mapPath = DEFAULT_MAP_PATH,
   targetsPath = DEFAULT_TARGETS_PATH,
@@ -474,67 +538,119 @@ export function generateBriefs({
   const roles = resolveRoles(modelMap, inventory);
   const evidenceById = loadCandidateEvidence(registryPath);
 
-  const db = new DatabaseSync(dbPath);
+  const store = openStateStore(dbPath);
+  const db = store.db;
+  try {
+    // Only ado-linked work is eligible. Gate 1 has approved it and the ADO
+    // work item exists; 'executing' is the one legal next step, so an item
+    // already executing has a brief somewhere and re-issuing one produces two
+    // proposals racing for the same item.
+    const rows = db.prepare(
+      `SELECT i.item_id, i.track, i.surface, i.outcome, i.semantic_identity,
+              i.current_revision, i.origin_run_id, r.record_json
+         FROM workflow_item i
+         JOIN item_revision r ON r.item_id = i.item_id AND r.item_revision = i.current_revision
+        WHERE i.current_state = 'ado-linked'
+        ORDER BY i.created_at, i.item_id`,
+    ).all();
 
-  // Only queued work is eligible. A claimed or in-progress item already has a
-  // brief somewhere, and re-issuing one produces two proposals racing for the
-  // same subject id.
-  //
-  // REWORK. `note` is carried through because an item returned by Gate 2 with
-  // `request-changes` is re-queued with the owner's reason in that column. A
-  // rework brief that does not tell the drafter what was wrong is just a
-  // request to write the same thing again, which is how a denial loop burns
-  // money without converging.
-  const rows = db.prepare(
-    `SELECT id, kind, subject_id, surface, title, state, priority, note
-     FROM work_item WHERE state = 'queued'
-     ORDER BY priority DESC NULLS LAST, first_seen, subject_id`,
-  ).all();
+    const manifestFor = db.prepare(
+      `SELECT record_json FROM observation_event
+        WHERE item_id = ? AND item_revision = ? AND evidence_reference = ?
+        ORDER BY observed_at DESC LIMIT 1`,
+    );
 
-  const eligible = rows.filter((r) => (
-    (!kinds || kinds.includes(r.kind))
-    && (!surfaces || surfaces.includes(r.surface))
-    && (!subjects || subjects.includes(r.subject_id))
-  ));
+    const queue = rows.map((row) => {
+      const record = JSON.parse(row.record_json);
+      const observed = manifestFor.get(
+        row.item_id, Number(row.current_revision),
+        `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${row.item_id}`,
+      );
+      const manifest = observed ? JSON.parse(observed.record_json).manifest_item ?? null : null;
+      return {
+        // The item id is the identifier that survives the delivery platform's
+        // filename round trip: a UUID is already lowercase [a-z0-9-], so
+        // normalizeStableId leaves it intact and the ingest recovers it.
+        id: row.item_id,
+        subject_id: row.item_id,
+        track: row.track,
+        kind: OUTCOME_KIND[row.outcome] ?? null,
+        outcome: row.outcome,
+        surface: row.surface,
+        semantic_identity: row.semantic_identity,
+        item_revision: Number(row.current_revision),
+        origin_run_id: row.origin_run_id,
+        title: manifest?.title ?? row.semantic_identity,
+        priority: manifest?.score?.value ?? null,
+        // REWORK. An item returned by Gate 2 with request-changes carries the
+        // reviewer's reason on that recorded transition. It reaches the brief
+        // or the denial loop burns money without converging.
+        note: reworkNoteFor(db, row.item_id),
+        recordedTarget: record.target ?? null,
+        record,
+      };
+    }).sort((a, b) => (b.priority ?? -1) - (a.priority ?? -1) || (a.id < b.id ? -1 : 1));
 
-  const briefs = [];
-  const skipped = [];
-  const claimed = [];
+    const eligible = queue.filter((r) => (
+      (!kinds || kinds.includes(r.kind))
+      && (!surfaces || surfaces.includes(r.surface))
+      && (!subjects || subjects.includes(r.subject_id) || subjects.includes(r.semantic_identity))
+    ));
 
-  const claim = db.prepare(
-    "UPDATE work_item SET state = 'claimed', claimed_by = ?, claimed_at = ?, updated_at = ? "
-    + "WHERE subject_id = ? AND kind = ? AND state = 'queued'",
-  );
+    const briefs = [];
+    const skipped = [];
+    const claimed = [];
 
-  // EVERY eligible item is evaluated, and only the emitting is capped.
-  //
-  // Breaking out of the loop at the limit was the first shape of this and it
-  // was another silent measurement: with --limit 2 it reported one stranded
-  // visual-guide item when eight were stranded, because it stopped looking. A
-  // count that depends on how far a loop happened to get is not a count.
-  let notReached = 0;
-  for (const item of eligible) {
-    const built = briefFor({
-      item,
-      roles,
-      targets,
-      evidence: evidenceById.get(item.subject_id),
-      citations: item.kind === 'needs-updating' ? citationEvidence(db, item.subject_id) : [],
-    });
-    if (built.error) {
-      skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: built.error });
-      continue;
+    // EVERY eligible item is evaluated, and only the emitting is capped.
+    //
+    // Breaking out of the loop at the limit was the first shape of this and it
+    // was another silent measurement: with --limit 2 it reported one stranded
+    // visual-guide item when eight were stranded, because it stopped looking. A
+    // count that depends on how far a loop happened to get is not a count.
+    let notReached = 0;
+    for (const item of eligible) {
+      if (!item.kind) {
+        skipped.push({
+          subjectId: item.subject_id, surface: item.surface,
+          reason: `outcome "${item.outcome}" is not an authorable brief form; removal and no-change are not written by the ensemble`,
+        });
+        continue;
+      }
+      const built = briefFor({
+        item,
+        roles,
+        targets,
+        evidence: evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity),
+        citations: item.kind === 'needs-updating' ? evidenceCitations(item.record) : [],
+      });
+      if (built.error) {
+        skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: built.error });
+        continue;
+      }
+      if (briefs.length >= limit) { notReached += 1; continue; }
+      briefs.push(built.brief);
+      if (apply) {
+        await store.recordTransition({
+          schema_version: '1.0.0',
+          transition_id: generateUuidV7(),
+          run_id: item.origin_run_id,
+          item_id: item.id,
+          item_revision: item.item_revision,
+          from_state: 'ado-linked',
+          to_state: 'executing',
+          cause: 'execution-started',
+          actor: claimedBy,
+          occurred_at: now,
+          correlation_id: generateUuidV7(),
+        });
+        claimed.push(item.subject_id);
+      }
     }
-    if (briefs.length >= limit) { notReached += 1; continue; }
-    briefs.push(built.brief);
-    if (apply) {
-      claim.run(claimedBy, now, now, item.subject_id, item.kind);
-      claimed.push(item.subject_id);
-    }
+
+    return { briefs, skipped, claimed, roles, queued: queue.length, eligible: eligible.length, notReached };
+  } finally {
+    store.close();
   }
-
-  db.close();
-  return { briefs, skipped, claimed, roles, queued: rows.length, eligible: eligible.length, notReached };
 }
 
 function parseArgs(argv) {
@@ -558,10 +674,10 @@ function list(value) {
   return [].concat(value);
 }
 
-function main() {
+async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.db || !args.out) {
-    console.error('usage: generate-briefs.mjs --db <content.db> --out <briefs.json>');
+    console.error('usage: generate-briefs.mjs --db <state.db> --out <briefs.json>');
     console.error('       [--inventory <deployed-models.json>] [--registry <opportunity-registry.json>]');
     console.error('       [--limit N] [--kind needs-creating] [--surface learn] [--subject <id>] [--apply]');
     process.exit(2);
@@ -576,7 +692,7 @@ function main() {
 
   let result;
   try {
-    result = generateBriefs({
+    result = await generateBriefs({
       dbPath: resolve(args.db),
       mapPath: args.map ? resolve(args.map) : DEFAULT_MAP_PATH,
       targetsPath: args.targets ? resolve(args.targets) : DEFAULT_TARGETS_PATH,
@@ -604,7 +720,7 @@ function main() {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, `${JSON.stringify(result.briefs, null, 2)}\n`);
 
-  console.log(`queue        ${result.queued} item(s) in state 'queued', ${result.eligible} matching the filters`);
+  console.log(`queue        ${result.queued} item(s) in state 'ado-linked', ${result.eligible} matching the filters`);
   console.log(`briefs       ${result.briefs.length} written to ${outPath}`);
   for (const b of result.briefs) console.log(`  ${b.id}  (subject ${b.subjectId}, ${b.surface})`);
 
@@ -614,7 +730,7 @@ function main() {
   }
 
   if (result.claimed.length) {
-    console.log(`\n${result.claimed.length} work item(s) moved queued -> claimed. A second run will not re-issue them.`);
+    console.log(`\n${result.claimed.length} item(s) moved ado-linked -> executing. A second run will not re-issue them.`);
   } else if (!args.apply) {
     console.log('\nDRY RUN for the queue: the brief file was written, but nothing was claimed. Pass --apply to claim.');
   }
@@ -637,4 +753,4 @@ function main() {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

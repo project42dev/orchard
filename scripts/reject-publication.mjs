@@ -1,12 +1,25 @@
 #!/usr/bin/env node
 // Record that a human rejected a proposal.
 //
-// Companion to record-publication.mjs. Moves the work item to 'rejected'
-// rather than 'done', and writes a publication row with disposition='rejected'.
+// Companion to record-publication.mjs. A rejection is a gate decision, so it
+// is recorded as the lifecycle's own 'denied' transition with the reason and
+// the rejecting person on it.
+//
+// SCHEMA. This tool targets workflow_item and publication_transaction from
+// schema/migrations/002, the ONLY tables the deployed database has. The first
+// version wrote into `publication` from schema/content-db.sql, which no
+// migration ever applies, so it would have failed `no such table` on first
+// use against production data.
+//
+// The lifecycle allows a denial only while an item is actually under review
+// (gate1-pending or gate2-pending). An item that already carries immutable
+// publication evidence cannot be "rejected" by bookkeeping: reversing a
+// publication is a decision with its own machinery, not a row.
 
-import { DatabaseSync } from 'node:sqlite';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { openStateStore } from './lib/state-store.mjs';
+import { generateUuidV7 } from './lib/identity.mjs';
 
 export class RejectionError extends Error {
     constructor(detail, fix) {
@@ -17,11 +30,12 @@ export class RejectionError extends Error {
     }
 }
 
-export function recordRejection({
+const DENIABLE = new Set(['gate1-pending', 'gate2-pending']);
+
+export async function recordRejection({
     dbPath,
     subjectId,
     rejectedBy,
-    kind = null,
     note = null,
     now = new Date().toISOString(),
     apply = false,
@@ -33,51 +47,55 @@ export function recordRejection({
         );
     }
 
-    const db = new DatabaseSync(dbPath);
+    const store = openStateStore(dbPath);
     try {
-        const rows = db.prepare('SELECT id, kind, state, title FROM work_item WHERE subject_id = ?')
-            .all(subjectId)
-            .filter((r) => !kind || r.kind === kind);
-        if (!rows.length) {
+        const db = store.db;
+        const item = db.prepare(
+            `SELECT item_id, outcome, current_state, current_revision, origin_run_id, semantic_identity
+         FROM workflow_item WHERE item_id = ? OR semantic_identity = ?`,
+        ).get(subjectId, subjectId);
+        if (!item) {
             throw new RejectionError(
-                `no work item with subject id "${subjectId}"${kind ? ` and kind "${kind}"` : ''}`,
-                'check the id against the work_item table.',
+                `no workflow item matches "${subjectId}"`,
+                'check the id against the workflow_item table.',
             );
         }
-        if (rows.length > 1) {
+        const published = db.prepare(
+            'SELECT transaction_id FROM publication_transaction WHERE item_id = ? LIMIT 1',
+        ).get(item.item_id);
+        if (published || item.current_state === 'published' || item.current_state === 'closed') {
             throw new RejectionError(
-                `subject "${subjectId}" has ${rows.length} work items (${rows.map((r) => r.kind).join(', ')})`,
-                'pass --kind needs-creating or --kind needs-updating to say which one this rejection closes.',
+                `workflow item "${item.item_id}" carries publication evidence (state ${item.current_state})`,
+                'this item was already published. Rejecting published work requires a human decision with its own machinery, not a bookkeeping row.',
             );
         }
-        const item = rows[0];
-        if (item.state === 'done') {
+        if (!DENIABLE.has(item.current_state)) {
             throw new RejectionError(
-                `work item "${subjectId}" is already done`,
-                'this item was already published. Rejecting a published item requires a human decision.',
+                `workflow item "${item.item_id}" is in state ${item.current_state}, which is not under review`,
+                'a denial is a gate decision; only a gate1-pending or gate2-pending item can be denied.',
             );
         }
 
         if (apply) {
-            db.prepare(
-                `INSERT INTO publication
-           (subject_id, item_id, run_id, brief_id, proposal_file, proposal_digest,
-            disposition, accepted_by, published_at, note)
-         VALUES (?, ?, NULL, NULL, NULL, NULL, 'rejected', ?, ?, ?)
-         ON CONFLICT (subject_id, run_id, proposal_file) DO UPDATE SET
-           disposition = 'rejected',
-           accepted_by = excluded.accepted_by,
-           published_at = excluded.published_at,
-           note = excluded.note`,
-            ).run(subjectId, item.id, rejectedBy, now, note ?? `Rejected by ${rejectedBy}`);
-            db.prepare(
-                "UPDATE work_item SET state = 'rejected', note = ?, updated_at = ? WHERE id = ?",
-            ).run(`rejected by ${rejectedBy}`, now, item.id);
+            await store.recordTransition({
+                schema_version: '1.0.0',
+                transition_id: generateUuidV7(),
+                run_id: item.origin_run_id,
+                item_id: item.item_id,
+                item_revision: Number(item.current_revision),
+                from_state: item.current_state,
+                to_state: 'denied',
+                cause: 'decision-denied',
+                actor: rejectedBy,
+                reason: note ?? `rejected by ${rejectedBy}`,
+                occurred_at: now,
+                correlation_id: generateUuidV7(),
+            });
         }
 
-        return { workItem: item, from: item.state, to: 'rejected' };
+        return { workItem: item, from: item.current_state, to: 'denied' };
     } finally {
-        db.close();
+        store.close();
     }
 }
 
@@ -93,21 +111,20 @@ function parseArgs(argv) {
     return args;
 }
 
-function main() {
+async function main() {
     const args = parseArgs(process.argv.slice(2));
     if (!args.db || !args.subject || !args['rejected-by']) {
-        console.error('usage: reject-publication.mjs --db <content.db> --subject <subject-id> --rejected-by <name>');
-        console.error('       [--kind needs-creating|needs-updating] [--note <text>] [--apply]');
+        console.error('usage: reject-publication.mjs --db <state.db> --subject <item-id-or-semantic-identity> --rejected-by <name>');
+        console.error('       [--note <text>] [--apply]');
         process.exit(2);
     }
 
     let r;
     try {
-        r = recordRejection({
+        r = await recordRejection({
             dbPath: resolve(args.db),
             subjectId: args.subject,
             rejectedBy: args['rejected-by'] === true ? null : args['rejected-by'],
-            kind: args.kind && args.kind !== true ? args.kind : null,
             note: args.note && args.note !== true ? args.note : null,
             apply: Boolean(args.apply),
         });
@@ -120,12 +137,12 @@ function main() {
         throw err;
     }
 
-    console.log(`${r.workItem.title}`);
-    console.log(`  subject     ${args.subject}`);
-    console.log(`  work item   ${r.from} -> ${r.to}`);
-    console.log(`  rejected by ${args['rejected-by']}`);
+    console.log(`${r.workItem.item_id} [${r.workItem.outcome}]`);
+    console.log(`  subject      ${args.subject}`);
+    console.log(`  lifecycle    ${r.from} -> ${r.to}`);
+    console.log(`  rejected by  ${args['rejected-by']}`);
 
     if (!args.apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

@@ -3,55 +3,95 @@
 //
 // Two modes.
 //
-//   --notify   Lists every work item sitting at 'gate1-pending' with its score
-//              and estimated cost, and writes a GitHub issue body to stdout or
-//              to --out. One issue per run.
+//   --notify   Lists every lifecycle item sitting at 'gate1-pending' with its
+//              score and estimated cost, and writes a GitHub issue body to
+//              stdout or to --out. One issue per run.
 //
-//   --apply    Reads decision commands and moves approved items to 'queued',
-//              which is the only state generate-briefs.mjs will author. Denied
-//              items go to 'gate1-denied' with the reason recorded. Nothing
-//              else can move an item into authoring.
+//   --apply    Reads decision commands and records the lifecycle transitions:
+//              an approval moves the item to 'gate1-approved', which is the
+//              only state ado-sync.mjs will link and advance towards authoring.
+//              A denial moves it to 'denied' with the reason recorded on the
+//              transition. Nothing else can move an item past the gate.
 //
-// Why this exists: before Gate 1, build-content-db queued every non-retired
-// candidate on sight and the engine authored all of them against Foundry before
-// the owner ever saw an issue. Declining an item was only possible after paying
-// to write it. Gate 1 puts the decision first.
+// SCHEMA. This tool targets workflow_item in schema/migrations/002, which is
+// the ONLY item table the deployed database has. The first version targeted
+// work_item from schema/content-db.sql, a developer-local schema no migration
+// ever applies, so every query would have failed `no such table` in
+// production. See lib/gate-queue.mjs for the two-queue trap in full.
+//
+// EVIDENCE SCOPE. Decisions applied here are recorded as state transitions
+// through the state store, so the lifecycle is walked, never jumped. They do
+// NOT carry the protected decision-event evidence chain (decision_event +
+// gate_decision_authority); that path requires the digest-pinned provider
+// adapter and is what apply-gate-decisions.mjs and the T3 tracker work use.
+// This is the owner's local tool.
 //
 // Decision grammar, one command per line, matching the design's per-item form:
 //
-//   /orchard gate1 approve item=<work_item_id>
-//   /orchard gate1 deny    item=<work_item_id> reason="<reason>"
+//   /orchard gate1 approve item=<item_id>
+//   /orchard gate1 deny    item=<item_id> reason="<reason>"
 //   /orchard gate1 approve all              (batch, see --allow-batch)
 //
 // A batch approval is refused unless --allow-batch is passed AND the digest
 // supplied with --batch-digest matches the digest of the pending set, so an
 // approval cannot silently apply to items that appeared after it was written.
 
-import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
+import { openStateStore } from "./lib/state-store.mjs";
+import { heldAtGate } from "./lib/gate-queue.mjs";
+import { generateUuidV7 } from "./lib/identity.mjs";
 
 const PENDING = "gate1-pending";
-const APPROVED = "queued";
-const DENIED = "gate1-denied";
+const APPROVED = "gate1-approved";
+const DENIED = "denied";
 
+export const DEFAULT_ACTOR = "orchard/gate1-review";
+
+/**
+ * Everything held at Gate 1, described well enough to decide on.
+ *
+ * The lifecycle row carries state and identity; the recorded gate manifest
+ * observation carries the human-facing detail (title, score, rationale, cost),
+ * exactly as lib/gate-queue.mjs recorded it when the item was proposed.
+ */
 export function pendingItems(db) {
-  return db
-    .prepare(
-      `SELECT w.id, w.kind, w.subject_id, w.surface, w.title, w.state,
-              c.score, c.level, c.gap_label
-         FROM work_item w
-         LEFT JOIN candidate c ON c.id = w.subject_id
-        WHERE w.state = ?
-        ORDER BY COALESCE(c.score, 0) DESC, w.id`,
-    )
-    .all(PENDING);
+  const rows = db.prepare(
+    `SELECT item_id, track, surface, semantic_identity, current_revision, origin_run_id
+       FROM workflow_item
+      WHERE current_state = ?
+      ORDER BY item_id`,
+  ).all(PENDING);
+  const detail = new Map(heldAtGate(db, "gate-1").map((entry) => [entry.item_id, entry]));
+  return rows
+    .map((row) => {
+      const entry = detail.get(row.item_id) ?? {};
+      return {
+        id: row.item_id,
+        track: row.track,
+        surface: row.surface,
+        semantic_identity: row.semantic_identity,
+        item_revision: Number(row.current_revision),
+        origin_run_id: row.origin_run_id,
+        state: PENDING,
+        title: entry.title ?? row.semantic_identity,
+        category: entry.category ?? null,
+        score: entry.score?.value ?? null,
+        proposal_digest: entry.proposal_digest ?? null,
+        estimated_cost: entry.estimated_cost ?? null,
+      };
+    })
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (a.id < b.id ? -1 : 1));
 }
 
-// The digest binds a batch approval to an exact set of items and revisions.
-// If the pending set changes, a previously written batch command stops applying.
+// The digest binds a batch approval to an exact set of items, revisions and
+// proposal digests. If the pending set changes, a previously written batch
+// command stops applying.
 export function batchDigest(items) {
-  const canonical = items.map((i) => `${i.id}:${i.state}`).sort().join("\n");
+  const canonical = items
+    .map((i) => `${i.id}:r${i.item_revision}:${i.proposal_digest ?? i.state}`)
+    .sort()
+    .join("\n");
   return "sha256:" + createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
@@ -67,12 +107,12 @@ export function renderIssue(items, digest) {
     "",
     `Batch digest: \`${digest}\``,
     "",
-    "| Item | Kind | Surface | Score | Gap |",
+    "| Item | Title | Category | Surface | Score |",
     "| --- | --- | --- | --- | --- |",
   ];
   for (const i of items) {
     lines.push(
-      `| \`${i.id}\` | ${i.kind} | ${i.surface ?? "unknown"} | ${i.score ?? "unscored"} | ${i.gap_label ?? ""} |`,
+      `| \`${i.id}\` | ${i.title} | ${i.category ?? "unknown"} | ${i.surface ?? "unknown"} | ${i.score ?? "unscored"} |`,
     );
   }
   lines.push(
@@ -123,10 +163,28 @@ export function parseDecisions(text) {
   return out;
 }
 
-export function applyDecisions(db, parsed, { allowBatch = false, now = null } = {}) {
+async function transitionDecision(store, item, toState, cause, reason, actor, stamp) {
+  const record = {
+    schema_version: "1.0.0",
+    transition_id: generateUuidV7(),
+    run_id: item.origin_run_id,
+    item_id: item.id,
+    item_revision: item.item_revision,
+    from_state: PENDING,
+    to_state: toState,
+    cause,
+    actor,
+    occurred_at: stamp,
+    correlation_id: generateUuidV7(),
+  };
+  if (reason != null) record.reason = reason;
+  await store.recordTransition(record);
+}
+
+export async function applyDecisions(store, parsed, { allowBatch = false, now = null, actor = DEFAULT_ACTOR } = {}) {
   const stamp = now ?? new Date().toISOString();
-  const pending = pendingItems(db);
-  const pendingIds = new Set(pending.map((p) => p.id));
+  const pending = pendingItems(store.db);
+  const byId = new Map(pending.map((p) => [p.id, p]));
   const result = { approved: 0, denied: 0, skipped: [], errors: [...parsed.errors] };
 
   const toApprove = new Set();
@@ -142,23 +200,27 @@ export function applyDecisions(db, parsed, { allowBatch = false, now = null } = 
     }
   }
 
-  const update = db.prepare(
-    "UPDATE work_item SET state = ?, note = ?, updated_at = ? WHERE id = ? AND state = ?",
-  );
-
   for (const d of parsed.items) {
-    if (!pendingIds.has(d.id)) {
+    if (!byId.has(d.id)) {
       result.skipped.push(`${d.id} is not pending`);
       continue;
     }
     if (d.decision === "approve") { toApprove.add(d.id); continue; }
-    const r = update.run(DENIED, `gate1 denied: ${d.reason}`, stamp, d.id, PENDING);
-    if (r.changes === 1) result.denied += 1;
+    try {
+      await transitionDecision(store, byId.get(d.id), DENIED, "decision-denied", `gate1 denied: ${d.reason}`, actor, stamp);
+      result.denied += 1;
+    } catch (error) {
+      result.errors.push(`${d.id}: ${error.message}`);
+    }
   }
 
   for (const id of toApprove) {
-    const r = update.run(APPROVED, null, stamp, id, PENDING);
-    if (r.changes === 1) result.approved += 1;
+    try {
+      await transitionDecision(store, byId.get(id), APPROVED, "decision-approved", null, actor, stamp);
+      result.approved += 1;
+    } catch (error) {
+      result.errors.push(`${id}: ${error.message}`);
+    }
   }
   return result;
 }
@@ -208,16 +270,16 @@ function arg(name, fallback = null) {
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/").split("/").pop())) {
   const dbPath = arg("db", "content.db");
-  const db = new DatabaseSync(dbPath);
+  const store = openStateStore(dbPath);
   try {
     if (process.argv.includes("--notify")) {
-      const items = pendingItems(db);
+      const items = pendingItems(store.db);
       const body = renderIssue(items, batchDigest(items));
       const out = arg("out");
       if (out) writeFileSync(out, body, "utf8");
       else process.stdout.write(body);
       process.stderr.write(`gate1: ${items.length} pending\n`);
-      process.exitCode = items.length === 0 ? 0 : 0;
+      process.exitCode = 0;
     } else if (process.argv.includes("--apply")) {
       const commentPath = arg("comment");
       const issue = arg("issue");
@@ -241,14 +303,17 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "
           : arg("text", "");
       }
       const parsed = parseDecisions(text);
-      const res = applyDecisions(db, parsed, { allowBatch: process.argv.includes("--allow-batch") });
+      const res = await applyDecisions(store, parsed, {
+        allowBatch: process.argv.includes("--allow-batch"),
+        actor: arg("actor", DEFAULT_ACTOR),
+      });
       process.stdout.write(JSON.stringify(res, null, 2) + "\n");
       if (res.errors.length) process.exitCode = 2;
     } else {
-      process.stderr.write("usage: gate1-review.mjs --db <content.db> (--notify [--out f] | --apply --comment <f> [--allow-batch])\n");
+      process.stderr.write("usage: gate1-review.mjs --db <state.db> (--notify [--out f] | --apply --comment <f> [--allow-batch])\n");
       process.exitCode = 1;
     }
   } finally {
-    db.close();
+    store.close();
   }
 }

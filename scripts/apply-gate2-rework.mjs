@@ -5,22 +5,60 @@
 // a generic rejection, closed the issue, and passed nothing back. The reviewer's
 // reason went nowhere, so a returned item either died or was rewritten blind.
 //
-// This re-queues the item with the reason attached, in the exact form
-// generate-briefs.mjs reads (`gate2 changes-requested: <reason>`), so the next
+// This records the `changes-requested` lifecycle transition WITH the reason on
+// it, which is where generate-briefs.mjs reads it back from, so the next
 // authoring pass is told what was wrong before it writes anything.
 //
+// SCHEMA. This tool targets workflow_item in schema/migrations/002, the ONLY
+// item table the deployed database has. The first version targeted work_item
+// from schema/content-db.sql, which no migration ever applies, so it would
+// have failed `no such table` on first contact with production data.
+//
+// LIFECYCLE. request-changes and deny are decisions on an item under review,
+// so both apply only at 'gate2-pending'; the state machine allows nothing
+// else. The successor revision that returns a changes-requested item to
+// 'executing' (cause revision-created) is created by the authoring runtime
+// when it picks the rework up, not here: this tool records the decision and
+// its reason, and creating content revisions is not a decision.
+//
 // Deny is NOT rework. A denial is terminal for that revision and leaves the
-// item in gate2-denied. Only request-changes returns work.
+// item in 'denied'. Only request-changes returns work.
 
-import { DatabaseSync } from "node:sqlite";
+import { openStateStore } from "./lib/state-store.mjs";
+import { generateUuidV7 } from "./lib/identity.mjs";
 
 export const REWORK_PREFIX = "gate2 changes-requested: ";
+export const DEFAULT_ACTOR = "orchard/apply-gate2-rework";
 
-// Only these states may be returned to the queue. An item that never reached
-// review, or one already published, must not be resurrected by a stray comment.
-const RETURNABLE = new Set(["claimed", "in-progress", "gate2-denied", "blocked"]);
+// The only state a Gate 2 decision may act on. An item that never reached
+// review, or one already published, must not be moved by a stray comment.
+const DECIDABLE = "gate2-pending";
 
-export function applyRework(db, { item, reason, now = null }) {
+function findItem(db, item) {
+  return db.prepare(
+    `SELECT item_id, current_state, current_revision, origin_run_id
+       FROM workflow_item WHERE item_id = ? OR semantic_identity = ?`,
+  ).get(item, item) ?? null;
+}
+
+async function recordDecisionTransition(store, row, toState, cause, reason, actor, stamp) {
+  await store.recordTransition({
+    schema_version: "1.0.0",
+    transition_id: generateUuidV7(),
+    run_id: row.origin_run_id,
+    item_id: row.item_id,
+    item_revision: Number(row.current_revision),
+    from_state: DECIDABLE,
+    to_state: toState,
+    cause,
+    actor,
+    reason,
+    occurred_at: stamp,
+    correlation_id: generateUuidV7(),
+  });
+}
+
+export async function applyRework(store, { item, reason, now = null, actor = DEFAULT_ACTOR }) {
   const stamp = now ?? new Date().toISOString();
   const result = { requeued: 0, errors: [] };
 
@@ -30,41 +68,55 @@ export function applyRework(db, { item, reason, now = null }) {
     return result;
   }
 
-  const row = db.prepare("SELECT id, state FROM work_item WHERE id = ? OR subject_id = ?").get(item, item);
-  if (!row) { result.errors.push(`no work item matches ${item}`); return result; }
-  if (row.state === "done") {
-    result.errors.push(`${row.id} is already done; reopening published work needs a new item, not a rework`);
+  const row = findItem(store.db, item);
+  if (!row) { result.errors.push(`no workflow item matches ${item}`); return result; }
+  if (["published", "closed"].includes(row.current_state)) {
+    result.errors.push(`${row.item_id} is already ${row.current_state}; reopening published work needs a new item, not a rework`);
     return result;
   }
-  if (!RETURNABLE.has(row.state)) {
-    result.errors.push(`${row.id} is in state ${row.state}, which cannot be returned for rework`);
+  if (row.current_state !== DECIDABLE) {
+    result.errors.push(`${row.item_id} is in state ${row.current_state}, which cannot be returned for rework; only a ${DECIDABLE} item is under review`);
     return result;
   }
 
-  const r = db
-    .prepare("UPDATE work_item SET state = 'queued', note = ?, claimed_by = NULL, claimed_at = NULL, updated_at = ? WHERE id = ?")
-    .run(`${REWORK_PREFIX}${String(reason).trim()}`, stamp, row.id);
-  result.requeued = r.changes;
-  result.id = row.id;
+  try {
+    await recordDecisionTransition(
+      store, row, "changes-requested", "decision-requested-changes",
+      `${REWORK_PREFIX}${String(reason).trim()}`, actor, stamp,
+    );
+    result.requeued = 1;
+    result.id = row.item_id;
+  } catch (error) {
+    result.errors.push(`${row.item_id}: ${error.message}`);
+  }
   return result;
 }
 
 // Recording a terminal denial. Kept here so both outcomes of a Gate 2 decision
 // live in one place and neither can be forgotten.
-export function applyDenial(db, { item, reason, now = null }) {
+export async function applyDenial(store, { item, reason, now = null, actor = DEFAULT_ACTOR }) {
   const stamp = now ?? new Date().toISOString();
   const result = { denied: 0, errors: [] };
   if (!reason || !String(reason).trim()) {
     result.errors.push("deny requires a reason");
     return result;
   }
-  const row = db.prepare("SELECT id, state FROM work_item WHERE id = ? OR subject_id = ?").get(item, item);
-  if (!row) { result.errors.push(`no work item matches ${item}`); return result; }
-  const r = db
-    .prepare("UPDATE work_item SET state = 'gate2-denied', note = ?, updated_at = ? WHERE id = ?")
-    .run(`gate2 denied: ${String(reason).trim()}`, stamp, row.id);
-  result.denied = r.changes;
-  result.id = row.id;
+  const row = findItem(store.db, item);
+  if (!row) { result.errors.push(`no workflow item matches ${item}`); return result; }
+  if (row.current_state !== DECIDABLE) {
+    result.errors.push(`${row.item_id} is in state ${row.current_state}; only a ${DECIDABLE} item can be denied at Gate 2`);
+    return result;
+  }
+  try {
+    await recordDecisionTransition(
+      store, row, "denied", "decision-denied",
+      `gate2 denied: ${String(reason).trim()}`, actor, stamp,
+    );
+    result.denied = 1;
+    result.id = row.item_id;
+  } catch (error) {
+    result.errors.push(`${row.item_id}: ${error.message}`);
+  }
   return result;
 }
 
@@ -76,14 +128,18 @@ function arg(name, fallback = null) {
 const invokedDirectly = process.argv[1] &&
   process.argv[1].replace(/\\/g, "/").split("/").pop() === "apply-gate2-rework.mjs";
 if (invokedDirectly) {
-  const db = new DatabaseSync(arg("db", "content.db"));
+  const store = openStateStore(arg("db", "content.db"));
   try {
     const decision = arg("decision", "request-changes");
-    const payload = { item: arg("item"), reason: arg("reason") ?? process.env.ORCHARD_DECISION_REASON };
-    const res = decision === "deny" ? applyDenial(db, payload) : applyRework(db, payload);
+    const payload = {
+      item: arg("item"),
+      reason: arg("reason") ?? process.env.ORCHARD_DECISION_REASON,
+      actor: arg("actor", DEFAULT_ACTOR),
+    };
+    const res = decision === "deny" ? await applyDenial(store, payload) : await applyRework(store, payload);
     process.stdout.write(JSON.stringify(res, null, 2) + "\n");
     if (res.errors.length) process.exitCode = 2;
   } finally {
-    db.close();
+    store.close();
   }
 }
