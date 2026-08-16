@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
 import { buildContentDb } from "../scripts/build-content-db.mjs";
 import {
     CURRENT_SCHEMA_VERSION,
+    MIGRATIONS_DIRECTORY,
     createVerifiedBackup,
     migrateContentDb,
     restoreContentDb,
@@ -40,7 +42,7 @@ test("fresh migration is transactional, versioned, verified, and replay-safe", (
     assert.equal(replay.backup, null);
 
     const db = new DatabaseSync(path);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get().n, 7);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get().n, 8);
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'publication_transaction'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'closure_packet'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'closure_acceptance'").get());
@@ -49,6 +51,52 @@ test("fresh migration is transactional, versioned, verified, and replay-safe", (
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'protected_trust_anchor'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'publication_authority'").get());
     db.close();
+});
+
+test("009 rotates the gate trust anchor only, and the anchor stays immutable afterward", (t) => {
+    const path = join(temporary(t), "rotate.db");
+
+    // Build the exact version 8 schema, provisioning a gate anchor and a
+    // publication anchor directly, the same way an administrator-provisioned
+    // anchor would already exist on a live database before this release.
+    const V8 = [
+        "002-two-track-authority", "003-closure-evidence", "004-protected-authority-evidence",
+        "005-protected-trust-anchors", "006-live-item-uniqueness", "007-workflow-item-state-check",
+        "008-decision-event-per-item-uniqueness",
+    ];
+    const db = new DatabaseSync(path);
+    db.exec("PRAGMA foreign_keys = OFF; PRAGMA busy_timeout = 5000;");
+    for (const name of V8) {
+        const sql = readFileSync(join(MIGRATIONS_DIRECTORY, `${name}.sql`), "utf8");
+        db.exec(sql);
+        db.prepare("INSERT INTO schema_migration (version, name, checksum, applied_at, application_id) VALUES (?, ?, ?, ?, ?)")
+            .run(V8.indexOf(name) + 2, name, `sha256:${createHash("sha256").update(sql).digest("hex")}`, "2026-08-16T00:00:00Z", randomUUID());
+    }
+    db.exec("PRAGMA foreign_keys = ON");
+    const anchor = (scope, digest) => JSON.stringify({ scope, adapter_identity: `test:${scope}:v1`, adapter_digest: digest, adapter_path: null, policy_digest: null, policy: null, provisioned_at: "2026-08-16T00:00:00Z" });
+    db.prepare("INSERT INTO protected_trust_anchor (scope, adapter_identity, adapter_digest, adapter_path, policy_digest, policy_json, provisioned_at, record_json) VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?)")
+        .run("gate", "test:gate:v1", `sha256:${"a".repeat(64)}`, "2026-08-16T00:00:00Z", anchor("gate", `sha256:${"a".repeat(64)}`));
+    db.prepare("INSERT INTO protected_trust_anchor (scope, adapter_identity, adapter_digest, adapter_path, policy_digest, policy_json, provisioned_at, record_json) VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?)")
+        .run("publication", "test:publication:v1", `sha256:${"b".repeat(64)}`, "2026-08-16T00:00:00Z", anchor("publication", `sha256:${"b".repeat(64)}`));
+    // The database-level immutability trigger really does block a direct
+    // delete before migration 009 runs, which is the whole point of it.
+    assert.throws(() => db.exec("DELETE FROM protected_trust_anchor WHERE scope = 'gate'"), /immutable/);
+    db.close();
+
+    const outcome = migrateContentDb(path);
+    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor"]);
+    assert.ok(outcome.verification.ok, JSON.stringify(outcome.verification));
+
+    const after = new DatabaseSync(path);
+    assert.equal(after.prepare("SELECT * FROM protected_trust_anchor WHERE scope = 'gate'").get(), undefined,
+        "the gate anchor must be gone so the next run re-provisions it against the new adapter digest");
+    const publication = after.prepare("SELECT adapter_digest FROM protected_trust_anchor WHERE scope = 'publication'").get();
+    assert.equal(publication.adapter_digest, `sha256:${"b".repeat(64)}`, "an adapter that did not change must keep its anchor");
+    // The trigger must still be enforcing immutability after the migration
+    // that used its own sanctioned bypass: this was a deliberate, versioned
+    // exception, not a general-purpose door left open.
+    assert.throws(() => after.exec("DELETE FROM protected_trust_anchor WHERE scope = 'publication'"), /immutable/);
+    after.close();
 });
 
 test("legacy upgrade creates a verified unique backup and preserves existing authority", (t) => {
