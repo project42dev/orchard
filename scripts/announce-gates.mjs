@@ -223,16 +223,21 @@ async function readVaultSecret({ vaultUrl, secretName, clientId, fetchImpl = fet
  * ORCHARD_GATE_TOKEN_SECRET is still configured, so a deployment mid
  * migration keeps working either way.
  */
-export async function readGateToken({ log, env = process.env, prefix = "gate" }) {
-    const vaultUrl = env.ORCHARD_GATE_VAULT_URL;
-    if (!env.ORCHARD_GITHUB_REPO || !vaultUrl) {
+export async function readGateToken({
+    log, env = process.env, prefix = "gate",
+    vaultUrlVar = "ORCHARD_GATE_VAULT_URL", repoVar = "ORCHARD_GITHUB_REPO",
+    appIdVar = "ORCHARD_GATE_APP_ID_SECRET", installationIdVar = "ORCHARD_GATE_INSTALLATION_ID_SECRET",
+    appKeyVar = "ORCHARD_GATE_APP_KEY_SECRET", tokenVar = "ORCHARD_GATE_TOKEN_SECRET",
+}) {
+    const vaultUrl = env[vaultUrlVar];
+    if (!env[repoVar] || !vaultUrl) {
         log("warn", `${prefix}.token.unconfigured`, { effect: "gates hold as designed; nothing is announced and no decision is read" });
         return null;
     }
 
-    const appIdSecret = env.ORCHARD_GATE_APP_ID_SECRET;
-    const installationIdSecret = env.ORCHARD_GATE_INSTALLATION_ID_SECRET;
-    const appKeySecret = env.ORCHARD_GATE_APP_KEY_SECRET;
+    const appIdSecret = env[appIdVar];
+    const installationIdSecret = env[installationIdVar];
+    const appKeySecret = env[appKeyVar];
     if (appIdSecret && installationIdSecret && appKeySecret) {
         try {
             const [appId, installationId, privateKeyPem] = await Promise.all([
@@ -250,7 +255,7 @@ export async function readGateToken({ log, env = process.env, prefix = "gate" })
         }
     }
 
-    const secretName = env.ORCHARD_GATE_TOKEN_SECRET;
+    const secretName = env[tokenVar];
     if (!secretName) {
         log("warn", `${prefix}.token.unconfigured`, { effect: "gates hold as designed; nothing is announced and no decision is read" });
         return null;

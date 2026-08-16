@@ -42,6 +42,7 @@ import { openStateStore } from "./lib/state-store.mjs";
 import { publishApprovedItem, acknowledgePublication } from "./lib/publication.mjs";
 import { loadProtectedAdapter, protectedAdapterDigest } from "./lib/protected-adapter.mjs";
 import { generateUuidV7 } from "./lib/identity.mjs";
+import { readGateToken } from "./announce-gates.mjs";
 
 function argOf(argv, name, fallback = null) {
     const index = argv.indexOf(`--${name}`);
@@ -165,7 +166,33 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             summary.held = rows.length;
             return summary;
         }
-        const adapter = await loadProtectedAdapter(store, "publication", "reconcileBeforeCreateBranch");
+        // A pinned adapter's createAdapter() is called with no arguments
+        // (loadProtectedAdapter cannot hand it a live object without
+        // widening what the artifact pinning trusts), so it reads its own
+        // token from process.env. Minting it here, once per run, and setting
+        // it into the real environment is the only place outside the pinned
+        // boundary that can reach Key Vault or sign a GitHub App JWT.
+        // Whether the LOADED adapter actually needs this token is its own
+        // business, not this caller's: an adapter that does not export
+        // createAdapter (a fixture that exports a ready-made `adapter`
+        // object, for instance) never touches it either way, and one that
+        // does need it and finds none set refuses on its own, caught below
+        // exactly like every other reason publication can hold.
+        let adapter;
+        try {
+            const token = await readGateToken({
+                log, env, prefix: "publication",
+                vaultUrlVar: "ORCHARD_PUBLICATION_VAULT_URL", repoVar: "ORCHARD_PUBLICATION_GITHUB_REPO",
+                appIdVar: "ORCHARD_PUBLICATION_APP_ID_SECRET", installationIdVar: "ORCHARD_PUBLICATION_INSTALLATION_ID_SECRET",
+                appKeyVar: "ORCHARD_PUBLICATION_APP_KEY_SECRET", tokenVar: "ORCHARD_PUBLICATION_TOKEN_SECRET",
+            });
+            if (token) process.env.ORCHARD_PUBLICATION_GITHUB_TOKEN = token;
+            adapter = await loadProtectedAdapter(store, "publication", "reconcileBeforeCreateBranch");
+        } catch (error) {
+            summary.held = rows.length;
+            log("warn", "publication.adapter-unavailable", { reason: error.message, effect: "nothing can be published; approved work stays where it is" });
+            return summary;
+        }
         for (const row of rows) {
             const inputPath = publicationInputPathFor(evidenceRoot, row.item_id);
             if (!existsSync(inputPath)) {
