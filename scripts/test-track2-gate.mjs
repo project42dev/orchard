@@ -195,7 +195,7 @@ test('Gate 1 announces for track-2 with the right count, through the same announ
         });
         assert.deepEqual(results.map((r) => [r.gate, r.action, r.count]), [['gate-1', 'created', 4], ['gate-2', 'empty', 0]]);
         const posted = JSON.parse(calls.at(-1).body);
-        assert.ok(posted.title.includes('4 items awaiting approval (track-2)'), 'the issue title must name the track and the count');
+        assert.ok(posted.title.includes('4 items awaiting approval (Currency)'), 'the issue title must name the track by what it does and the count');
         assert.ok(posted.body.includes('content/modules/module-a.json'), 'the issue must name the published file the finding is about');
         assert.ok(posted.body.includes('/orchard gate1 approve item='), 'the issue must carry the exact decision command');
     } finally {

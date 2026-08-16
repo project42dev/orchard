@@ -30,15 +30,22 @@ import { generateGateManifests, renderGateIssueBody } from "./lib/gates.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
 import { mintInstallationToken } from "./lib/github-app-auth.mjs";
 
+// The issue title names the track by what it does, not by its internal
+// slug: an owner reading a GitHub notification should not have to remember
+// that track-1 means discovery. Falls back to the raw slug for anything
+// unmapped rather than hiding an unexpected value.
+const TRACK_LABELS = Object.freeze({ "track-1": "Discovery", "track-2": "Currency" });
+const trackLabel = (track) => TRACK_LABELS[track] ?? track;
+
 const GATES = Object.freeze({
     "gate-1": {
         state: "gate1-pending",
-        title: (track, n) => `Orchard Gate 1: ${n} item${n === 1 ? "" : "s"} awaiting approval (${track})`,
+        title: (track, n) => `Orchard Gate 1: ${n} item${n === 1 ? "" : "s"} awaiting approval (${trackLabel(track)})`,
         lead: "These items are held **before any model is called**. Nothing has been spent on them yet, and nothing will be until they are approved.",
     },
     "gate-2": {
         state: "gate2-pending",
-        title: (track, n) => `Orchard Gate 2: ${n} item${n === 1 ? "" : "s"} awaiting publication (${track})`,
+        title: (track, n) => `Orchard Gate 2: ${n} item${n === 1 ? "" : "s"} awaiting publication (${trackLabel(track)})`,
         lead: "These items have been written and are held **before publication**. Approval is bound to the exact artifact digest, so an approval stops applying if the artifact changes.",
     },
 });
