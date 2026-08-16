@@ -37,6 +37,22 @@ const REPOSITORY = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 // The authoritative parse is parseDecisionCommand in capture-gate-decision.mjs
 // and this must never disagree with it about the item id.
 const ITEM = /\/orchard gate[12] (?:approve|deny|defer|request-changes) item=([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/;
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+
+// ADR-0025, amendment 2026-08-16. A comment whose entire body, trimmed, is
+// exactly one of these words decides every item on the issue that is still
+// pending, not the one item a structured command would name. It carries no
+// item, revision, or digest of its own, so the caller must supply which item
+// this particular verification is for (reference.expected_item_id) and this
+// function resolves and binds the rest from the issue's own manifest, the
+// same trusted source the structured path already reads. The binding
+// integrity option B (whole-issue approval) was rejected for is unchanged:
+// nothing here trusts anything the human typed beyond which of these two
+// words they wrote. Deny still requires a reason for the audit trail; a bare
+// deny cannot supply one a human authored, so this names honestly what
+// actually happened rather than inventing text and attributing it to them.
+const BARE_DECISION = /^(approve|approved|deny|denied)$/i;
+const BARE_DENY_REASON = "denied via whole-issue bare deny comment";
 
 function fail(code, message) {
     const error = new Error(message);
@@ -100,11 +116,12 @@ export function manifestFromIssueBody(body) {
  * the write fails there.
  */
 export async function fetchVerifiedEvent(reference, { fetchImpl = fetch, env = process.env } = {}) {
-    const { repository, issue_number: issueNumber, comment_id: commentId, current_state: currentState } = reference ?? {};
+    const { repository, issue_number: issueNumber, comment_id: commentId, current_state: currentState, expected_item_id: expectedItemId } = reference ?? {};
     if (!REPOSITORY.test(repository ?? "")) fail("reference.repository", "reference.repository must be owner/name");
     if (!Number.isSafeInteger(Number(issueNumber)) || Number(issueNumber) < 1) fail("reference.issue", "reference.issue_number must be a positive integer");
     if (commentId === undefined || commentId === null || String(commentId).length === 0) fail("reference.comment", "reference.comment_id is required");
     if (typeof currentState !== "string" || currentState.length === 0) fail("reference.state", "reference.current_state is required");
+    if (expectedItemId !== undefined && !new RegExp(`^${UUID}$`).test(expectedItemId)) fail("reference.expected-item", "reference.expected_item_id must be a v7 uuid when supplied");
 
     const token = env.ORCHARD_GATE_GITHUB_TOKEN;
     if (typeof token !== "string" || token.length === 0) fail("provider.token", "ORCHARD_GATE_GITHUB_TOKEN is not set, so no comment can be verified");
@@ -125,16 +142,45 @@ export async function fetchVerifiedEvent(reference, { fetchImpl = fetch, env = p
     }
 
     const manifest = manifestFromIssueBody(issue.body);
-    const commanded = ITEM.exec(String(comment.body ?? ""));
-    if (!commanded) fail("command.grammar", "the comment names no item, so there is nothing to bind it to");
-    const item = manifest.items.find((entry) => entry.item_id === commanded[1]);
-    if (!item) fail("binding.item", "the comment names an item this issue did not offer");
+    const realBody = String(comment.body ?? "");
+    const bareMatch = BARE_DECISION.exec(realBody.trim());
+
+    let item;
+    let body;
+    if (bareMatch) {
+        // The comment itself names nothing: the caller must say which item
+        // this particular verification resolves, and that item must be real,
+        // read from the same manifest the structured path trusts.
+        if (!expectedItemId) fail("reference.expected-item", "a bare approve or deny comment requires reference.expected_item_id");
+        item = manifest.items.find((entry) => entry.item_id === expectedItemId);
+        if (!item) fail("binding.item", "expected_item_id names an item this issue did not offer");
+        const gateToken = manifest.gate === "gate-1" ? "gate1" : "gate2";
+        const digestField = manifest.gate === "gate-1" ? "proposal_digest" : "artifact_digest";
+        const decision = /^approve/i.test(bareMatch[1]) ? "approve" : "deny";
+        // Synthesized, never trusted as typed: every field comes from the
+        // issue's own manifest, exactly as if the human had typed the full
+        // command for this one item. parseDecisionCommand in
+        // capture-gate-decision.mjs sees this and nothing else; it cannot
+        // tell a synthesized command from a typed one, which is the point.
+        // Deny still needs a reason for the audit trail; a bare word cannot
+        // supply one a human wrote, so the reason names exactly what
+        // happened rather than fabricating something and attributing it.
+        body = decision === "approve"
+            ? `/orchard ${gateToken} approve item=${item.item_id} revision=${item.item_revision} digest=${item[digestField]}`
+            : `/orchard ${gateToken} deny item=${item.item_id} revision=${item.item_revision} digest=${item[digestField]} reason="${BARE_DENY_REASON}"`;
+    } else {
+        const commanded = ITEM.exec(realBody);
+        if (!commanded) fail("command.grammar", "the comment names no item, so there is nothing to bind it to");
+        item = manifest.items.find((entry) => entry.item_id === commanded[1]);
+        if (!item) fail("binding.item", "the comment names an item this issue did not offer");
+        body = realBody;
+    }
 
     return {
         repository,
         issue_number: Number(issueNumber),
         comment_id: String(commentId),
-        body: String(comment.body ?? ""),
+        body,
         action: edited ? "edited" : "created",
         edited,
         deleted: false,

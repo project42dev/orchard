@@ -431,7 +431,15 @@ export class StateStore {
         if (!authorisesDispatch && queueWorkItemId !== null) {
             throw new StateConflictError("only a Gate 1 approval may claim queue dispatch ownership");
         }
-        const key = record.idempotency_key ?? `decision:${record.source.repository}:${record.source.comment_id}`;
+        // ADR-0025, amendment 2026-08-16: a bare approve or deny comment
+        // decides every pending item on its issue, so one comment can now
+        // produce several decision events. Scoping the fallback key to the
+        // item as well as the comment keeps a single-item structured command
+        // exactly as replay-safe as before (comment_id alone was already
+        // unique for it) while letting the same comment legitimately decide
+        // more than one item without a false idempotency collision between
+        // them.
+        const key = record.idempotency_key ?? `decision:${record.source.repository}:${record.source.comment_id}:${record.item_id}`;
         const json = canonicalJson(record);
         const authorityRecord = {
             schema_version: "1.0.0", queue_work_item_id: queueWorkItemId,

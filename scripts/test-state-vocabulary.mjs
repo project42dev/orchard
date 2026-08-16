@@ -103,9 +103,9 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
     // Build the exact version 6 schema from the vendored migration files,
     // recorded in schema_migration precisely as the runner records them, so
     // the runner recognises this database as a genuine version 6 estate and
-    // applies only migration 007. Foreign key enforcement is off while the
-    // files apply because migration 006 is a table rebuild, mirroring how the
-    // runner itself applies it.
+    // applies every migration after it in order. Foreign key enforcement is
+    // off while the files apply because migration 006 is a table rebuild,
+    // mirroring how the runner itself applies it.
     const V6 = [
         [2, '002-two-track-authority', '002-two-track-authority.sql'],
         [3, '003-closure-evidence', '003-closure-evidence.sql'],
@@ -134,7 +134,10 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
     db.close();
 
     const outcome = migrateContentDb(dbPath);
-    assert.deepEqual(outcome.applied, [{ version: 7, name: '007-workflow-item-state-check' }]);
+    assert.deepEqual(outcome.applied, [
+        { version: 7, name: '007-workflow-item-state-check' },
+        { version: 8, name: '008-decision-event-per-item-uniqueness' },
+    ]);
     assert.ok(outcome.verification.ok, `post-migration verification: ${JSON.stringify(outcome.verification)}`);
 
     const store = openStateStore(dbPath);

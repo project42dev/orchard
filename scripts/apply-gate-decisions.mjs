@@ -117,43 +117,12 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                 continue;
             }
 
-            for (const comment of comments) {
-                const text = String(comment.body ?? "");
-                if (!/\/orchard gate[12] /.test(text)) continue;
-                const actorId = comment.user?.id === undefined ? null : String(comment.user.id);
-                if (!actorId || !allowed.has(actorId)) {
-                    // Named, never silently dropped. Someone who thinks they
-                    // decided something has to be able to find out they did not.
-                    summary.refused += 1;
-                    log("warn", "gate.apply.actor-unauthorised", {
-                        gate, issue: issue.number, comment: comment.id,
-                        actor: comment.user?.login ?? "unknown",
-                        effect: "the comment was read and changed nothing",
-                    });
-                    continue;
-                }
-
-                const named = ITEM_IN_COMMAND.exec(text);
-                if (!named) {
-                    summary.refused += 1;
-                    log("warn", "gate.apply.command-unparsed", { gate, issue: issue.number, comment: comment.id, effect: "no item named" });
-                    continue;
-                }
-                const currentState = currentStateOf(store.db, named[1]);
-                if (currentState === null) {
-                    summary.refused += 1;
-                    log("warn", "gate.apply.item-unknown", { gate, issue: issue.number, comment: comment.id, item: named[1] });
-                    continue;
-                }
-                if (currentState !== PENDING[gate]) {
-                    // Already decided on an earlier run, or moved on. Not an
-                    // error: re-reading the same issue every run is how this
-                    // works, so most comments will be in this state.
-                    summary.unchanged += 1;
-                    log("info", "gate.apply.already-decided", { gate, item: named[1], state: currentState });
-                    continue;
-                }
-
+            // One item decision, start to finish: verify through the pinned
+            // adapter, capture, and record. Shared by the structured
+            // single-item path and the bare-approve per-item expansion below,
+            // so a bare approve goes through exactly the same trust chain as
+            // a typed command, once per item, never a shortcut around it.
+            const applyOneItem = async (comment, itemId, currentState, expectedItemId) => {
                 const fullManifestItems = fullManifestItemsFor(manifest, allManifests);
                 if (!fullManifestItems) {
                     summary.blocked += 1;
@@ -162,19 +131,18 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                         expected: manifest.batch.total_item_count,
                         effect: "a sibling batch issue is missing, so this batch cannot be verified",
                     });
-                    continue;
+                    return;
                 }
-
                 try {
                     // The token is handed to the adapter rather than left in
                     // process.env: the adapter is pinned code loaded from a
                     // snapshot, and the fewer ambient things it depends on the
                     // smaller the surface its digest has to cover.
                     const verifiedEvent = await adapter.fetchVerifiedEvent(
-                        { repository: repo, issue_number: issue.number, comment_id: comment.id, current_state: currentState },
+                        { repository: repo, issue_number: issue.number, comment_id: comment.id, current_state: currentState, ...(expectedItemId ? { expected_item_id: expectedItemId } : {}) },
                         { fetchImpl, env: { ORCHARD_GATE_GITHUB_TOKEN: token } },
                     );
-                    const item = manifest.items.find((entry) => entry.item_id === named[1]);
+                    const item = manifest.items.find((entry) => entry.item_id === itemId);
                     const captured = await captureGateDecision({
                         manifest, fullManifestItems, verifiedEvent, authorizationPolicy: policy, currentItem: item,
                     });
@@ -200,6 +168,7 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     log("info", "gate.apply.decided", {
                         gate, item: decision.item_id, decision: decision.decision,
                         from: decision.previous_state, to: decision.next_state, comment: comment.id,
+                        via: expectedItemId ? "bare" : "structured",
                     });
                 } catch (error) {
                     summary.errors += 1;
@@ -209,6 +178,74 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                         effect: "the item stays where it was",
                     });
                 }
+            };
+
+            for (const comment of comments) {
+                const text = String(comment.body ?? "");
+                const structured = /\/orchard gate[12] /.test(text);
+                // ADR-0025, amendment 2026-08-16. Checked BEFORE the actor
+                // allowlist look-up shares its own log lines with the
+                // structured path below.
+                const bareMatch = !structured ? /^(approve|approved|deny|denied)$/i.exec(text.trim()) : null;
+                const bareDecision = bareMatch ? (/^approve/i.test(bareMatch[1]) ? "approve" : "deny") : null;
+                if (!structured && !bareDecision) continue;
+
+                const actorId = comment.user?.id === undefined ? null : String(comment.user.id);
+                if (!actorId || !allowed.has(actorId)) {
+                    // Named, never silently dropped. Someone who thinks they
+                    // decided something has to be able to find out they did not.
+                    summary.refused += 1;
+                    log("warn", "gate.apply.actor-unauthorised", {
+                        gate, issue: issue.number, comment: comment.id,
+                        actor: comment.user?.login ?? "unknown",
+                        effect: "the comment was read and changed nothing",
+                    });
+                    continue;
+                }
+
+                if (bareDecision) {
+                    // Every item this issue offers that is still pending,
+                    // read fresh per item so a decision applied earlier in
+                    // THIS SAME pass (an individual structured command that
+                    // appears before this one) is already reflected: a bare
+                    // decision only ever acts on what is still pending at the
+                    // moment it is evaluated, which is what makes
+                    // structured-first ordering produce mixed outcomes
+                    // correctly (deny a few individually, then bare-approve
+                    // the rest, or the reverse).
+                    const pending = manifest.items.filter((item) => currentStateOf(store.db, item.item_id) === PENDING[gate]);
+                    if (pending.length === 0) {
+                        summary.unchanged += 1;
+                        log("info", "gate.apply.bare-decision-nothing-pending", { gate, issue: issue.number, comment: comment.id, decision: bareDecision });
+                        continue;
+                    }
+                    for (const item of pending) {
+                        await applyOneItem(comment, item.item_id, PENDING[gate], item.item_id);
+                    }
+                    continue;
+                }
+
+                const named = ITEM_IN_COMMAND.exec(text);
+                if (!named) {
+                    summary.refused += 1;
+                    log("warn", "gate.apply.command-unparsed", { gate, issue: issue.number, comment: comment.id, effect: "no item named" });
+                    continue;
+                }
+                const currentState = currentStateOf(store.db, named[1]);
+                if (currentState === null) {
+                    summary.refused += 1;
+                    log("warn", "gate.apply.item-unknown", { gate, issue: issue.number, comment: comment.id, item: named[1] });
+                    continue;
+                }
+                if (currentState !== PENDING[gate]) {
+                    // Already decided on an earlier run, or moved on. Not an
+                    // error: re-reading the same issue every run is how this
+                    // works, so most comments will be in this state.
+                    summary.unchanged += 1;
+                    log("info", "gate.apply.already-decided", { gate, item: named[1], state: currentState });
+                    continue;
+                }
+                await applyOneItem(comment, named[1], currentState, null);
             }
         }
     }

@@ -8,14 +8,15 @@ import { DatabaseSync } from "node:sqlite";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const MIGRATIONS_DIRECTORY = resolve(HERE, "..", "schema", "migrations");
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 const MIGRATIONS = Object.freeze([
     { version: 2, name: "002-two-track-authority", file: "002-two-track-authority.sql" },
     { version: 3, name: "003-closure-evidence", file: "003-closure-evidence.sql" },
     { version: 4, name: "004-protected-authority-evidence", file: "004-protected-authority-evidence.sql" },
     { version: 5, name: "005-protected-trust-anchors", file: "005-protected-trust-anchors.sql" },
     { version: 6, name: "006-live-item-uniqueness", file: "006-live-item-uniqueness.sql" },
-    { version: 7, name: "007-workflow-item-state-check", file: "007-workflow-item-state-check.sql" }
+    { version: 7, name: "007-workflow-item-state-check", file: "007-workflow-item-state-check.sql" },
+    { version: 8, name: "008-decision-event-per-item-uniqueness", file: "008-decision-event-per-item-uniqueness.sql" }
 ]);
 
 function nowIso(now) {
@@ -209,7 +210,8 @@ export function migrateContentDb(dbPath, options = {}) {
     db = new DatabaseSync(path);
     configure(db);
     // Migrations 006 and 007 rebuild workflow_item (006 drops a table-level
-    // UNIQUE constraint, 007 adds the current_state CHECK constraint), and
+    // UNIQUE constraint, 007 adds the current_state CHECK constraint) and
+    // 008 rebuilds decision_event to widen its own UNIQUE constraint.
     // SQLite's documented rebuild procedure requires foreign
     // key enforcement to be off while the old table is dropped and the
     // rebuilt one takes its name. The pragma is a no-op inside a transaction,

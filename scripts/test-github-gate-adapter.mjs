@@ -96,6 +96,61 @@ test('an edited comment is reported as edited, which capture refuses', async () 
     assert.equal(event.action, 'edited', 'the text on screen is not the text that was posted');
 });
 
+test('a bare approve comment synthesizes the exact per-item command for the item the caller names', async () => {
+    const { itemId, manifest, body } = await fixture();
+    const event = await fetchVerifiedEvent({ ...reference, expected_item_id: itemId }, {
+        env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: 'approve' }), issue: { number: 9, body } }),
+    });
+    assert.equal(event.body, `/orchard gate1 approve item=${itemId} revision=1 digest=sha256:${'1'.repeat(64)}`);
+    assert.equal(event.issue.manifest_digest, sha256Digest(manifest));
+});
+
+test('bare approve is case-insensitive and tolerates surrounding whitespace', async () => {
+    const { itemId, body } = await fixture();
+    for (const raw of ['Approve', 'APPROVED', '  approved  \n']) {
+        const event = await fetchVerifiedEvent({ ...reference, expected_item_id: itemId }, {
+            env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: raw }), issue: { number: 9, body } }),
+        });
+        assert.match(event.body, /^\/orchard gate1 approve item=/);
+    }
+});
+
+test('a bare deny comment synthesizes an honest reason, since no human typed one', async () => {
+    const { itemId, body } = await fixture();
+    const event = await fetchVerifiedEvent({ ...reference, expected_item_id: itemId }, {
+        env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: 'deny' }), issue: { number: 9, body } }),
+    });
+    assert.equal(event.body, `/orchard gate1 deny item=${itemId} revision=1 digest=sha256:${'1'.repeat(64)} reason="denied via whole-issue bare deny comment"`);
+});
+
+test('a bare decision without expected_item_id is refused, since the comment names nothing', async () => {
+    const { itemId, body } = await fixture();
+    await assert.rejects(
+        () => fetchVerifiedEvent(reference, { env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: 'approve' }), issue: { number: 9, body } }) }),
+        /requires reference.expected_item_id/,
+    );
+});
+
+test('a bare decision naming an item this issue does not offer is refused', async () => {
+    const { itemId, body } = await fixture();
+    await assert.rejects(
+        () => fetchVerifiedEvent({ ...reference, expected_item_id: generateUuidV7() }, {
+            env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: 'approve' }), issue: { number: 9, body } }),
+        }),
+        /expected_item_id names an item this issue did not offer/,
+    );
+});
+
+test('an edited bare approve comment is still reported as edited, which capture refuses', async () => {
+    const { itemId, body } = await fixture();
+    const event = await fetchVerifiedEvent({ ...reference, expected_item_id: itemId }, {
+        env: ENV,
+        fetchImpl: responder({ comment: commentOn(itemId, { body: 'approve', updated_at: '2026-08-16T13:00:00Z' }), issue: { number: 9, body } }),
+    });
+    assert.equal(event.edited, true);
+    assert.equal(event.action, 'edited');
+});
+
 test('an issue with no machine-readable manifest can bind no decision', async () => {
     const { itemId } = await fixture();
     await assert.rejects(

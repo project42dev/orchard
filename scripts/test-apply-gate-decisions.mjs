@@ -288,6 +288,115 @@ test('the anchor refuses an adapter the release did not bind, and logins in plac
     store.close();
 });
 
+/** Like estate(), but holds several items behind one issue, for the whole-issue commands. */
+async function multiEstate(terms) {
+    const directory = mkdtempSync(join(tmpdir(), 'orchard-apply-'));
+    temporaries.push(directory);
+    const store = openStateStore(join(directory, 'state.db'));
+    const runId = generateUuidV7();
+    await store.recordRun(runManifest(runId));
+    await persistDiscoveryItems({ store, runId, candidates: terms.map((term) => candidate(term)) });
+    const held = heldAtGate(store.db, 'gate-1', 'track-1');
+    const [manifest] = await generateGateManifests({
+        gate: 'gate-1', runId, track: 'track-1', items: held.map(({ track: _t, ...entry }) => entry),
+    });
+    const body = [
+        `<!-- orchard:gate track=track-1 gate=gate-1 batch=sha256:${'a'.repeat(64)} -->`,
+        '', '<details>', '', '```json', JSON.stringify(manifest), '```', '', '</details>',
+    ].join('\n');
+    store.provisionTrustAnchor({
+        scope: 'gate', adapter_identity: adapterIdentity,
+        adapter_digest: await protectedAdapterDigest(ADAPTER), adapter_path: ADAPTER,
+        policy_digest: sha256Digest(POLICY), policy: POLICY,
+        provisioned_at: '2026-08-15T00:00:00.000Z',
+    });
+    return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
+}
+
+test('ADR-0025 amendment: a bare approve comment approves every item on the issue', async () => {
+    const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
+    const events = [];
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: github({ issue, comments: [comment('approve')] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, items.length, JSON.stringify(events));
+    for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
+    assert.equal(heldAtGate(store.db, 'gate-1').length, 0);
+    store.close();
+});
+
+test('ADR-0025 amendment: a bare deny comment denies every item on the issue with an honest synthesized reason', async () => {
+    const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search']);
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: github({ issue, comments: [comment('Denied')] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, items.length);
+    for (const item of items) {
+        assert.equal(currentStateOf(store.db, item.item_id), 'denied');
+        const [decision] = store.listDecisions(item.item_id);
+        assert.equal(decision.decision, 'deny');
+    }
+    store.close();
+});
+
+test('ADR-0025 amendment: an individual deny posted before a bare approve produces a mixed outcome', async () => {
+    const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
+    const [denyThis, ...rest] = items;
+    const denyBody = `/orchard gate1 deny item=${denyThis.item_id} revision=1 digest=${denyThis.proposal_digest} reason="not a real gap"`;
+    // GitHub returns comments in creation order; the denial is listed first,
+    // exactly as it would be if the owner typed it before the bare approve.
+    const comments = [comment(denyBody, { id: 1 }), comment('approve', { id: 2 })];
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: github({ issue, comments }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, items.length, 'one decision per item, whichever comment decided it');
+    assert.equal(currentStateOf(store.db, denyThis.item_id), 'denied', 'the individually denied item must not be swept up by the later bare approve');
+    for (const item of rest) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
+    store.close();
+});
+
+test('ADR-0025 amendment: a bare approve when nothing is pending is quiet, not an error', async () => {
+    const { store, items, issue } = await multiEstate(['prompt-injection']);
+    await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: github({ issue, comments: [comment('approve', { id: 1 })] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(currentStateOf(store.db, items[0].item_id), 'gate1-approved');
+
+    const events = [];
+    const second = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: github({ issue, comments: [comment('approve', { id: 1 })] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(second.applied, 0);
+    assert.equal(second.unchanged, 1);
+    assert.ok(events.some(([event]) => event === 'gate.apply.bare-decision-nothing-pending'), JSON.stringify(events));
+    store.close();
+});
+
+test('ADR-0025 amendment: a bare approve from an unauthorised actor changes nothing', async () => {
+    const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search']);
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: github({ issue, comments: [comment('approve', { user: { id: 999, login: 'stranger' } })] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, 0);
+    assert.equal(summary.refused, 1);
+    for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    store.close();
+});
+
 test('a batch cannot be verified while a sibling batch issue is missing', () => {
     const manifest = { full_manifest_digest: 'f', batch: { total_item_count: 3 }, items: [{ item_id: 'a' }, { item_id: 'b' }] };
     assert.equal(fullManifestItemsFor(manifest, [manifest]), null);
