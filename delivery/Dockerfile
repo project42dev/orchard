@@ -43,8 +43,8 @@ ARG DELIVERY_UID=10001
 ARG DELIVERY_GID=10001
 RUN groupadd --gid ${DELIVERY_GID} delivery \
     && useradd --uid ${DELIVERY_UID} --gid ${DELIVERY_GID} --create-home --shell /usr/sbin/nologin delivery \
-    && mkdir -p /mnt/run-records /mnt/config /mnt/corpus \
-    && chown ${DELIVERY_UID}:${DELIVERY_GID} /mnt/run-records /mnt/config /mnt/corpus
+    && mkdir -p /mnt/run-records /mnt/config /mnt/corpus /var/lib/orchard \
+    && chown ${DELIVERY_UID}:${DELIVERY_GID} /mnt/run-records /mnt/config /mnt/corpus /var/lib/orchard
 
 # ---- Node.js 22.x (required for node:sqlite built-in) ----
 # Ubuntu 22.04 ships Node 12. The orchard scripts need >=22.5.0.
@@ -130,7 +130,8 @@ RUN node --check scripts/discover-content-opportunities.mjs \
 #
 # Caps are supplied by the job definition, not defaulted generously here.
 # NOTHING PRIVATE RESOLVES INSIDE THE IMAGE.
-ENV DELIVERY_MODE="" \
+ENV ORCHARD_STATE_ROOT=/var/lib/orchard \
+    DELIVERY_MODE="" \
     BRIEF_PATH="" \
     FOUNDRY_ENDPOINT="" \
     AZURE_CLIENT_ID="" \
