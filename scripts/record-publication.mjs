@@ -81,9 +81,14 @@ export async function recordPublication({
   const store = openStateStore(dbPath);
   try {
     const db = store.db;
+    // A semantic identity can match several items since migration 006: at
+    // most one live one plus any closed predecessors. A publication is
+    // recorded against the live item, so closed matches sort last.
     const item = db.prepare(
       `SELECT item_id, track, outcome, current_state, current_revision, origin_run_id, semantic_identity
-         FROM workflow_item WHERE item_id = ? OR semantic_identity = ?`,
+         FROM workflow_item WHERE item_id = ? OR semantic_identity = ?
+        ORDER BY CASE WHEN current_state = 'closed' THEN 1 ELSE 0 END, updated_at DESC, item_id DESC
+        LIMIT 1`,
     ).get(subjectId, subjectId);
     if (!item) {
       throw new PublicationError(

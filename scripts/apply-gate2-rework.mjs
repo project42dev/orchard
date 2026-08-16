@@ -35,9 +35,14 @@ export const DEFAULT_ACTOR = "orchard/apply-gate2-rework";
 const DECIDABLE = "gate2-pending";
 
 function findItem(db, item) {
+  // A semantic identity can match several items since migration 006: at most
+  // one live one plus any closed predecessors. A Gate 2 decision acts on the
+  // live item, so the closed ones sort last and the newest match wins.
   return db.prepare(
     `SELECT item_id, current_state, current_revision, origin_run_id
-       FROM workflow_item WHERE item_id = ? OR semantic_identity = ?`,
+       FROM workflow_item WHERE item_id = ? OR semantic_identity = ?
+      ORDER BY CASE WHEN current_state = 'closed' THEN 1 ELSE 0 END, updated_at DESC, item_id DESC
+      LIMIT 1`,
   ).get(item, item) ?? null;
 }
 

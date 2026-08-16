@@ -197,15 +197,38 @@ function evidenceRecordsFor(candidate) {
 }
 
 /**
- * Look up what the lifecycle already knows about a candidate.
+ * Look up the item that currently occupies a candidate's subject.
  *
- * UNIQUE (track, semantic_identity) makes this the idempotence key for a
- * re-run, and it is also the never-resurrect rule: an item a human denied, or
- * one already published, is not proposed again by a later survey that happens
- * to see the same demand. A decision a machine can undo is not a decision.
+ * The partial unique index ux_workflow_item_one_live_per_subject (migration
+ * 006) allows at most one item per (track, semantic_identity) that is not
+ * closed, so this is the idempotence key for a re-run and the never-resurrect
+ * rule in one query: an item a human denied, or one still anywhere in flight,
+ * is not proposed again by a later survey that happens to see the same
+ * demand. A decision a machine can undo is not a decision.
+ *
+ * What this deliberately does NOT return is a closed item. Closed means that
+ * item's work finished; it does not mean the subject is settled forever.
+ * Currency exists to notice that published content has gone stale, and until
+ * migration 006 the dedupe treated closed as blocking, which made the one
+ * thing the tool is for structurally impossible (remediation plan T17). A
+ * subject whose only items are closed is open for a fresh proposal, which
+ * enters as a NEW item at observed and earns every gate again.
  */
-export function findExistingItem(db, track, semanticIdentity) {
-    return db.prepare("SELECT item_id, current_state, current_revision FROM workflow_item WHERE track = ? AND semantic_identity = ?")
+export function findLiveItem(db, track, semanticIdentity) {
+    return db.prepare("SELECT item_id, current_state, current_revision FROM workflow_item WHERE track = ? AND semantic_identity = ? AND current_state <> 'closed'")
+        .get(track, semanticIdentity) ?? null;
+}
+
+/**
+ * The most recent closed item for a subject, so a re-proposal can record what
+ * it supersedes. Lineage lives on the new item's supersedes_item_id; the
+ * closed predecessor itself is never touched, because closed is terminal for
+ * that item and stays that way.
+ */
+export function latestClosedItem(db, track, semanticIdentity) {
+    return db.prepare(`SELECT item_id, current_state, current_revision FROM workflow_item
+        WHERE track = ? AND semantic_identity = ? AND current_state = 'closed'
+        ORDER BY created_at DESC, item_id DESC LIMIT 1`)
         .get(track, semanticIdentity) ?? null;
 }
 
@@ -225,10 +248,10 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
     if (!store) throw new TypeError("persistDiscoveryItems requires an open state store");
     const timestamp = now ?? new Date().toISOString();
     const cost = estimatedItemCostUsd(env);
-    const result = { persisted: 0, skipped: 0, failed: 0, items: [], existing: [] };
+    const result = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, items: [], existing: [] };
 
     for (const candidate of candidates) {
-        const existing = findExistingItem(store.db, track, candidate.semanticIdentity);
+        const existing = findLiveItem(store.db, track, candidate.semanticIdentity);
         if (existing) {
             result.skipped += 1;
             result.existing.push({ semanticIdentity: candidate.semanticIdentity, state: existing.current_state });
@@ -240,6 +263,12 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
             });
             continue;
         }
+        // A subject whose only items are closed is available again: the
+        // predecessor finished its lifecycle, and this survey has found the
+        // same demand afterwards. The new item records the lineage and the
+        // gate issue says so, because "we published this once already" is
+        // material to the decision being asked for.
+        const predecessor = latestClosedItem(store.db, track, candidate.semanticIdentity);
 
         // Building the proposal is inside the try for the same reason the
         // writes are: a probe with a surface nothing can place threw here and
@@ -251,13 +280,16 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
             const proposalDigest = sha256Digest(proposal);
             const itemId = generateUuidV7();
             const target = proposal.target;
+            const rationale = predecessor
+                ? `${rationaleFor(candidate)} This subject has been through the lifecycle before: item ${predecessor.item_id} is closed, and this proposal supersedes it as a fresh item with a fresh decision.`
+                : rationaleFor(candidate);
             manifestItem = {
                 item_id: itemId,
                 item_revision: 1,
                 proposal_digest: proposalDigest,
                 category: proposal.category,
                 title: String(proposal.title).slice(0, 200),
-                rationale: rationaleFor(candidate).slice(0, 4000),
+                rationale: rationale.slice(0, 4000),
                 evidence_refs: proposal.evidence.length ? proposal.evidence.slice(0, 50) : [`proposal:${candidate.semanticIdentity}`],
                 score: { formula_version: SCORE_FORMULA_VERSION, value: scoreCandidate(candidate) },
                 target,
@@ -282,6 +314,7 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
                 artifact_digest: null,
                 target,
                 evidence: evidenceRecordsFor(candidate),
+                supersedes_item_id: predecessor?.item_id ?? null,
                 created_at: timestamp,
                 updated_at: timestamp,
             });
@@ -330,11 +363,21 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
 
         result.persisted += 1;
         result.items.push(manifestItem);
+        if (predecessor) {
+            result.reproposed += 1;
+            log("info", "gate1.item.reproposed", {
+                semanticIdentity: candidate.semanticIdentity,
+                itemId: manifestItem.item_id,
+                supersedesItemId: predecessor.item_id,
+                effect: "closed subject re-enters the lifecycle as a new item held at Gate 1",
+            });
+        }
     }
 
     log("info", "gate1.items.persisted", {
         persisted: result.persisted,
         alreadyKnown: result.skipped,
+        reproposed: result.reproposed,
         failed: result.failed,
         candidates: candidates.length,
     });

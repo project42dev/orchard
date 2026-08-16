@@ -8,12 +8,13 @@ import { DatabaseSync } from "node:sqlite";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const MIGRATIONS_DIRECTORY = resolve(HERE, "..", "schema", "migrations");
-export const CURRENT_SCHEMA_VERSION = 5;
+export const CURRENT_SCHEMA_VERSION = 6;
 const MIGRATIONS = Object.freeze([
     { version: 2, name: "002-two-track-authority", file: "002-two-track-authority.sql" },
     { version: 3, name: "003-closure-evidence", file: "003-closure-evidence.sql" },
     { version: 4, name: "004-protected-authority-evidence", file: "004-protected-authority-evidence.sql" },
-    { version: 5, name: "005-protected-trust-anchors", file: "005-protected-trust-anchors.sql" }
+    { version: 5, name: "005-protected-trust-anchors", file: "005-protected-trust-anchors.sql" },
+    { version: 6, name: "006-live-item-uniqueness", file: "006-live-item-uniqueness.sql" }
 ]);
 
 function nowIso(now) {
@@ -206,6 +207,15 @@ export function migrateContentDb(dbPath, options = {}) {
     const backup = existed ? createVerifiedBackup(path, options) : null;
     db = new DatabaseSync(path);
     configure(db);
+    // Migration 006 rebuilds workflow_item to drop a table-level UNIQUE
+    // constraint, and SQLite's documented rebuild procedure requires foreign
+    // key enforcement to be off while the old table is dropped and the
+    // rebuilt one takes its name. The pragma is a no-op inside a transaction,
+    // so it is set here, before BEGIN. Safety is not lost: enforcement is
+    // restored right after COMMIT, and verifyContentDb below runs a full
+    // foreign_key_check over the whole database and this function throws if
+    // it reports a single violation.
+    db.exec("PRAGMA foreign_keys = OFF");
     const applicationId = randomUUID();
     try {
         db.exec("BEGIN IMMEDIATE");
@@ -222,6 +232,7 @@ export function migrateContentDb(dbPath, options = {}) {
         db.close();
         throw error;
     }
+    db.exec("PRAGMA foreign_keys = ON");
 
     const verification = verifyContentDb(db);
     db.close();
