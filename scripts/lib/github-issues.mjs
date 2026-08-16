@@ -116,6 +116,21 @@ export async function listOpenGateIssues({ repo, gate, track, token, fetchImpl =
     return found;
 }
 
+/**
+ * The current login behind an immutable numeric GitHub user id.
+ *
+ * Config stores the numeric id, never the login, for the same reason the gate
+ * trust anchor does: a login can be renamed or reassigned, and a numeric id
+ * cannot. But the issues API only accepts logins in `assignees`, so the id is
+ * resolved to whatever login it carries today, at the moment of use.
+ */
+export async function resolveUserLogin({ userId, token, fetchImpl = fetch }) {
+    if (!/^[1-9][0-9]*$/.test(String(userId))) throw new TypeError("userId must be a positive numeric GitHub user id, not a login");
+    const user = await call(`/user/${userId}`, { token, fetchImpl });
+    if (typeof user?.login !== "string" || user.login.length === 0) throw new Error(`GitHub user id ${userId} resolved to no login`);
+    return user.login;
+}
+
 /** Every comment on one issue, oldest first, which is the order decisions were made in. */
 export async function listIssueComments({ repo, issueNumber, token, fetchImpl = fetch, maxPages = 5 }) {
     if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
@@ -149,22 +164,34 @@ export async function commentOnIssue({ repo, issueNumber, body, token, fetchImpl
  * Returns { action, number, url }. `action` is "created" or "updated", never a
  * silent no-op: a gate that reports success without an issue number is the
  * failure this whole file exists to prevent, so a caller can assert on it.
+ *
+ * ASSIGNMENT IS THE ALERT. GitHub emails a user the moment they are assigned
+ * to an issue, and that native email is the gate notification the owner asked
+ * for; there is no custom alerting behind it. Assignees ride on the update as
+ * well as the create, so a gate issue opened before assignment existed still
+ * reaches its owner the next time its held set is announced. An empty list
+ * sends no field at all: a gate must open its issue whether or not anyone
+ * could be resolved to hear about it.
  */
-export async function openOrUpdateGateIssue({ repo, marker, title, body, labels = [], token, fetchImpl = fetch }) {
+export async function openOrUpdateGateIssue({ repo, marker, title, body, labels = [], assignees = [], token, fetchImpl = fetch }) {
     if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
     if (typeof token !== "string" || token.length === 0) throw new TypeError("a GitHub token is required");
     if (typeof title !== "string" || title.length === 0) throw new TypeError("title is required");
     if (typeof body !== "string" || !body.includes(marker)) throw new TypeError("the issue body must carry its marker");
+    if (!Array.isArray(assignees) || assignees.some((login) => typeof login !== "string" || login.length === 0)) {
+        throw new TypeError("assignees must be an array of login strings");
+    }
 
+    const withAssignees = assignees.length > 0 ? { assignees } : {};
     const existing = await findIssueByMarker({ repo, marker, token, fetchImpl });
     if (existing) {
         const updated = await call(`/repos/${repo}/issues/${existing.number}`, {
-            token, fetchImpl, method: "PATCH", body: { title, body },
+            token, fetchImpl, method: "PATCH", body: { title, body, ...withAssignees },
         });
         return { action: "updated", number: updated.number, url: updated.html_url };
     }
     const created = await call(`/repos/${repo}/issues`, {
-        token, fetchImpl, method: "POST", body: { title, body, labels },
+        token, fetchImpl, method: "POST", body: { title, body, labels, ...withAssignees },
     });
     return { action: "created", number: created.number, url: created.html_url };
 }

@@ -24,7 +24,7 @@
 
 import { DatabaseSync } from "node:sqlite";
 import { ManagedIdentityCredential } from "@azure/identity";
-import { gateMarker, openOrUpdateGateIssue } from "./lib/github-issues.mjs";
+import { gateMarker, openOrUpdateGateIssue, resolveUserLogin } from "./lib/github-issues.mjs";
 import { heldAtGate, heldSetDigest } from "./lib/gate-queue.mjs";
 import { generateGateManifests, renderGateIssueBody } from "./lib/gates.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
@@ -128,7 +128,7 @@ export function renderGateIssue({ gate, track, items, marker, runId, manifest })
  * choice: a decision is bound to a batch digest, and one issue per batch is
  * what makes that binding checkable.
  */
-export async function announceGates({ db, track, runId, repo, token, log, fetchImpl = fetch }) {
+export async function announceGates({ db, track, runId, repo, token, log, fetchImpl = fetch, assignees = [] }) {
     const results = [];
     // The execution name the runtime passes is not a UUID, and the manifest
     // contract requires one. Resolve it to the run that produced the work.
@@ -159,6 +159,7 @@ export async function announceGates({ db, track, runId, repo, token, log, fetchI
                     title: `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`,
                     body: renderGateIssue({ gate, track, items: manifest.items, marker, runId: manifestRun, manifest }),
                     labels: ["orchard", `orchard-${gate}`],
+                    assignees,
                     token,
                     fetchImpl,
                 });
@@ -235,6 +236,56 @@ export async function readGateToken({ log, env = process.env, prefix = "gate" })
     }
 }
 
+/**
+ * Who a gate issue is assigned to, resolved to current logins.
+ *
+ * THE ALERT IS GITHUB'S OWN NOTIFICATION. The owner's decision on how a gate
+ * should alert (plan T15, question Q3) is that GitHub already emails a user
+ * when they are assigned an issue, and that mechanism is the alert. So the
+ * whole notification design is: assign the owner at issue creation, and
+ * GitHub does the rest. No custom alerting exists behind this.
+ *
+ * Configuration is ORCHARD_GATE_NOTIFY_GITHUB_USER_ID, comma separated
+ * numeric GitHub user ids, and it falls back to ORCHARD_GATE_ACTORS: the
+ * humans authorized to decide a gate are exactly the humans who need to hear
+ * it is waiting, so the deployed estate needs no new setting for the email to
+ * fire. Ids, never logins, because a login can be reassigned; each id is
+ * resolved to its current login here, at the moment of use.
+ *
+ * Never throws and never blocks the announcement. A missing setting, a
+ * non-numeric value, or an id GitHub cannot resolve each log a warning and
+ * are skipped, because an unassigned issue that exists beats an assigned
+ * issue that was never created.
+ */
+export async function gateAssignees({ token, log, env = process.env, fetchImpl = fetch }) {
+    const raw = String(env.ORCHARD_GATE_NOTIFY_GITHUB_USER_ID || env.ORCHARD_GATE_ACTORS || "");
+    const ids = raw.split(",").map((value) => value.trim()).filter(Boolean);
+    if (ids.length === 0) {
+        log("warn", "gate.assignee.unconfigured", { effect: "gate issues are created unassigned, so GitHub sends no assignment email" });
+        return [];
+    }
+    const logins = [];
+    for (const id of ids) {
+        if (!/^[1-9][0-9]*$/.test(id)) {
+            log("warn", "gate.assignee.invalid", {
+                id,
+                effect: "skipped; assignees must be immutable numeric GitHub IDs, not logins, because a login can be reassigned",
+            });
+            continue;
+        }
+        try {
+            logins.push(await resolveUserLogin({ userId: id, token, fetchImpl }));
+        } catch (error) {
+            log("warn", "gate.assignee.unresolved", {
+                id,
+                status: error.status ?? null,
+                effect: "the issue is still created, just not assigned to this id",
+            });
+        }
+    }
+    return logins;
+}
+
 export async function announceGatesForRun({ stateDbPath, track, runId, log, env = process.env, token: suppliedToken }) {
     const repo = env.ORCHARD_GITHUB_REPO;
     if (!repo) {
@@ -246,10 +297,11 @@ export async function announceGatesForRun({ stateDbPath, track, runId, log, env 
         log("warn", "gate.announce.no-token", { effect: "gates hold as designed but announce nothing" });
         return [];
     }
+    const assignees = await gateAssignees({ token, log, env });
     let db;
     try {
         db = new DatabaseSync(stateDbPath, { readOnly: true });
-        return await announceGates({ db, track, runId, repo, token, log });
+        return await announceGates({ db, track, runId, repo, token, log, assignees });
     } catch (error) {
         log("warn", "gate.announce.failed", { status: error.status ?? null, effect: "work stays held; nobody was told" });
         return [];

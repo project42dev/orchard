@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { announceGates, pendingForGate, renderGateIssue } from './announce-gates.mjs';
+import { announceGates, gateAssignees, pendingForGate, renderGateIssue } from './announce-gates.mjs';
 import { gateMarker } from './lib/github-issues.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 import { heldSetDigest, persistDiscoveryItems } from './lib/gate-queue.mjs';
@@ -174,6 +174,96 @@ test('the body carries its marker and the normative decision grammar', async () 
   assert.ok(embedded, 'the issue must carry the exact manifest a capture can verify against');
   assert.equal(sha256Digest(JSON.parse(embedded[1])), sha256Digest(manifest));
   store.close();
+});
+
+test('a created gate issue assigns the owner, because assignment is what makes GitHub send the email', async () => {
+  const { store, runId } = await estate([candidate('assignment-email')]);
+  const { impl, calls } = recordingFetch([
+    { ok: true, status: 200, body: '[]' },
+    { ok: true, status: 201, body: JSON.stringify({ number: 9, html_url: 'u' }) },
+  ]);
+  const results = await announceGates({
+    db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't', log: () => { },
+    fetchImpl: impl, assignees: ['countrycloudboy'],
+  });
+  assert.equal(results[0].action, 'created');
+  const posted = JSON.parse(calls.at(-1).body);
+  assert.deepEqual(posted.assignees, ['countrycloudboy'], 'the create request must carry the assignee or no notification ever fires');
+  store.close();
+});
+
+test('an update carries the assignee too, so issues opened before assignment existed still reach the owner', async () => {
+  const { store, runId } = await estate([candidate('late-assignment')]);
+  const items = pendingForGate(store.db, 'gate-1', 'track-1');
+  const [manifest] = await generateGateManifests({
+    gate: 'gate-1', runId, track: 'track-1', items: items.map(({ track: _t, ...entry }) => entry),
+  });
+  const marker = gateMarker({ track: 'track-1', gate: 'gate-1', runId, batchDigest: heldSetDigest('gate-1', manifest.items) });
+  const { impl, calls } = recordingFetch([
+    { ok: true, status: 200, body: JSON.stringify([{ number: 7, body: `${marker}\nold` }]) },
+    { ok: true, status: 200, body: JSON.stringify({ number: 7, html_url: 'u' }) },
+  ]);
+  const results = await announceGates({
+    db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't', log: () => { },
+    fetchImpl: impl, assignees: ['countrycloudboy'],
+  });
+  assert.equal(results[0].action, 'updated');
+  assert.equal(calls.at(-1).method, 'PATCH');
+  assert.deepEqual(JSON.parse(calls.at(-1).body).assignees, ['countrycloudboy']);
+  store.close();
+});
+
+test('no assignee still creates the issue, and sends no assignees field at all', async () => {
+  const { store, runId } = await estate([candidate('unassigned-gate')]);
+  const { impl, calls } = recordingFetch([
+    { ok: true, status: 200, body: '[]' },
+    { ok: true, status: 201, body: JSON.stringify({ number: 11, html_url: 'u' }) },
+  ]);
+  const results = await announceGates({
+    db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't', log: () => { }, fetchImpl: impl,
+  });
+  assert.equal(results[0].action, 'created', 'notification config must never block the gate issue');
+  assert.ok(!('assignees' in JSON.parse(calls.at(-1).body)), 'an empty list must not send an empty field');
+  store.close();
+});
+
+test('gateAssignees resolves the numeric id to its current login, falling back to the gate actors', async () => {
+  const { impl, calls } = recordingFetch([
+    { ok: true, status: 200, body: JSON.stringify({ id: 4242, login: 'countrycloudboy' }) },
+  ]);
+  const logins = await gateAssignees({
+    token: 't', log: () => { }, env: { ORCHARD_GATE_ACTORS: '4242' }, fetchImpl: impl,
+  });
+  assert.deepEqual(logins, ['countrycloudboy'], 'the id is config, the login is what the issues API accepts');
+  assert.ok(calls[0].url.endsWith('/user/4242'), 'resolution must go through the immutable id, never a stored login');
+});
+
+test('the dedicated notify setting wins over the actor list', async () => {
+  const { impl, calls } = recordingFetch([
+    { ok: true, status: 200, body: JSON.stringify({ id: 31337, login: 'someone-else' }) },
+  ]);
+  const logins = await gateAssignees({
+    token: 't', log: () => { },
+    env: { ORCHARD_GATE_NOTIFY_GITHUB_USER_ID: '31337', ORCHARD_GATE_ACTORS: '4242' }, fetchImpl: impl,
+  });
+  assert.deepEqual(logins, ['someone-else']);
+  assert.ok(calls[0].url.endsWith('/user/31337'));
+});
+
+test('gateAssignees never throws and never blocks: bad config and dead ids warn and are skipped', async () => {
+  const events = [];
+  const log = (_l, event) => events.push(event);
+  assert.deepEqual(await gateAssignees({ token: 't', log, env: {} }), []);
+  assert.deepEqual(
+    await gateAssignees({
+      token: 't', log, env: { ORCHARD_GATE_ACTORS: 'countrycloudboy' },
+      fetchImpl: async () => { throw new Error('must not call GitHub for a login'); },
+    }),
+    [], 'a login is refused, not resolved: it can be reassigned out from under the config',
+  );
+  const { impl } = recordingFetch([{ ok: false, status: 404, body: JSON.stringify({ message: 'Not Found' }) }]);
+  assert.deepEqual(await gateAssignees({ token: 't', log, env: { ORCHARD_GATE_ACTORS: '999999999' }, fetchImpl: impl }), []);
+  assert.deepEqual(events, ['gate.assignee.unconfigured', 'gate.assignee.invalid', 'gate.assignee.unresolved']);
 });
 
 test('pendingForGate reads the lifecycle table, and only the state it was asked for', async () => {
