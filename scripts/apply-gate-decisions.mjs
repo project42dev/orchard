@@ -24,13 +24,42 @@
 
 import { captureGateDecision } from "./capture-gate-decision.mjs";
 import { manifestFromIssueBody } from "./adapters/github-gate/adapter.mjs";
-import { listIssueComments, listOpenGateIssues } from "./lib/github-issues.mjs";
+import { listIssueComments, listOpenGateIssues, closeIssue } from "./lib/github-issues.mjs";
 import { pathToFileURL } from "node:url";
 import { loadProtectedAdapterModule, protectedAdapterDigest } from "./lib/protected-adapter.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
+import { LIFECYCLE_STATES } from "./lib/state-machine.mjs";
 
 const GATES = Object.freeze(["gate-1", "gate-2"]);
 const PENDING = Object.freeze({ "gate-1": "gate1-pending", "gate-2": "gate2-pending" });
+
+// The state each gate's approval path must reach before its issue is done:
+// proof that the NEXT process took the item, not just that it was approved.
+// Gate 1 hands to ado-sync.mjs, which creates the tracker item (ado-linked).
+// Gate 2 hands to the publication pipeline, which starts at
+// publication-preparing. Anything at or past that point on the direct
+// lifecycle chain, all the way to closed, still counts: once the next
+// process has the item, this issue's job is done regardless of what happens
+// to the item afterward.
+const HANDOFF_THRESHOLD = Object.freeze({ "gate-1": "ado-linked", "gate-2": "publication-preparing" });
+// denied and superseded are reached from *-pending directly and need no
+// further hand-off: the decision itself was the last step for this issue.
+// deferred, changes-requested, blocked, and stale-approval are deliberately
+// excluded, because each of those means the conversation on this issue is
+// not finished, not that it is.
+const TERMINAL_WITHOUT_HANDOFF = new Set(["denied", "superseded"]);
+const HANDOFF_INDEX = Object.freeze({
+    "gate-1": LIFECYCLE_STATES.indexOf(HANDOFF_THRESHOLD["gate-1"]),
+    "gate-2": LIFECYCLE_STATES.indexOf(HANDOFF_THRESHOLD["gate-2"]),
+});
+const CLOSED_INDEX = LIFECYCLE_STATES.indexOf("closed");
+
+/** Has this item left the gate's own issue behind, one way or another? */
+export function itemHandedOff(gate, state) {
+    if (TERMINAL_WITHOUT_HANDOFF.has(state)) return true;
+    const stateIndex = LIFECYCLE_STATES.indexOf(state);
+    return stateIndex >= HANDOFF_INDEX[gate] && stateIndex <= CLOSED_INDEX;
+}
 
 /** Who may decide. An empty allowlist means nobody, never everybody. */
 export function authorisedActorIds(policy) {
@@ -75,7 +104,7 @@ export function fullManifestItemsFor(manifest, allManifests) {
  * Returns a summary rather than throwing, so a caller can log it and carry on.
  */
 export async function applyGateDecisions({ store, track, repo, token, log = () => { }, fetchImpl = fetch, adapter, policy }) {
-    const summary = { applied: 0, blocked: 0, refused: 0, unchanged: 0, errors: 0 };
+    const summary = { applied: 0, blocked: 0, refused: 0, unchanged: 0, errors: 0, closed: 0 };
     const allowed = authorisedActorIds(policy);
     if (allowed.size === 0) {
         log("warn", "gate.apply.no-authorised-actors", { effect: "no comment can decide anything; work stays held" });
@@ -246,6 +275,28 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     continue;
                 }
                 await applyOneItem(comment, named[1], currentState, null);
+            }
+
+            // Not only when this pass just decided something: a batch whose
+            // last item was handed off on an earlier run, before this
+            // capability existed, or after a transient close failure, is
+            // caught here too, on the very next time this issue is read.
+            const stillOpen = manifest.items.some((item) => !itemHandedOff(gate, currentStateOf(store.db, item.item_id)));
+            if (!stillOpen) {
+                try {
+                    const note = gate === "gate-1"
+                        ? `Every item in this batch has been decided. Approved items now have Azure DevOps work items open; denied or superseded items need nothing further here. Closing, since this issue has been handed to the next process.`
+                        : `Every item in this batch has been decided. Approved items have moved into the publication pipeline; denied or superseded items need nothing further here. Closing, since this issue has been handed to the next process.`;
+                    await closeIssue({ repo, issueNumber: issue.number, comment: note, token, fetchImpl });
+                    summary.closed += 1;
+                    log("info", "gate.apply.issue-closed", { gate, issue: issue.number, items: manifest.items.length });
+                } catch (error) {
+                    summary.errors += 1;
+                    log("warn", "gate.apply.issue-close-failed", {
+                        gate, issue: issue.number, status: error.status ?? null, reason: error.message,
+                        effect: "every item is handed off, but the issue itself stays open; retried next run",
+                    });
+                }
             }
         }
     }

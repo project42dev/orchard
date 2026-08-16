@@ -59,7 +59,9 @@ export function renderGateIssueBody(manifest) {
         const digest = manifest.gate === 'gate-1' ? item.proposal_digest : item.artifact_digest;
         lines.push(`### ${safe(item.title ?? item.item_id)}`, '', '| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
             `| Revision | \`${item.item_revision}\` |`, `| Decision digest | \`${digest}\` |`, `| Target | \`${item.target.repository}/${item.target.path}\` |`);
-        if (manifest.gate === 'gate-1') lines.push(`| Category | \`${item.category}\` |`, `| Rationale | ${safe(item.rationale)} |`, `| Score | ${item.score.value} (\`${item.score.formula_version}\`) |`, `| Estimated cost | ${item.estimated_cost.currency} ${item.estimated_cost.amount} |`);
+        if (manifest.gate === 'gate-1') lines.push(`| Category | \`${item.category}\` |`, `| Rationale | ${safe(item.rationale)} |`,
+            `| Evidence | ${safe(item.evidence_refs.join('; '))} |`, `| Risks | ${safe(item.risks.join('; '))} |`,
+            `| Score | ${item.score.value} (\`${item.score.formula_version}\`) |`, `| Estimated cost | ${item.estimated_cost.currency} ${item.estimated_cost.amount} |`);
         else lines.push(`| Proposal digest | \`${item.proposal_digest}\` |`, `| Displayed diff digest | \`${item.displayed_diff_digest}\` |`,
             `| Prepared tree digest | \`${item.prepared_tree_digest}\` |`, `| Base commit | \`${item.base_commit}\` |`, `| Diff reference | ${safe(item.diff_ref)} |`,
             `| Artifact reference | ${safe(item.artifact_ref)} |`, `| ADO external key | \`${item.ado_external_key}\` |`, `| Handoff chain | \`${item.handoff_chain_digest}\` |`,

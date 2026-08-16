@@ -159,6 +159,25 @@ export async function commentOnIssue({ repo, issueNumber, body, token, fetchImpl
 }
 
 /**
+ * Close a gate issue once every item it carries has been decided and handed
+ * to the next process. Posts an explanatory comment first, so the closure
+ * itself is never silent: a reader scrolling the issue sees why it ended,
+ * not just that it did.
+ */
+export async function closeIssue({ repo, issueNumber, comment, token, fetchImpl = fetch }) {
+    if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
+    if (typeof comment === "string" && comment.length > 0) {
+        await call(`/repos/${repo}/issues/${Number(issueNumber)}/comments`, {
+            token, fetchImpl, method: "POST", body: { body: comment },
+        });
+    }
+    const updated = await call(`/repos/${repo}/issues/${Number(issueNumber)}`, {
+        token, fetchImpl, method: "PATCH", body: { state: "closed", state_reason: "completed" },
+    });
+    return { number: updated.number, state: updated.state };
+}
+
+/**
  * Create the gate issue, or update the one this marker already owns.
  *
  * Returns { action, number, url }. `action` is "created" or "updated", never a

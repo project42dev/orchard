@@ -15,7 +15,7 @@ import { generateGateManifests } from './lib/gates.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { protectedAdapterDigest } from './lib/protected-adapter.mjs';
 import { adapterIdentity } from './adapters/github-gate/adapter.mjs';
-import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor } from './apply-gate-decisions.mjs';
+import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor, itemHandedOff } from './apply-gate-decisions.mjs';
 
 const REPO = 'project42dev/orchard';
 const OWNER_ID = 4242;
@@ -99,6 +99,18 @@ function github({ issue, comments }) {
         else payload = null;
         return { ok: true, status: 200, text: async () => JSON.stringify(payload ?? null) };
     };
+}
+
+/** Like github(), but records every call so a test can assert on the PATCH/POST that closes an issue. */
+function recordingGithub({ issue, comments }) {
+    const base = github({ issue, comments });
+    const calls = [];
+    const fetchImpl = async (url, opts) => {
+        calls.push({ url: String(url), method: opts?.method ?? 'GET', body: opts?.body ? JSON.parse(opts.body) : null });
+        return base(url, opts);
+    };
+    fetchImpl.calls = calls;
+    return fetchImpl;
 }
 
 function comment(body, overrides = {}) {
@@ -394,6 +406,115 @@ test('ADR-0025 amendment: a bare approve from an unauthorised actor changes noth
     assert.equal(summary.applied, 0);
     assert.equal(summary.refused, 1);
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    store.close();
+});
+
+test('itemHandedOff: gate-1 needs ado-linked or later; gate-2 needs publication-preparing or later; deny and supersede need nothing further', () => {
+    assert.equal(itemHandedOff('gate-1', 'gate1-pending'), false);
+    assert.equal(itemHandedOff('gate-1', 'gate1-approved'), false, 'approved but not yet handed to ado-sync');
+    assert.equal(itemHandedOff('gate-1', 'ado-linked'), true);
+    assert.equal(itemHandedOff('gate-1', 'published'), true);
+    assert.equal(itemHandedOff('gate-1', 'closed'), true);
+    assert.equal(itemHandedOff('gate-1', 'denied'), true);
+    assert.equal(itemHandedOff('gate-1', 'superseded'), true);
+    assert.equal(itemHandedOff('gate-1', 'deferred'), false, 'defer means revisit, not done');
+    assert.equal(itemHandedOff('gate-1', 'changes-requested'), false);
+    assert.equal(itemHandedOff('gate-1', 'blocked'), false);
+    assert.equal(itemHandedOff('gate-2', 'gate2-approved'), false, 'approved but not yet handed to publication');
+    assert.equal(itemHandedOff('gate-2', 'publication-preparing'), true);
+    assert.equal(itemHandedOff('gate-2', 'closed'), true);
+    assert.equal(itemHandedOff('gate-2', 'denied'), true);
+});
+
+test('once an approved item is handed to the next process, its gate issue closes with an explanatory comment', async () => {
+    const { store, item, issue } = await estate();
+    const approveBody = `/orchard gate1 approve item=${item.item_id} revision=1 digest=${item.proposal_digest}`;
+
+    const firstPass = recordingGithub({ issue, comments: [comment(approveBody)] });
+    await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: firstPass, adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
+    assert.equal(firstPass.calls.some((c) => c.method === 'PATCH'), false, 'ado-sync has not run yet; nothing to close');
+
+    // Stand in for ado-sync.mjs creating the tracker item and advancing the item.
+    store.db.prepare("UPDATE workflow_item SET current_state = 'ado-linked' WHERE item_id = ?").run(item.item_id);
+
+    const events = [];
+    const secondPass = recordingGithub({ issue, comments: [comment(approveBody)] });
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: secondPass, adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.closed, 1, JSON.stringify(events));
+    const patch = secondPass.calls.find((c) => c.method === 'PATCH');
+    assert.ok(patch, 'the issue must be closed via PATCH');
+    assert.equal(patch.body.state, 'closed');
+    const closeComment = secondPass.calls.find((c) => c.method === 'POST' && /\/comments$/.test(c.url));
+    assert.ok(closeComment?.body?.body.includes('handed to the next process'), 'the closure must explain itself, not close silently');
+    assert.ok(events.some(([e]) => e === 'gate.apply.issue-closed'));
+    store.close();
+});
+
+test('an approved item not yet linked to a tracker item keeps its gate issue open', async () => {
+    const { store, item, issue } = await estate();
+    const approveBody = `/orchard gate1 approve item=${item.item_id} revision=1 digest=${item.proposal_digest}`;
+    const fetchImpl = recordingGithub({ issue, comments: [comment(approveBody)] });
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl, adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.closed, 0);
+    assert.equal(fetchImpl.calls.some((c) => c.method === 'PATCH'), false, 'no close before the next process has taken the item');
+    store.close();
+});
+
+test('a denied item closes its own single-item gate issue, since a denial needs no further hand-off', async () => {
+    const { store, item, issue } = await estate();
+    const denyBody = `/orchard gate1 deny item=${item.item_id} revision=1 digest=${item.proposal_digest} reason="not a real gap"`;
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: recordingGithub({ issue, comments: [comment(denyBody)] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.closed, 1);
+    store.close();
+});
+
+test('a batch stays open until every item, not just some, has been handed off', async () => {
+    const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search']);
+    const [denyThis, keepPending] = items;
+    const denyBody = `/orchard gate1 deny item=${denyThis.item_id} revision=1 digest=${denyThis.proposal_digest} reason="not a real gap"`;
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: recordingGithub({ issue, comments: [comment(denyBody)] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(currentStateOf(store.db, denyThis.item_id), 'denied');
+    assert.equal(currentStateOf(store.db, keepPending.item_id), 'gate1-pending');
+    assert.equal(summary.closed, 0, 'one decided item is not the whole batch decided');
+    store.close();
+});
+
+test('a failed close is logged and left for the next run, never thrown and never silent', async () => {
+    const { store, item, issue } = await estate();
+    store.db.prepare("UPDATE workflow_item SET current_state = 'ado-linked' WHERE item_id = ?").run(item.item_id);
+    const base = github({ issue, comments: [] });
+    const events = [];
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: async (url, opts) => {
+            if ((opts?.method ?? 'GET') === 'PATCH') return { ok: false, status: 500, text: async () => JSON.stringify({ message: 'boom' }) };
+            return base(url, opts);
+        },
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.closed, 0);
+    assert.equal(summary.errors, 1);
+    assert.ok(events.some(([e]) => e === 'gate.apply.issue-close-failed'), JSON.stringify(events));
     store.close();
 });
 
