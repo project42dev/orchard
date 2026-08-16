@@ -3,10 +3,21 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { canonicalJson, generateUuidV7, sha256Digest } from "./identity.mjs";
 import { verifyCorpusSnapshot } from "./corpus-snapshot.mjs";
+import { persistDiscoveryItems } from "./gate-queue.mjs";
+import { semanticCandidateIdentity } from "./track-1-controller.mjs";
 
 export const TRACK_2_CLASSIFICATIONS = Object.freeze([
     "addition", "update", "correction", "replacement", "removal", "evidence-backed-no-change"
 ]);
+
+// The five classifications that ARE findings. "evidence-backed-no-change" is
+// the inspection confirming the published content is still correct, which is
+// the desired steady state and proposes nothing. Everything else is work a
+// human must decide on, so it goes to Gate 1 exactly as a discovery candidate
+// does (remediation plan T6).
+export const TRACK_2_ACTIONABLE_CLASSIFICATIONS = Object.freeze(
+    TRACK_2_CLASSIFICATIONS.filter((classification) => classification !== "evidence-backed-no-change"),
+);
 export const TRACK_2_EXPECTED_CANONICAL_ITEMS = 183;
 
 function posixRelative(root, path) { return relative(root, path).split(sep).join("/"); }
@@ -139,6 +150,71 @@ export function reconcileTrack2Outcomes(itemIds, outcomes) {
     return { ok: duplicates.length === 0 && unexpected.length === 0 && missing.length === 0, duplicates, unexpected, missing };
 }
 
+/**
+ * One canonical item's actionable inspection, as a gate-queue candidate.
+ *
+ * The shape is exactly what persistDiscoveryItems accepts, because the whole
+ * point is that a currency finding travels the SAME path a discovery
+ * candidate does: workflow_item at observed -> proposed -> gate1-pending,
+ * manifest observation, Gate 1 announcement, human decision. No parallel
+ * queue exists for Track 2 and none may be built.
+ *
+ * The semantic identity's outcome field is the fixed string
+ * "currency-finding", NOT the classification. The subject a finding occupies
+ * is the canonical item itself: the dedupe index allows one live item per
+ * (track, semantic_identity), and one published file needs at most one
+ * currency decision in flight at a time. If the identity carried the
+ * classification, an "update" finding and a "removal" finding for the same
+ * file could both be live, asking the owner two contradictory questions about
+ * one piece of content. When a finding closes, the subject is open again and
+ * the T17 re-proposal rule applies unchanged.
+ */
+export function currencyCandidateFor(item, inspection, observedAt) {
+    if (!TRACK_2_ACTIONABLE_CLASSIFICATIONS.includes(inspection?.classification)) {
+        throw new TypeError(`not an actionable Track 2 classification: ${inspection?.classification}`);
+    }
+    // The gate manifest contract caps evidence entries at 1000 characters.
+    // Long inspector prose is truncated rather than allowed to fail the whole
+    // item's persistence at announce time.
+    const evidence = [...new Set((inspection.evidence ?? []).map((entry) => String(entry).slice(0, 1000)))].sort();
+    const candidate = {
+        subject: item.stableId,
+        surface: item.surface,
+        outcome: "currency-finding",
+        scope: "content",
+        proposalKind: "track-2-currency-proposal",
+        category: inspection.classification,
+        title: `${inspection.classification}: ${item.stableId}`.slice(0, 200),
+        term: item.canonicalId,
+        level: null,
+        targetPath: item.sourcePath,
+        evidence,
+        evidenceRefs: [{ reference: item.sourcePath, digest: item.sourceDigest }],
+        rationale: [
+            `The currency inspection of ${item.stableId} (${item.sourcePath}) classified the published content as needing ${inspection.classification},`,
+            `on ${evidence.length} recorded evidence entr${evidence.length === 1 ? "y" : "ies"}.`,
+            `The content digest at inspection time was ${item.digest}.`,
+            "The classification and its evidence are in the proposal this decision binds to; nothing changes until a human approves it here.",
+        ].join(" ").slice(0, 3000),
+        observedAt,
+    };
+    candidate.semanticIdentity = semanticCandidateIdentity(candidate);
+    return candidate;
+}
+
+/** Every actionable finding from a run's outcomes, in enumeration order. */
+export function currencyFindingCandidates(items, outcomes, observedAt) {
+    const byId = new Map(items.map((item) => [item.stableId, item]));
+    const candidates = [];
+    for (const outcome of outcomes) {
+        if (!TRACK_2_ACTIONABLE_CLASSIFICATIONS.includes(outcome.classification)) continue;
+        const item = byId.get(outcome.stableId);
+        if (!item) continue;
+        candidates.push(currencyCandidateFor(item, outcome, observedAt));
+    }
+    return candidates;
+}
+
 export function verifyPinnedCommit(platformRoot, commit) {
     if (!/^[a-f0-9]{40}$/.test(commit ?? "")) throw new TypeError("contentCommit must be a full lowercase Git commit");
     const root = resolve(platformRoot);
@@ -151,7 +227,7 @@ export function verifyPinnedCommit(platformRoot, commit) {
     return actual;
 }
 
-export function createTrack2RunRecord(options, coverage, status, startedAt, completedAt) {
+export function createTrack2RunRecord(options, coverage, status, startedAt, completedAt, itemCount = 0) {
     const record = {
         schema_version: "1.0.0", run_id: options.runId, track: "track-2",
         trigger: { type: options.triggerType ?? "manual", reference: options.triggerReference ?? "local-controller" }, status,
@@ -161,7 +237,7 @@ export function createTrack2RunRecord(options, coverage, status, startedAt, comp
         model_role_map_digest: options.modelRoleMapDigest ?? sha256Digest("inspector-adapter"), started_at: startedAt, completed_at: completedAt,
         actor: { kind: options.actorKind ?? "operator", reference: options.actorReference ?? "local-controller" },
         scope: { mode: options.mode, expected_count: coverage.expected, partition_size: options.partitionSize, concurrency_cap: options.concurrency },
-        coverage, item_count: 0,
+        coverage, item_count: itemCount,
     };
     record.manifest_digest = sha256Digest(record);
     return record;
@@ -260,14 +336,54 @@ export async function runTrack2(options) {
     const inspected = outcomes.filter((entry) => TRACK_2_CLASSIFICATIONS.includes(entry.classification)).length;
     const coverage = { expected: items.length, enumerated: items.length, inspected, gaps: items.length - inspected };
     const inspectionFailed = outcomes.some((entry) => entry.outcome === "failed" || entry.error);
+
+    // Findings become gated work HERE, before the run record is finalized, so
+    // the manifest's item_count is a measurement of what the database holds
+    // rather than an assertion (the same reason Track 1 persists inside its
+    // controller). Before this block existed, a currency run only ever wrote
+    // observation_event and run_outcome rows: the published architecture drew
+    // an edge from currency to Gate 1 that no running code had (plan T6).
+    //
+    // Findings from a drifted run are NOT persisted: the snapshot check says
+    // the corpus changed under the inspection, so the evidence describes files
+    // that may no longer exist as inspected. The observations are already
+    // recorded; the next clean run re-derives the findings against a stable
+    // corpus. Findings from partitions that completed before an unrelated
+    // failure stopped the run ARE persisted, exactly as a Track 1 survey keeps
+    // the candidates it validated before a later fetch failed.
+    let findings = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, items: [], existing: [] };
+    if (options.mode !== "dry-run" && options.stateStore) {
+        const observedAt = (options.now?.() ?? new Date()).toISOString();
+        const candidates = currencyFindingCandidates(items, outcomes, observedAt);
+        if (candidates.length && drift) {
+            options.onStage?.("track2.findings.skipped-drift", { candidates: candidates.length });
+        } else if (candidates.length) {
+            options.onStage?.("track2.findings.persisting", { candidates: candidates.length });
+            findings = await persistDiscoveryItems({
+                store: options.stateStore,
+                runId,
+                track: "track-2",
+                candidates,
+                now: observedAt,
+                log: options.log ?? (() => { }),
+            });
+            options.onStage?.("track2.findings.persisted", {
+                persisted: findings.persisted,
+                alreadyKnown: findings.skipped,
+                reproposed: findings.reproposed,
+                failed: findings.failed,
+            });
+        }
+    }
+
     const fullSuccess = options.mode === "full" && !drift && !stopped && !inspectionFailed && reconciliation.ok && coverage.expected === allItems.length && coverage.expected === coverage.enumerated && coverage.enumerated === coverage.inspected && coverage.gaps === 0;
     const status = drift || stopped || inspectionFailed || !reconciliation.ok ? "failed" : fullSuccess ? "completed" : "incomplete";
     const completedAt = (options.now?.() ?? new Date()).toISOString();
-    const run = createTrack2RunRecord(normalized, coverage, status, startedAt, completedAt);
+    const run = createTrack2RunRecord(normalized, coverage, status, startedAt, completedAt, findings.persisted);
     if (options.mode !== "dry-run" && options.stateStore) {
         options.onStage?.("track2.state.run-finalizing", { status });
         await options.stateStore.finalizeRun(run);
         options.onStage?.("track2.state.run-finalized", { status });
     }
-    return { track: "track-2", mode: options.mode, status, contentCommit: options.contentCommit, inventoryDigest: before, items, partitions, outcomes, coverage, reconciliation, drift, inspectionFailed, run };
+    return { track: "track-2", mode: options.mode, status, contentCommit: options.contentCommit, inventoryDigest: before, items, partitions, outcomes, coverage, reconciliation, drift, inspectionFailed, findings, run };
 }

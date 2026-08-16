@@ -105,6 +105,14 @@ export function slugify(value) {
 }
 
 export function targetForCandidate(candidate) {
+    // A currency finding already knows exactly which published file it is
+    // about: the canonical item's own source path. Deriving a fresh discovery
+    // path for it would propose creating a second copy of content that exists,
+    // so a candidate that names its target keeps it. Discovery candidates
+    // never set this and fall through to the derived placement below.
+    if (candidate.targetPath) {
+        return { repository: TARGET_REPOSITORY, path: candidate.targetPath };
+    }
     const surface = candidate.surface;
     const directory = DIRECTORY_BY_SURFACE[surface];
     if (!directory) throw new TypeError(`no target directory for surface ${surface}`);
@@ -143,11 +151,16 @@ export function scoreCandidate(candidate) {
 export function proposalFor(candidate) {
     return {
         schema_version: "1.0.0",
-        kind: "track-1-discovery-proposal",
+        // Track 1 discovery is the default; a currency candidate names its own
+        // kind and category, because a Track 2 finding is never "new work for
+        // this surface": it is an update, correction, replacement, removal or
+        // addition against content that is already published. Both vocabularies
+        // are the same closed enum the gate manifest contract allows.
+        kind: candidate.proposalKind ?? "track-1-discovery-proposal",
         semantic_identity: candidate.semanticIdentity,
         subject: candidate.subject,
         surface: candidate.surface,
-        category: OUTCOME_BY_SURFACE[candidate.surface],
+        category: candidate.category ?? OUTCOME_BY_SURFACE[candidate.surface],
         title: candidate.title ?? candidate.subject,
         term: candidate.term,
         level: candidate.level ?? null,
@@ -280,9 +293,14 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
             const proposalDigest = sha256Digest(proposal);
             const itemId = generateUuidV7();
             const target = proposal.target;
+            // A candidate that explains itself keeps its own words. The
+            // derived text below speaks in Track 1's demand vocabulary, which
+            // is a lie when the candidate is a currency finding about content
+            // that already exists.
+            const baseRationale = candidate.rationale ?? rationaleFor(candidate);
             const rationale = predecessor
-                ? `${rationaleFor(candidate)} This subject has been through the lifecycle before: item ${predecessor.item_id} is closed, and this proposal supersedes it as a fresh item with a fresh decision.`
-                : rationaleFor(candidate);
+                ? `${baseRationale} This subject has been through the lifecycle before: item ${predecessor.item_id} is closed, and this proposal supersedes it as a fresh item with a fresh decision.`
+                : baseRationale;
             manifestItem = {
                 item_id: itemId,
                 item_revision: 1,
@@ -328,7 +346,7 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
                     from_state: from,
                     to_state: to,
                     cause,
-                    actor: "orchard-track-1-controller",
+                    actor: `orchard-${track}-controller`,
                     occurred_at: timestamp,
                     correlation_id: runId,
                 });

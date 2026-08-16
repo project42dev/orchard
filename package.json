@@ -7,7 +7,7 @@
   "scripts": {
     "build:db": "node scripts/build-content-db.mjs",
     "migrate:db": "node scripts/migrate-content-db.mjs",
-    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs && node scripts/test-gate2-review.mjs && node scripts/test-gate2-rework.mjs && node scripts/test-verify-published-live.mjs && node scripts/test-merge-opportunity-proposals.mjs && node scripts/test-score-opportunities.mjs && node scripts/test-validate-model-map.mjs && node --test scripts/test-ado-sync.mjs scripts/test-announce-gates.mjs scripts/test-apply-gate-decisions.mjs scripts/test-gate-queue.mjs scripts/test-github-gate-adapter.mjs scripts/test-reproposal.mjs scripts/test-seed-artifacts.mjs scripts/test-workflow-scripts.mjs tests/*.test.mjs",
+    "test": "node scripts/test-build-content-db.mjs && node scripts/test-generate-briefs.mjs && node scripts/test-gate1-review.mjs && node scripts/test-gate2-review.mjs && node scripts/test-gate2-rework.mjs && node scripts/test-verify-published-live.mjs && node scripts/test-merge-opportunity-proposals.mjs && node scripts/test-score-opportunities.mjs && node scripts/test-validate-model-map.mjs && node --test scripts/test-ado-sync.mjs scripts/test-announce-gates.mjs scripts/test-apply-gate-decisions.mjs scripts/test-gate-queue.mjs scripts/test-github-gate-adapter.mjs scripts/test-reproposal.mjs scripts/test-seed-artifacts.mjs scripts/test-track2-gate.mjs scripts/test-workflow-scripts.mjs tests/*.test.mjs",
     "test:gate1": "node scripts/test-gate1-review.mjs",
     "artifact:corpus": "node scripts/create-corpus-snapshot.mjs",
     "discover:track-1": "node scripts/discover-content-opportunities.mjs --help",

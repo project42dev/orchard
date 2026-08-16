@@ -95,6 +95,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
                 concurrency: Number.parseInt(args.concurrency ?? "4", 10),
                 inspector,
                 stateStore: store,
+                log,
                 onStage: (event, fields) => log("info", event, fields),
             });
             log("info", "track2.controller.finished", { status: result.status, inspected: result.coverage.inspected });
