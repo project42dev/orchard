@@ -28,6 +28,7 @@ import { gateMarker, openOrUpdateGateIssue, resolveUserLogin } from "./lib/githu
 import { heldAtGate, heldSetDigest } from "./lib/gate-queue.mjs";
 import { generateGateManifests, renderGateIssueBody } from "./lib/gates.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
+import { mintInstallationToken } from "./lib/github-app-auth.mjs";
 
 const GATES = Object.freeze({
     "gate-1": {
@@ -213,11 +214,44 @@ async function readVaultSecret({ vaultUrl, secretName, clientId, fetchImpl = fet
  * Announcing and applying use the same credential, and reading the vault twice
  * per run is two chances to fail for one secret. Returns null rather than
  * throwing, with the reason logged, because neither half may fail a run.
+ *
+ * T5: a GitHub App installation token is preferred when the three App
+ * secrets (app id, installation id, private key) are configured, because it
+ * draws from the installation's own rate-limit bucket rather than sharing a
+ * personal token holder's bucket with everything else they do. The old
+ * personal-access-token path is the fallback for as long as
+ * ORCHARD_GATE_TOKEN_SECRET is still configured, so a deployment mid
+ * migration keeps working either way.
  */
 export async function readGateToken({ log, env = process.env, prefix = "gate" }) {
     const vaultUrl = env.ORCHARD_GATE_VAULT_URL;
+    if (!env.ORCHARD_GITHUB_REPO || !vaultUrl) {
+        log("warn", `${prefix}.token.unconfigured`, { effect: "gates hold as designed; nothing is announced and no decision is read" });
+        return null;
+    }
+
+    const appIdSecret = env.ORCHARD_GATE_APP_ID_SECRET;
+    const installationIdSecret = env.ORCHARD_GATE_INSTALLATION_ID_SECRET;
+    const appKeySecret = env.ORCHARD_GATE_APP_KEY_SECRET;
+    if (appIdSecret && installationIdSecret && appKeySecret) {
+        try {
+            const [appId, installationId, privateKeyPem] = await Promise.all([
+                readVaultSecret({ vaultUrl, secretName: appIdSecret, clientId: env.AZURE_CLIENT_ID }),
+                readVaultSecret({ vaultUrl, secretName: installationIdSecret, clientId: env.AZURE_CLIENT_ID }),
+                readVaultSecret({ vaultUrl, secretName: appKeySecret, clientId: env.AZURE_CLIENT_ID }),
+            ]);
+            return await mintInstallationToken({ appId, installationId, privateKeyPem });
+        } catch (error) {
+            log("warn", error.status === 404 ? `${prefix}.token.app-absent` : `${prefix}.token.app-unavailable`, {
+                status: error.status ?? null,
+                effect: "gates hold as designed; nothing is announced and no decision is read",
+            });
+            return null;
+        }
+    }
+
     const secretName = env.ORCHARD_GATE_TOKEN_SECRET;
-    if (!env.ORCHARD_GITHUB_REPO || !vaultUrl || !secretName) {
+    if (!secretName) {
         log("warn", `${prefix}.token.unconfigured`, { effect: "gates hold as designed; nothing is announced and no decision is read" });
         return null;
     }
