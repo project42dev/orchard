@@ -30,12 +30,40 @@ const TRACK_ENTRY_POINTS = Object.freeze({
     "track-2": "./inspect-canonical-corpus.mjs",
 });
 
+// The execution roles (remediation plan T19). Before these existed, an
+// approved item reached `executing` and stopped forever, because the runtime
+// knew only the two survey tracks and nothing deployed could author, prepare
+// Gate 2, publish, or verify anything.
+//
+// ARCHITECTURE DECISION, made explicitly per the plan: the two runtimes stay
+// SEPARATE. The proven eight-phase PowerShell authoring engine
+// (delivery/Dockerfile) is not merged into this Node image and is not
+// rewritten in Node. The authoring role runs inside the engine image, which
+// carries Node and these scripts as well as pwsh, and shells out to
+// Invoke-Project42Delivery.ps1 for the ensemble itself. The other three roles
+// run in the lean two-track image. The ONLY handoff between the runtimes is
+// the shared workflow_item state store, exactly as discovery, currency, and
+// seeding already share it.
+const ROLE_ENTRY_POINTS = Object.freeze({
+    "authoring": "./run-authoring.mjs",
+    "gate2-prep": "./run-gate2-prep.mjs",
+    "publication": "./run-publication.mjs",
+    "verification": "./run-verification.mjs",
+});
+
 function parseRuntimeArgs(argv) {
     const separator = argv.indexOf("--");
     const runtime = separator === -1 ? argv : argv.slice(0, separator);
     const controller = separator === -1 ? [] : argv.slice(separator + 1);
     const trackIndex = runtime.indexOf("--track");
-    if (trackIndex === -1 || !TRACK_ENTRY_POINTS[runtime[trackIndex + 1]]) throw new TypeError("runtime requires --track track-1 or --track track-2");
+    const roleIndex = runtime.indexOf("--role");
+    if (trackIndex !== -1 && roleIndex !== -1) throw new TypeError("runtime accepts --track or --role, never both");
+    if (roleIndex !== -1) {
+        if (!ROLE_ENTRY_POINTS[runtime[roleIndex + 1]]) throw new TypeError("runtime requires --role authoring, gate2-prep, publication, or verification");
+        if (runtime.length !== 2 || roleIndex !== 0) throw new TypeError("runtime accepts only --role before the -- separator");
+        return { role: runtime[roleIndex + 1], controller };
+    }
+    if (trackIndex === -1 || !TRACK_ENTRY_POINTS[runtime[trackIndex + 1]]) throw new TypeError("runtime requires --track track-1 or --track track-2, or --role for an execution role");
     if (runtime.length !== 2 || trackIndex !== 0) throw new TypeError("runtime accepts only --track before the -- separator");
     return { track: runtime[trackIndex + 1], controller };
 }
@@ -93,7 +121,7 @@ export async function downloadBoundArtifact(container, blobName, expectedDigest,
 
 export async function runController(track, args, log) {
     log("info", "controller.loading");
-    const module = await import(TRACK_ENTRY_POINTS[track]);
+    const module = await import(TRACK_ENTRY_POINTS[track] ?? ROLE_ENTRY_POINTS[track]);
     log("info", "controller.loaded");
     const previousExitCode = process.exitCode;
     process.exitCode = undefined;
@@ -227,17 +255,63 @@ async function runAzure(track, log) {
     });
 }
 
+// One execution role, run under the SAME fence and scope as the track whose
+// state it works on. The scope is the point: the fence lease is what makes the
+// state database single-writer, and a role job holding a lease named anything
+// other than the track would run concurrently with that track's own job
+// against one database. ORCHARD_ROLE_TRACK names the track whose items this
+// role executes; it defaults to track-1, the discovery pipeline the end-to-end
+// criterion is written against.
+async function runRoleAzure(role, log) {
+    const clients = blobClients();
+    const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
+    mkdirSync(root, { recursive: true });
+    const track = process.env.ORCHARD_ROLE_TRACK ?? "track-1";
+    if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ROLE_TRACK must be track-1 or track-2");
+    const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
+        const execution = process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local-execution";
+        // Decisions first, exactly as the tracks do: what the owner answered
+        // since the last run is what authorizes this run to do anything. For
+        // the publication role this is load-bearing, not a courtesy: the Gate 2
+        // approval it publishes from is recorded here, by this run, moments
+        // before it is read back.
+        const gateToken = await readGateToken({ log });
+        const decisionStore = openStateStore(state.path);
+        try {
+            await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
+        } finally {
+            decisionStore.close();
+        }
+        await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
+        await runController(role, ["--state-db", state.path, "--track", track], log);
+        // The role just moved lifecycle states, so the tracker follows now
+        // rather than at the next monthly survey. Never fails the run.
+        await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
+        await assertCurrent();
+        // gate2-prep moves work to gate2-pending; announcing here is what
+        // turns that into an issue the owner hears about. For the other roles
+        // this reports the gates empty or unchanged, which is cheap and true.
+        await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
+        return { statePath: state.path, value: { role, track } };
+    });
+}
+
 export async function main(argv = process.argv.slice(2)) {
-    const { track, controller } = parseRuntimeArgs(argv);
-    const log = createStructuredLogger({ base: { service: "orchard", track } });
+    const { track, role, controller } = parseRuntimeArgs(argv);
+    const log = createStructuredLogger({ base: { service: "orchard", ...(role ? { role } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
-        if (process.env.ORCHARD_RUNTIME_CONFIG === "azure") await runAzure(track, log);
-        else await runController(track, controller, log);
+        if (process.env.ORCHARD_RUNTIME_CONFIG === "azure") await (role ? runRoleAzure(role, log) : runAzure(track, log));
+        else await runController(role ?? track, controller, log);
         log("info", "runtime.completed");
     } catch (error) {
         process.exitCode = process.exitCode || 1;
         const safeErrorCodes = new Set([
+            "ERR_ORCHARD_AUTHORING_SPEND_CAP",
+            "ERR_ORCHARD_DELIVERY_FAILED",
+            "ERR_ORCHARD_ROLE_FAILED",
+            "ERR_ORCHARD_VERIFICATION_FAILED",
             "ERR_ORCHARD_CONFIGURATION",
             "ERR_FOUNDRY_AUTHORIZATION",
             "ERR_FOUNDRY_INCOMPLETE",
