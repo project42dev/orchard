@@ -167,7 +167,7 @@ function workItemCount(subjectId) {
 }
 
 // =============================================================================
-// SCENARIO 1: The full cycle — creation through update (existing coverage)
+// SCENARIO 1: The full cycle, creation through update (existing coverage)
 // =============================================================================
 
 step(1, 'SCENARIO 1: one topic, creation through currency update');
@@ -313,7 +313,7 @@ check('and the creation is reported as left alone rather than silently skipped',
   || updateIngest.applied.every((a) => a.kind !== 'needs-creating'));
 
 // =============================================================================
-// SCENARIO 2: Multi-surface lifecycle — field-guide alongside learn
+// SCENARIO 2: Multi-surface lifecycle, field-guide alongside learn
 // =============================================================================
 
 step(2, 'SCENARIO 2: a field-guide topic goes through the full cycle');
@@ -429,7 +429,7 @@ equal('the update is now done',
 
 // Now manually create a NEW update work item (simulating a fresh currency scan
 // finding the source stale again). The existing done row prevents the rebuild
-// from creating one, so we insert it directly — this is what a real currency
+// from creating one, so we insert it directly: this is what a real currency
 // scan does when it finds a new staleness after the previous update completed.
 {
   const db = new DatabaseSync(dbPath);
@@ -478,7 +478,7 @@ check('and it was the update, not the creation, that was moved',
   && !update2Ingest.applied.some((a) => a.kind === 'needs-creating' && a.subjectId === 'widget-tuning-learn'));
 
 // =============================================================================
-// SCENARIO 5: Recovery from blocked — human override
+// SCENARIO 5: Recovery from blocked, human override
 // =============================================================================
 
 step(5, 'SCENARIO 5: a human can publish a blocked proposal (override)');
@@ -530,7 +530,7 @@ buildContentDb({ contentRoot: content, dbPath });
   equal('the deprecated content is no longer indexed',
     db.prepare('SELECT count(*) AS n FROM item WHERE id = ?').get('deploy-strategy-field-guide').n, 0);
 
-  // But the publication record survives — provenance is forever.
+  // But the publication record survives: provenance is forever.
   const pubCount = db.prepare('SELECT count(*) AS n FROM publication WHERE subject_id = ?')
     .get('deploy-strategy-field-guide').n;
   check('the publication record survives deprecation', pubCount >= 1);

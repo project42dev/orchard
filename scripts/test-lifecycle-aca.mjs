@@ -6,18 +6,18 @@
 //   - The harness ACA job deployed (caj-p42-harness-prod-eus-01)
 //   - Network access to the storage account for run record download
 //
-// It does NOT require a model endpoint — the harness job uses the deployed
-// endpoint. It costs real money per run (~$0.50–$2.00 depending on model).
+// It does NOT require a model endpoint: the harness job uses the deployed
+// endpoint. It costs real money per run (~$0.50-$2.00 depending on model).
 //
 // Usage:
 //   node scripts/test-lifecycle-aca.mjs
 //
 // Environment variables:
-//   ACA_SUBSCRIPTION    — Azure subscription ID (default: from az account show)
-//   ACA_RESOURCE_GROUP  — Resource group (default: rg-p42-delivery-prod-eus-01)
-//   ACA_JOB_NAME        — Harness job name (default: caj-p42-harness-prod-eus-01)
-//   ACA_POLL_TIMEOUT_MS — Max poll time in ms (default: 600000 = 10 min)
-//   ACA_SKIP_TRIGGER    — If '1', skip triggering and only verify existing records
+//   ACA_SUBSCRIPTION    - Azure subscription ID (default: from az account show)
+//   ACA_RESOURCE_GROUP  - Resource group (default: rg-p42-delivery-prod-eus-01)
+//   ACA_JOB_NAME        - Harness job name (default: caj-p42-harness-prod-eus-01)
+//   ACA_POLL_TIMEOUT_MS - Max poll time in ms (default: 600000 = 10 min)
+//   ACA_SKIP_TRIGGER    - If '1', skip triggering and only verify existing records
 
 import { execSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
@@ -253,7 +253,7 @@ if (existsSync(dbPath)) {
     }
 } else {
     console.log(`  Content database not found at ${dbPath}`);
-    console.log('  (This is expected if running in CI — the DB is in Azure Storage)');
+    console.log('  (This is expected if running in CI: the DB is in Azure Storage)');
 }
 
 // --- Summary -----------------------------------------------------------------

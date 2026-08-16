@@ -257,7 +257,7 @@ function syncAdoStates({ dbPath, org, applied, apply }) {
   }
 
   if (adoIds.length === 0) {
-    console.log('  (no ADO links to sync — items may not have been mirrored yet)');
+    console.log('  (no ADO links to sync, items may not have been mirrored yet)');
     return;
   }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// notify-review-ready.mjs — queries content.db for proposals awaiting human
+// notify-review-ready.mjs: queries content.db for proposals awaiting human
 // review and creates a GitHub Issue in project42dev/orchard with a summary.
 //
 // Usage:
@@ -27,7 +27,7 @@ function readJson(path) {
 }
 
 function digest(str) {
-    // Simple stable hash for dedup — not cryptographic, just collision-resistant
+    // Simple stable hash for dedup, not cryptographic, just collision-resistant
     // enough to tell two different proposal sets apart.
     let h = 0;
     for (let i = 0; i < str.length; i++) {
@@ -116,7 +116,7 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
         '## Orchard proposals ready for review',
         '',
         '> [!IMPORTANT]',
-        '> @kristopherjturner — please review and comment **`Approved`** or **`Denied`** to trigger publication.',
+        '> @kristopherjturner: please review and comment **`Approved`** or **`Denied`** to trigger publication.',
         '',
         `**${matched.length} proposal(s)** emitted by the delivery ensemble and awaiting human decision.`,
         '',
@@ -152,7 +152,7 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
             lines.push('| **ADO** | *not yet mirrored* |');
         }
 
-        // Content link — anchor to the inline collapsible section below
+        // Content link: anchor to the inline collapsible section below
         const slug = (wi?.subject_id || p.id || '').replace(/[^a-z0-9-]/gi, '-').substring(0, 60);
         lines.push(`| **Content** | [View inline below](#proposal-content-${slug}) |`);
 
@@ -219,7 +219,7 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
                 lines.push('');
                 const maxContent = 2000;
                 const truncated = content.length > maxContent
-                    ? content.slice(0, maxContent) + '\n\n... (truncated — full content in delivery/private/local-proposals/)'
+                    ? content.slice(0, maxContent) + '\n\n... (truncated, full content in delivery/private/local-proposals/)'
                     : content;
                 lines.push(truncated);
                 lines.push('');
@@ -241,8 +241,8 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
     lines.push('4. Review the model stages for any red flags');
     lines.push('5. Decide: accept or reject');
     lines.push('6. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):');
-    lines.push('   - **`Approved`** — publishes the content to the live site');
-    lines.push('   - **`Denied`** — rejects the content');
+    lines.push('   - **`Approved`**: publishes the content to the live site');
+    lines.push('   - **`Denied`**: rejects the content');
     lines.push('');
     lines.push('The `orchard-human-review` workflow will:');
     lines.push('1. Reply to confirm it received your decision');
@@ -399,10 +399,10 @@ function main() {
     // Derive a meaningful title from the dispositions present.
     const dispositions = [...new Set(matched.map(m => m.packet.disposition))].sort();
     const phaseLabel = dispositions.join('/');
-    const title = `[Orchard] ${matched.length} proposal(s) ready for review — ${phaseLabel}`;
+    const title = `[Orchard] ${matched.length} proposal(s) ready for review, ${phaseLabel}`;
 
     if (dryRun) {
-        console.log('\n=== DRY RUN — would create issue ===');
+        console.log('\n=== DRY RUN: would create issue ===');
         console.log(`Title: ${title}`);
         console.log(`\n${body}`);
         console.log('\n=== end dry run ===');
@@ -412,7 +412,7 @@ function main() {
     // 7. Create the GitHub issue via gh CLI
     // This requires gh to be authenticated. The scheduled workflow provides this.
     try {
-        // Write body to temp file — gh CLI on Windows doesn't reliably accept
+        // Write body to temp file: gh CLI on Windows doesn't reliably accept
         // stdin via execSync input.
         const tmpBody = resolve(proposalDir, '..', '.orchard-issue-body.tmp');
         writeFileSync(tmpBody, body, 'utf-8');

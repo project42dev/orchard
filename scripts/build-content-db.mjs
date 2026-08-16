@@ -487,7 +487,7 @@ function main() {
         timeout: 60_000,
       });
     } catch (err) {
-      console.error('ADO sync failed (non-fatal — database is still valid):');
+      console.error('ADO sync failed (non-fatal, database is still valid):');
       console.error(err.stderr || err.message);
     }
   }
