@@ -168,7 +168,10 @@ test('a version 5 database with a closed item migrates in place and the subject 
     db.close();
 
     const outcome = migrateContentDb(dbPath);
-    assert.deepEqual(outcome.applied, [{ version: 6, name: '006-live-item-uniqueness' }]);
+    assert.deepEqual(outcome.applied, [
+        { version: 6, name: '006-live-item-uniqueness' },
+        { version: 7, name: '007-workflow-item-state-check' },
+    ]);
     assert.ok(outcome.verification.ok, `post-migration verification: ${JSON.stringify(outcome.verification)}`);
 
     const store = openStateStore(dbPath);

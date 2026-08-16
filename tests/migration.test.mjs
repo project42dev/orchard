@@ -40,7 +40,7 @@ test("fresh migration is transactional, versioned, verified, and replay-safe", (
     assert.equal(replay.backup, null);
 
     const db = new DatabaseSync(path);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get().n, 5);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get().n, 6);
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'publication_transaction'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'closure_packet'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'closure_acceptance'").get());

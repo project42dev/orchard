@@ -20,6 +20,24 @@ const directTransitions = [
 ];
 
 export const ALLOWED_LIFECYCLE_TRANSITIONS = Object.freeze(directTransitions.map(Object.freeze));
+
+// States reachable only through the exception rules in isTransitionAllowed
+// below, never through the direct transition table.
+const exceptionStates = ["denied", "deferred", "changes-requested", "stale-approval", "blocked", "superseded"];
+
+// The complete current_state vocabulary, derived from the transition table
+// plus the exception states, so it cannot drift from the machine itself.
+// This list is the one authoritative documentation of the vocabulary. Two
+// copies exist and are held in lockstep by scripts/test-state-vocabulary.mjs:
+// the $defs/state enum in contracts/schemas/state-transition.schema.json and
+// the CHECK constraint on workflow_item.current_state
+// (schema/migrations/007-workflow-item-state-check.sql). Adding a state means
+// changing all three, and the test fails until they agree.
+export const LIFECYCLE_STATES = Object.freeze([...new Set([
+    ...directTransitions.flatMap(([from, to]) => [from, to]),
+    ...exceptionStates
+])]);
+
 const directKeys = new Set(directTransitions.map((entry) => entry.join("\0")));
 const pendingStates = new Set(["gate1-pending", "gate2-pending"]);
 const blockCauses = new Set(["policy-block", "integrity-block", "security-block", "cost-block"]);
