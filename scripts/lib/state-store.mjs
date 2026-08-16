@@ -606,8 +606,17 @@ export class StateStore {
             for (const [field, value] of Object.entries(expected)) exact(record[field], value, `publication ${field}`);
             const revision = this.db.prepare(`SELECT run_id, proposal_digest, artifact_digest, target_repository, target_path
                 FROM item_revision WHERE item_id = ? AND item_revision = ?`).get(record.item_id, record.item_revision);
+            // The revision's cached artifact_digest is nullable: discovery
+            // creates a revision at proposal time, BEFORE any artifact exists,
+            // so the source of truth for the artifact_digest is the immutable
+            // artifact_binding record (checked below). Requiring the cached
+            // column to match here made publication impossible for any item
+            // authored after its revision was minted, which is every item
+            // discovery produces. If the cached column IS populated on the
+            // revision, it must still match, so a bound revision cannot drift.
             if (!revision || revision.run_id !== record.run_id || revision.proposal_digest !== record.proposal_digest
-                || revision.artifact_digest !== record.artifact_digest || revision.target_repository !== record.target.repository
+                || (revision.artifact_digest !== null && revision.artifact_digest !== record.artifact_digest)
+                || revision.target_repository !== record.target.repository
                 || revision.target_path !== record.target.path) {
                 throw new StateConflictError("publication does not match the persisted item revision");
             }
