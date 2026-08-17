@@ -1873,10 +1873,24 @@ try {
             $verdictR = Get-RoleVerdict -Content $arbiterResult.content -Role arbiter
             Write-DeliveryLog INFO "brief=$($item.id) arbiter=$verdictR"
 
-            # A draft survives a split only when the arbiter says the verifier
-            # was right. ADVERSARY and HUMAN both keep it away from a reviewer's
-            # approval queue as a survivor.
-            $survives = ($verdictR -eq 'VERIFIER') -and ($verdictV -eq 'PASS')
+            # BUG FIXED 2026-08-17, found live: this line used to read
+            # `$survives = ($verdictR -eq 'VERIFIER') -and ($verdictV -eq 'PASS')`,
+            # which made $survives -- and therefore the ready-for-draft/blocked
+            # disposition below -- depend on the arbiter's verdict. That
+            # directly contradicted the two comments immediately above and
+            # below it (arbiter.md: "you are not part of the default path... a
+            # human asked for your opinion"; this function: "the proposal
+            # stays pending regardless... a human decides regardless; the
+            # arbiter annotates, it does not approve"). In production every
+            # split whose arbiter did not say VERIFIER was silently sent to
+            # 'blocked' -- unreviewable until tonight's blocked-item-recovery
+            # fix, and even after that fix a retried split landed right back
+            # on the same arbiter verdict and re-blocked, because nothing
+            # about the split itself had changed. A split is a disagreement,
+            # not a verdict, so it must reach a human -- $survives stays true
+            # here; the arbiter's resolution is recorded below as context for
+            # that human, exactly as arbiter.md says it should be.
+            $survives = $true
             $unresolved.Add(
                 "Verifier said $verdictV and the adversary said $verdictA. The " +
                 "arbiter resolved to $verdictR. A human decides regardless; " +
@@ -1884,6 +1898,13 @@ try {
             )
         }
         elseif ($split) {
+            # Same bug, same fix: a split with no arbiter configured is still
+            # a split, not a verdict. $survives already carries the pre-split
+            # value computed above (always false for a split, since the two
+            # roles disagree by definition) -- explicitly overridden here so
+            # this branch is not silently correct only because $arbiterConfig
+            # happens to be set on every brief in production today.
+            $survives = $true
             $unresolved.Add(
                 "Verifier said $verdictV and the adversary said $verdictA, " +
                 'which is a split. No arbiter role is configured on this ' +

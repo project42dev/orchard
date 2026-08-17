@@ -548,12 +548,25 @@ try {
     $assertions++
 
     # ------------------------------------------------- the arbiter tie-break
-
+    #
+    # BUG FIXED 2026-08-17, found live in production: every one of these four
+    # cases IS a split (the two roles disagree), and arbiter.md plus this
+    # file's own comments are explicit that a split "stays pending
+    # regardless" and "goes to a human" -- the arbiter annotates, it does not
+    # gate. This fixture used to assert the opposite (ADVERSARY/HUMAN
+    # resolutions produced disposition 'blocked'), which is what shipped: two
+    # real production items retried after tonight's blocked-item-recovery fix
+    # landed right back on 'blocked' via this exact path, unreviewable by any
+    # human, because the fixture's expectation matched the bug rather than
+    # the documented design. Every split now reaches 'ready-for-draft'
+    # regardless of the arbiter's resolution; the resolution is still
+    # recorded as an unresolved-conflict annotation for the reviewer, checked
+    # separately below.
     foreach ($case in @(
         @{ V = 'PASS'; A = 'REFUTED'; R = 'VERIFIER'; Survives = $true; Disposition = 'ready-for-draft' },
-        @{ V = 'PASS'; A = 'REFUTED'; R = 'ADVERSARY'; Survives = $false; Disposition = 'blocked' },
-        @{ V = 'PASS'; A = 'REFUTED'; R = 'HUMAN'; Survives = $false; Disposition = 'blocked' },
-        @{ V = 'FAIL'; A = 'STANDS'; R = 'VERIFIER'; Survives = $false; Disposition = 'blocked' }
+        @{ V = 'PASS'; A = 'REFUTED'; R = 'ADVERSARY'; Survives = $true; Disposition = 'ready-for-draft' },
+        @{ V = 'PASS'; A = 'REFUTED'; R = 'HUMAN'; Survives = $true; Disposition = 'ready-for-draft' },
+        @{ V = 'FAIL'; A = 'STANDS'; R = 'VERIFIER'; Survives = $true; Disposition = 'ready-for-draft' }
     )) {
         $caseRoot = New-TestArtifactRoot -Name "arbiter-$($case.V)-$($case.A)-$($case.R)"
         New-TestPricing | ConvertTo-Json -Depth 10 |
@@ -683,6 +696,18 @@ try {
             ).Count -eq 1
         ) `
         -Message 'An unarbitrated split must be handed to a human as it stands.'
+    $assertions++
+    $noArbiterPacket = Get-Content -LiteralPath (
+        @(Get-ChildItem -LiteralPath (Join-Path $noArbiterRoot 'proposals') -Filter 'packet-*.json')[0].FullName
+    ) -Raw | ConvertFrom-Json -Depth 30 -DateKind String
+    Assert-TestCondition `
+        -Condition ([string] $noArbiterPacket.disposition -eq 'ready-for-draft') `
+        -Message (
+            'An unarbitrated split must actually reach disposition ' +
+            'ready-for-draft, not just say it will in an unresolved-conflict ' +
+            'note nobody reads -- "handed to a human as it stands" means the ' +
+            'human can see it.'
+        )
     $assertions++
 
     # An unparseable verdict falls closed rather than passing.
