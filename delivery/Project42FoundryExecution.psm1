@@ -1912,11 +1912,30 @@ function New-Project42ProposalModelStage {
         [string[]] $ExtraFindings = @()
     )
 
+    # BUG FIXED 2026-08-17, found live: findings is ONE array holding TWO
+    # different things -- notes ABOUT the call (ExtraFindings, the
+    # temperature disclosure below) and the actual chunked $Output content.
+    # Orchard's reconstructStageContent rejoins findings back into $Output
+    # to verify outputDigest and prepare a real Gate 2 commit; it already
+    # knows to skip a truncation-notice chunk (a stable, regex-matched
+    # prefix) but had no way to tell a note apart from a content chunk, so
+    # ANY note here corrupted every reconstruction that followed it -- 100%
+    # reproducing on release-proposal specifically, since the arbiter/
+    # finalizer fix earlier tonight made every finalizer call pass at least
+    # one ExtraFindings entry ("Finalizer package review."). Confirmed live:
+    # rejoinedLength 2458 against a 5-finding stage, no truncation notice,
+    # digest mismatch -- textbook note-pollution, not truncation.
+    # ORCHARD_NOTE_PREFIX below is the same kind of stable, regex-matchable
+    # marker the truncation notice already uses; reconstructStageContent's
+    # filter must exclude it identically. The note text itself is still a
+    # normal finding a human reviewer reads -- only the reconstruction step
+    # excludes it.
+    $noteMarker = 'ORCHARD_NOTE: '
     $findings = [System.Collections.Generic.List[string]]::new()
     foreach ($finding in $ExtraFindings) {
         if (-not [string]::IsNullOrWhiteSpace($finding)) {
             $findings.Add(
-                (Get-Project42BoundedText -Value $finding -MaximumLength 2000)
+                $noteMarker + (Get-Project42BoundedText -Value $finding -MaximumLength (2000 - $noteMarker.Length))
             )
         }
     }
@@ -1926,6 +1945,7 @@ function New-Project42ProposalModelStage {
     # disclosed as an assumption rather than presented as a measurement.
     $recordedTemperature = if ($null -eq $Temperature) {
         $findings.Add(
+            $noteMarker +
             'Temperature was not set on the request, so the service default ' +
             'applied. The schema requires a number, so 1 is recorded and this ' +
             'note discloses that it was not measured.'

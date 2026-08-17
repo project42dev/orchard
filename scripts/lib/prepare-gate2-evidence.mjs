@@ -78,15 +78,25 @@ const STAGE_ORDER = Object.freeze([
 /**
  * The release-proposal stage's findings ARE its output, chunked at 2000
  * characters per Format-Project42ModelStage's own documented behavior, up to
- * 10 chunks (20000 characters) before a final truncation-notice finding is
- * appended instead of an 11th chunk. Rejoining those chunks in order and
+ * 100 chunks (200000 characters) before a final truncation-notice finding is
+ * appended instead of a 101st chunk. Rejoining those chunks in order and
  * re-hashing against the stage's own outputDigest is how this file tells
  * "the whole output" apart from "a truncated one" -- it never assumes.
+ *
+ * findings can ALSO carry notes that are not part of $Output at all --
+ * ExtraFindings (e.g. "Finalizer package review.", an arbiter resolution
+ * summary) and a temperature-disclosure note, both prepended by
+ * Format-Project42ModelStage BEFORE it starts chunking. Found live tonight:
+ * every one of those notes corrupted reconstruction 100% of the time,
+ * because nothing here excluded them. Format-Project42ModelStage now marks
+ * every non-content note with the ORCHARD_NOTE_PREFIX below; content chunks
+ * never carry it (they are raw substrings of $Output).
  */
+const ORCHARD_NOTE_PREFIX = "ORCHARD_NOTE: ";
 export function reconstructStageContent(modelStage) {
     const findings = Array.isArray(modelStage?.findings) ? modelStage.findings : [];
     const truncationNotice = /^Output truncated after \d+ characters;/;
-    const chunks = findings.filter((entry) => !truncationNotice.test(entry));
+    const chunks = findings.filter((entry) => !truncationNotice.test(entry) && !entry.startsWith(ORCHARD_NOTE_PREFIX));
     const content = chunks.join("");
     const digest = sha256(content);
     const complete = digest === modelStage.outputDigest && !findings.some((entry) => truncationNotice.test(entry));

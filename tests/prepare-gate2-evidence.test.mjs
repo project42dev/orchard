@@ -76,6 +76,36 @@ test("reconstructStageContent refuses when the rejoined chunks simply do not has
     assert.equal(reconstructStageContent(s).complete, false);
 });
 
+test("reconstructStageContent excludes ORCHARD_NOTE_ findings from the reconstructed content", () => {
+    // Found live 2026-08-17: Format-Project42ModelStage prepends ExtraFindings
+    // (e.g. "Finalizer package review.") and a temperature-disclosure note to
+    // findings BEFORE the $Output chunks -- every release-proposal stage that
+    // carries either one corrupted reconstruction 100% of the time, because
+    // nothing here told a note apart from a content chunk. outputDigest is
+    // computed over $Output alone, so a real stage's findings look exactly
+    // like this: a note first, then the actual content chunks.
+    const text = "a real authored module, short enough to fit in one finding";
+    const s = stage({
+        outputDigest: bareSha256(text),
+        findings: [
+            "ORCHARD_NOTE: Finalizer package review.",
+            "ORCHARD_NOTE: Temperature was not set on the request, so the service default applied.",
+            text,
+        ],
+    });
+    const result = reconstructStageContent(s);
+    assert.equal(result.content, text, "the notes must not appear in the reconstructed content");
+    assert.equal(result.complete, true, "a stage with notes plus its full content must still reconstruct as complete");
+});
+
+test("reconstructStageContent does not accidentally exclude real content that merely mentions the note prefix mid-string", () => {
+    const text = "the model discussed ORCHARD_NOTE: as a labeling convention in passing";
+    const s = stage({ outputDigest: bareSha256(text), findings: [text] });
+    const result = reconstructStageContent(s);
+    assert.equal(result.content, text, "only a finding that STARTS with the marker is excluded, not one that merely contains it");
+    assert.equal(result.complete, true);
+});
+
 test("buildHandoffsFromProposal builds one real handoff per stage, chained, in stage order", async () => {
     const proposal = sixStageProposal();
     const b = binding();
