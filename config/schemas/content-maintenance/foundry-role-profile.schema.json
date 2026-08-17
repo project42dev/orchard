@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-42.dev/schemas/content-maintenance/foundry-role-profile-1.0.json",
+  "title": "Project 42 Foundry role profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "effectiveAt", "stages"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "id": { "$ref": "#/$defs/stableId" },
+    "effectiveAt": { "$ref": "#/$defs/timestamp" },
+    "stages": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "primaryDeploymentAlias",
+          "providerFamily",
+          "modelVersion",
+          "fallbackDeploymentAliases",
+          "qualification"
+        ],
+        "properties": {
+          "stage": {
+            "enum": [
+              "evidence-research",
+              "curriculum-writing",
+              "factual-verification",
+              "assessment-review",
+              "accessibility-review",
+              "release-proposal"
+            ]
+          },
+          "primaryDeploymentAlias": { "$ref": "#/$defs/stableId" },
+          "providerFamily": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "modelVersion": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "fallbackDeploymentAliases": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/stableId" }
+          },
+          "qualification": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["benchmarkId", "evaluatedAt", "score", "threshold"],
+            "properties": {
+              "benchmarkId": { "$ref": "#/$defs/stableId" },
+              "evaluatedAt": { "$ref": "#/$defs/timestamp" },
+              "score": { "type": "number", "minimum": 0, "maximum": 1 },
+              "threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{2,127}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$"
+    }
+  }
+}
