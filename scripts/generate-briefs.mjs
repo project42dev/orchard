@@ -398,6 +398,22 @@ export function buildPrompt(item, evidence, citations, surfaceConfig) {
     );
   }
 
+  // RETRY. An item returned by apply-blocked-retry.mjs was authored once
+  // already and the ensemble's own internal review (verifier or adversary)
+  // refused the result before it ever reached a human at Gate 2. Producing
+  // the same content again gets it blocked again for the same reason, so the
+  // refusal goes in front of the drafter exactly like a Gate 2 rework reason
+  // does.
+  const blockedRetry = parseBlockedRetryNote(item.note);
+  if (blockedRetry) {
+    lines.push(
+      '',
+      "THIS IS A RETRY. A previous attempt at this item was authored and this estate's own review refused it before Gate 2.",
+      `The refusal, verbatim: ${blockedRetry}`,
+      'Address that refusal specifically. Do not produce the same content again; it will be refused again for the same reason.',
+    );
+  }
+
   const form = FORM_INSTRUCTIONS[surfaceConfig?.form];
   if (form) lines.push(...form);
 
@@ -433,6 +449,32 @@ export function reworkNoteFor(db, itemId) {
   const reason = JSON.parse(row.record_json).reason;
   if (typeof reason !== 'string' || !reason) return null;
   return reason.startsWith(REWORK_PREFIX) ? reason : `${REWORK_PREFIX}${reason}`;
+}
+
+// apply-blocked-retry.mjs does not repeat the ensemble's refusal reason --
+// it is already permanent on the state_transition_event that recorded the
+// block (ingest-proposals.mjs sets `reason` to the reviewer's note at the
+// moment it blocks the item). This reads it back the same way reworkNoteFor
+// reads a Gate 2 reviewer's reason back, so a retried item's brief still
+// says why the last attempt failed instead of asking the ensemble to repeat
+// its own mistake blind.
+export const BLOCKED_RETRY_PREFIX = 'blocked retry: ';
+export function blockedNoteFor(db, itemId) {
+  const row = db.prepare(
+    `SELECT record_json FROM state_transition_event
+      WHERE item_id = ? AND to_state = 'blocked'
+      ORDER BY occurred_at DESC, transition_id DESC LIMIT 1`,
+  ).get(itemId);
+  if (!row) return null;
+  const reason = JSON.parse(row.record_json).reason;
+  if (typeof reason !== 'string' || !reason) return null;
+  return reason.startsWith(BLOCKED_RETRY_PREFIX) ? reason : `${BLOCKED_RETRY_PREFIX}${reason}`;
+}
+export function parseBlockedRetryNote(note) {
+  if (typeof note !== 'string') return null;
+  if (!note.startsWith(BLOCKED_RETRY_PREFIX)) return null;
+  const reason = note.slice(BLOCKED_RETRY_PREFIX.length).trim();
+  return reason.length > 0 ? reason : null;
 }
 
 const SURFACE_CRITERIA = {
@@ -550,8 +592,11 @@ export async function generateBriefs({
     // there is no first proposal racing it, only an abandoned claim. (An item
     // 'executing' WITH a binding already has real work in flight or done and
     // is correctly excluded, same as before.) 'blocked' items are NEVER
-    // included here: those already received a real verdict a human needs to
-    // act on, not a crash to recover from.
+    // included here directly: that state is a real verdict from the
+    // ensemble's own review, not a crash to recover from silently. The only
+    // way a blocked item re-enters this query is apply-blocked-retry.mjs
+    // moving it to 'executing' with a fresh, binding-free revision -- an
+    // explicit operator decision, not something this query does on its own.
     const rows = db.prepare(
       `SELECT i.item_id, i.track, i.surface, i.outcome, i.semantic_identity,
               i.current_revision, i.origin_run_id, r.record_json,
@@ -598,7 +643,7 @@ export async function generateBriefs({
         // REWORK. An item returned by Gate 2 with request-changes carries the
         // reviewer's reason on that recorded transition. It reaches the brief
         // or the denial loop burns money without converging.
-        note: reworkNoteFor(db, row.item_id),
+        note: reworkNoteFor(db, row.item_id) ?? blockedNoteFor(db, row.item_id),
         recordedTarget: record.target ?? null,
         record,
       };

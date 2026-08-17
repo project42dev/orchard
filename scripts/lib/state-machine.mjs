@@ -80,6 +80,17 @@ export function isTransitionAllowed(transition) {
                 : [];
         return allowed.includes(to);
     }
+    // A blocked item was refused by the ensemble's own internal review, not by
+    // a human gate decision, and it always leaves that review from 'executing'
+    // (ingest-proposals.mjs is the only writer of policy-block/etc against a
+    // real proposal run). So unlike changes-requested/stale-approval, which can
+    // be resumed at several points depending which gate went stale, a blocked
+    // item has exactly one legal way back in: a fresh revision re-attempts
+    // authoring from 'executing'. Gate 1's approval already covers the
+    // underlying proposal, so recovery_gate is always gate-2 here.
+    if (from === "blocked" && cause === "revision-created") {
+        return transition.recovery_gate === "gate-2" && to === "executing";
+    }
     return false;
 }
 
@@ -118,6 +129,7 @@ export function reviewResumptionTarget(gate) {
 
 export function revisionRecoveryTargets(fromState, gate) {
     if (fromState === "denied") return [expectedRecoveryState(gate, "proposed", "executing")];
+    if (fromState === "blocked") return gate === "gate-2" ? ["executing"] : [];
     if (!["changes-requested", "stale-approval"].includes(fromState)) return [];
     return gate === "gate-1" ? ["proposed", "gate1-pending"] : gate === "gate-2" ? ["executing", "gate2-ready", "gate2-pending"] : [];
 }

@@ -1,0 +1,158 @@
+#!/usr/bin/env node
+// test-blocked-retry.mjs - a blocked item can actually be retried.
+//
+// The defect: state-machine.mjs had a rule that let a transition ENTER
+// 'blocked' (ingest-proposals.mjs, on a policy-block verdict from the
+// ensemble's own review) but none that let one LEAVE it. An item the
+// ensemble refused was permanent regardless of what an operator wanted.
+//
+// These tests assert the whole loop closes, the same way test-gate2-rework.mjs
+// asserts the changes-requested loop closes: the retry is recorded, a real
+// successor revision exists, generate-briefs.mjs's existing crash-recovery
+// query picks the retried item back up with no changes of its own, and the
+// refusal reason reaches the drafter so the same mistake is not repeated
+// blind.
+//
+// EVERY fixture is built through openStateStore on the real migrated schema
+// and walked to its state through the lifecycle's own transitions.
+
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { applyRetry } from "./apply-blocked-retry.mjs";
+import { generateBriefs, buildPrompt, parseBlockedRetryNote, blockedNoteFor, BLOCKED_RETRY_PREFIX, ROLE_JOBS } from "./generate-briefs.mjs";
+import { generateUuidV7 } from "./lib/identity.mjs";
+import { estate, seedGateItems, walkTo, cleanupFixtures } from "./test-fixtures.mjs";
+
+let assertions = 0, failures = 0;
+const ok = (c, m) => { assertions++; if (!c) { failures++; console.error(`FAIL: ${m}`); } };
+
+async function blockedFixture(term = "blocked-subject") {
+  const { store, runId, dbPath } = await estate();
+  const [id] = await seedGateItems(store, runId, [term]);
+  await walkTo(store, runId, id, "executing");
+  await store.recordTransition({
+    schema_version: "1.0.0",
+    transition_id: generateUuidV7(),
+    run_id: runId,
+    item_id: id,
+    item_revision: 1,
+    from_state: "executing",
+    to_state: "blocked",
+    cause: "policy-block",
+    reason: "the adversary found an unsupported claim in paragraph 2",
+    actor: "orchard/run-authoring",
+    occurred_at: "2026-08-15T00:00:00.000Z",
+    correlation_id: generateUuidV7(),
+  });
+  return { store, runId, id, dbPath };
+}
+
+const stateOf = (store, id) =>
+  store.db.prepare("SELECT current_state, current_revision FROM workflow_item WHERE item_id = ?").get(id);
+
+// --- a blocked item can be retried, and a real successor revision exists ---
+{
+  const { store, id } = await blockedFixture();
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 1 && r.errors.length === 0, "the retry is recorded");
+  ok(r.revision === 2, "the retry reports the new revision number");
+  const row = stateOf(store, id);
+  ok(row.current_state === "executing", "the item is back in executing");
+  ok(Number(row.current_revision) === 2, "the item's current revision advanced");
+  const revisionRow = store.db.prepare(
+    "SELECT record_json FROM item_revision WHERE item_id = ? AND item_revision = 2",
+  ).get(id);
+  ok(revisionRow !== undefined, "revision 2 is actually persisted, not just referenced");
+  const revisionRecord = JSON.parse(revisionRow.record_json);
+  ok(revisionRecord.state === "executing", "the persisted revision 2 record says executing");
+  ok(revisionRecord.artifact_digest === null, "the retried revision starts with no artifact, honestly");
+  store.close();
+}
+
+// --- the ensemble's refusal reason reaches the brief, same as a Gate 2 rework does ---
+{
+  const { store, id } = await blockedFixture();
+  await applyRetry(store, { item: id });
+  const note = blockedNoteFor(store.db, id);
+  ok(note === `${BLOCKED_RETRY_PREFIX}the adversary found an unsupported claim in paragraph 2`,
+    "the brief generator reads the ensemble's refusal back off the recorded transition");
+  ok(parseBlockedRetryNote(note) === "the adversary found an unsupported claim in paragraph 2",
+    "the retry marker is parsed back out");
+  ok(parseBlockedRetryNote("claimed by engine-123") === null,
+    "an unrelated operator note is NOT treated as a refusal reason");
+
+  const item = { kind: "needs-creating", surface: "learning", title: "Item A", note };
+  const prompt = buildPrompt(item, null, null, {});
+  ok(prompt.includes("THIS IS A RETRY"), "the brief announces it is a retry");
+  ok(prompt.includes("unsupported claim in paragraph 2"), "the brief carries the refusal reason verbatim");
+  ok(prompt.indexOf("THIS IS A RETRY") < prompt.indexOf("Constraints:"),
+    "the retry reason appears before the standing constraints, not buried at the end");
+  store.close();
+}
+
+// --- generate-briefs.mjs's EXISTING crash-recovery query picks the retry up, unmodified ---
+{
+  const { store, id, dbPath } = await blockedFixture("retry-reaches-briefs");
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 1, "the retry is recorded before generating briefs");
+  store.close();
+
+  const root = mkdtempSync(join(tmpdir(), "orchard-blocked-retry-"));
+  const inventoryPath = join(root, "inventory.json");
+  writeFileSync(inventoryPath, JSON.stringify({
+    "model-a": { name: "A", format: "VendorOne" },
+    "model-b": { name: "B", format: "VendorTwo" },
+    "model-c": { name: "C", format: "VendorThree" },
+    "model-d": { name: "D", format: "VendorFour" },
+  }));
+  const mapPath = join(root, "map.json");
+  writeFileSync(mapPath, JSON.stringify({
+    jobs: Object.fromEntries(Object.entries({
+      [ROLE_JOBS.researcher]: "model-a", [ROLE_JOBS.drafter]: "model-a",
+      [ROLE_JOBS.verifier]: "model-b", [ROLE_JOBS.adversary]: "model-c",
+      [ROLE_JOBS.arbiter]: "model-d", [ROLE_JOBS.finalizer]: "model-d",
+    }).map(([job, model]) => [job, { model }])),
+  }));
+  const targetsPath = join(root, "targets.json");
+  writeFileSync(targetsPath, JSON.stringify({
+    repository: "example/content",
+    surfaces: { learn: { pathTemplates: ["content/modules/{topic}/"], suffix: "-learn" } },
+  }));
+
+  const result = await generateBriefs({ dbPath, mapPath, targetsPath, inventoryPath, limit: 10 });
+  ok(result.briefs.some((b) => b.subjectId === id),
+    "a retried item is picked up by the SAME query that already recovers a crashed executing item -- no eligibility change needed");
+  const brief = result.briefs.find((b) => b.subjectId === id);
+  ok(brief.prompt.includes("THIS IS A RETRY") && brief.prompt.includes("unsupported claim in paragraph 2"),
+    "the brief actually generated for the retried item carries the refusal reason");
+}
+
+// --- a retry is refused unless the item is actually blocked ---
+{
+  const { store, id } = await blockedFixture("not-blocked");
+  await applyRetry(store, { item: id });
+  const stillBlocked = store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(id);
+  ok(stillBlocked.current_state === "executing", "sanity: the item is now executing after the first retry");
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 0 && r.errors[0].includes("cannot be retried"),
+    "an item that is not blocked cannot be retried again");
+  store.close();
+}
+
+// --- an unknown item is refused ---
+{
+  const { store } = await estate();
+  const r = await applyRetry(store, { item: "no-such-item" });
+  ok(r.retried === 0 && r.errors[0].includes("no workflow item matches"), "an unknown item is refused");
+  store.close();
+}
+
+cleanupFixtures();
+
+console.log(
+  failures === 0
+    ? `PASS. ${assertions} assertions on the blocked-retry loop: a blocked item can be retried and the refusal reaches the drafter.`
+    : `FAIL. ${failures} of ${assertions} assertions failed.`,
+);
+process.exitCode = failures === 0 ? 0 : 1;
