@@ -20,6 +20,7 @@ import { withFencedState } from "../scripts/lib/coordination.mjs";
 import { downloadBoundArtifact, runController, verifyInspectionPolicy } from "../scripts/orchard-production-runtime.mjs";
 import { createCorpusSnapshot } from "../scripts/create-corpus-snapshot.mjs";
 import { loadApprovedSourceRegistry } from "../scripts/lib/track-1-controller.mjs";
+import { estate, seedGateItems, walkTo, cleanupFixtures } from "../scripts/test-fixtures.mjs";
 
 const digest = (value) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
@@ -223,6 +224,37 @@ test("Blob state starts empty, fences a competing lease, and advances generation
         assert.equal(readFileSync(restored.path, "utf8"), "sqlite-one");
         await adapter.release(second);
     } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("Blob state peekStateCounts reads real lifecycle counts without a lease", async () => {
+    const root = mkdtempSync(join(tmpdir(), "orchard-blob-peek-"));
+    const primary = memoryContainer();
+    const backup = memoryContainer();
+    const adapter = new BlobStateAdapter({ containerClient: primary, backupContainerClient: backup, workRoot: root });
+    try {
+        // No published generation yet -- must not throw, just report nothing.
+        assert.deepEqual(await adapter.peekStateCounts("track-1"), {});
+
+        const fixture = await estate("track-1");
+        const [linkedId, pendingId] = await seedGateItems(fixture.store, fixture.runId, ["alpha", "beta"]);
+        await walkTo(fixture.store, fixture.runId, linkedId, "ado-linked");
+        fixture.store.close();
+
+        const handle = await adapter.acquire("track-1", "peek-owner");
+        const state = await adapter.readState(handle);
+        writeFileSync(state.path, readFileSync(fixture.dbPath));
+        const published = await adapter.publishState(handle, state.path, state);
+        await adapter.replicateBackup(handle, published);
+        await adapter.release(handle);
+
+        const counts = await adapter.peekStateCounts("track-1");
+        assert.equal(counts["ado-linked"], 1);
+        assert.equal(counts["gate1-pending"], 1);
+        void pendingId;
+    } finally {
+        cleanupFixtures();
+        rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test("Blob state repairs a missing backup commit marker on the next acquisition", async () => {

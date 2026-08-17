@@ -17,6 +17,7 @@ import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
+import { chainNextRoles } from "./lib/job-chain.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -142,7 +143,7 @@ async function runAzure(track, log) {
     const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
     mkdirSync(root, { recursive: true });
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
-    return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
+    const outcome = await withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
         const execution = process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local-execution";
 
         // Read the answer to the LAST run before doing anything in this one.
@@ -253,6 +254,19 @@ async function runAzure(track, log) {
         await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
         return { statePath: state.path, value: { track } };
     });
+    // This is the survey path, and specifically the one the instant
+    // GitHub-comment trigger fires -- so this is where "the moment I
+    // approve, it starts" actually has to happen: applyGateDecisionsForRun
+    // above just turned that approval into an ado-linked item, and nothing
+    // else in the deployed system was watching for that. Same lease-released
+    // ordering as runRoleAzure's own chain check.
+    try {
+        const counts = await adapter.peekStateCounts(track);
+        await chainNextRoles({ counts, log });
+    } catch (error) {
+        log("warn", "chain.peek-failed", { error: error.message });
+    }
+    return outcome;
 }
 
 // One execution role, run under the SAME fence and scope as the track whose
@@ -269,7 +283,7 @@ async function runRoleAzure(role, log) {
     const track = process.env.ORCHARD_ROLE_TRACK ?? "track-1";
     if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ROLE_TRACK must be track-1 or track-2");
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
-    return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
+    const outcome = await withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
         const execution = process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local-execution";
         // Decisions first, exactly as the tracks do: what the owner answered
         // since the last run is what authorizes this run to do anything. For
@@ -295,6 +309,18 @@ async function runRoleAzure(role, log) {
         await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
         return { statePath: state.path, value: { role, track } };
     });
+    // Chained strictly AFTER the fenced session above has fully returned (its
+    // own finally block already released the lease): a downstream execution
+    // triggered here acquires a fresh lease of its own, never contending with
+    // this run for the one it just gave up. A lease-free peek, not the write
+    // path, so this never blocks on or interferes with a concurrent writer.
+    try {
+        const counts = await adapter.peekStateCounts(track);
+        await chainNextRoles({ counts, log });
+    } catch (error) {
+        log("warn", "chain.peek-failed", { error: error.message });
+    }
+    return outcome;
 }
 
 export async function main(argv = process.argv.slice(2)) {

@@ -1,7 +1,8 @@
 import { randomUUID, createHash } from "node:crypto";
-import { createReadStream, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { createReadStream, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { openStateStore } from "./state-store.mjs";
 
 const SHA = /^sha256:[a-f0-9]{64}$/;
 
@@ -202,6 +203,37 @@ export class BlobStateAdapter {
             if (parsed.scope !== commit.scope || parsed.stateGeneration !== commit.stateGeneration || parsed.fencingGeneration !== commit.fencingGeneration || parsed.stateDigest !== commit.stateDigest || parsed.stateBlob !== commit.stateBlob || parsed.backupBlob !== commit.backupBlob) throw new Error("backup commit marker conflicts with the authoritative manifest");
         }
         return commitName;
+    }
+
+    /**
+     * A lease-free, read-only snapshot of how many items sit in each
+     * lifecycle state -- for deciding whether to auto-trigger the next role,
+     * never for a write. Downloads the current published generation to a
+     * scratch file, opens it read-only, counts, deletes the scratch copy.
+     * Never acquires the coordination lease: a chain-trigger check running
+     * concurrently with the real writer must not contend with it for the
+     * lease, and a slightly stale read is fine here since whichever job gets
+     * triggered re-reads real state itself before doing anything.
+     */
+    async peekStateCounts(scope) {
+        scope = safeScope(scope);
+        const { manifest } = await this.#readManifest(scope);
+        if (!manifest?.stateBlob) return {};
+        const blob = this.container.getBlobClient(manifest.stateBlob);
+        const scratchDir = mkdtempSync(join(this.workRoot, "peek-"));
+        try {
+            const scratchPath = join(scratchDir, "state.sqlite");
+            await blob.downloadToFile(scratchPath);
+            const store = openStateStore(scratchPath);
+            try {
+                const rows = store.db.prepare("SELECT current_state, COUNT(*) AS n FROM workflow_item GROUP BY current_state").all();
+                return Object.fromEntries(rows.map((row) => [row.current_state, row.n]));
+            } finally {
+                store.close();
+            }
+        } finally {
+            rmSync(scratchDir, { recursive: true, force: true });
+        }
     }
 
     async #readManifest(scope) {
