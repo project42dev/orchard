@@ -65,13 +65,23 @@ const CHAIN_HOPS = [
  * real waiting work. A hop with no configured job id is silently off (lets
  * an adopter or a partial deploy enable chaining one hop at a time). Each
  * hop is independent and a failure on one does not stop the others.
+ *
+ * currentRole, if given, is never triggered by its own hop: a role that HELD
+ * an item rather than advancing it (gate2-prep with no evidence yet is the
+ * proven live case) would otherwise see the same waiting count after its own
+ * run as before it, and re-trigger itself forever. A DIFFERENT role
+ * producing that same state (authoring producing gate2-ready work) still
+ * correctly triggers it -- only self-triggering is refused.
  */
-export async function chainNextRoles({ counts, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log }) {
+export async function chainNextRoles({ counts, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log, currentRole = null }) {
     const triggered = [];
     for (const hop of CHAIN_HOPS) {
+        if (hop.role === currentRole) continue;
         const jobResourceId = env[hop.envVar];
         if (!jobResourceId) continue;
-        const waiting = counts[hop.state] ?? 0;
+        const waiting = hop.state === "ado-linked"
+            ? (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0)
+            : (counts[hop.state] ?? 0);
         if (waiting <= 0) continue;
         try {
             const started = await startJob({ jobResourceId, tokenProvider, fetchImpl });

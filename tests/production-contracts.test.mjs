@@ -236,8 +236,14 @@ test("Blob state peekStateCounts reads real lifecycle counts without a lease", a
         assert.deepEqual(await adapter.peekStateCounts("track-1"), {});
 
         const fixture = await estate("track-1");
-        const [linkedId, pendingId] = await seedGateItems(fixture.store, fixture.runId, ["alpha", "beta"]);
+        const [linkedId, pendingId, orphanedId] = await seedGateItems(fixture.store, fixture.runId, ["alpha", "beta", "gamma"]);
         await walkTo(fixture.store, fixture.runId, linkedId, "ado-linked");
+        // A crashed-run item, exactly like tonight's 12 stuck items: executing,
+        // no artifact_binding. The chain trigger needs to see this as real
+        // authoring work waiting, same as generate-briefs.mjs's own recovery
+        // eligibility -- otherwise auto-chaining can never see a backlog
+        // recovering from a crash, only freshly-approved ado-linked work.
+        await walkTo(fixture.store, fixture.runId, orphanedId, "executing");
         fixture.store.close();
 
         const handle = await adapter.acquire("track-1", "peek-owner");
@@ -250,6 +256,7 @@ test("Blob state peekStateCounts reads real lifecycle counts without a lease", a
         const counts = await adapter.peekStateCounts("track-1");
         assert.equal(counts["ado-linked"], 1);
         assert.equal(counts["gate1-pending"], 1);
+        assert.equal(counts["authoring-recoverable"], 1);
         void pendingId;
     } finally {
         cleanupFixtures();

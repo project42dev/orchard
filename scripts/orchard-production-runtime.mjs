@@ -314,9 +314,13 @@ async function runRoleAzure(role, log) {
     // triggered here acquires a fresh lease of its own, never contending with
     // this run for the one it just gave up. A lease-free peek, not the write
     // path, so this never blocks on or interferes with a concurrent writer.
+    // currentRole: this role must never re-trigger itself -- proven live and
+    // necessary: gate2-prep holding an item for missing evidence left the
+    // same waiting count behind every time, and re-triggered itself in an
+    // unbounded loop before this guard existed.
     try {
         const counts = await adapter.peekStateCounts(track);
-        await chainNextRoles({ counts, log });
+        await chainNextRoles({ counts, log, currentRole: role });
     } catch (error) {
         log("warn", "chain.peek-failed", { error: error.message });
     }

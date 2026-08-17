@@ -84,3 +84,41 @@ test("chainNextRoles does nothing when no hop is configured", async () => {
     const triggered = await chainNextRoles({ counts: { "ado-linked": 99 }, env: {}, tokenProvider: fakeToken() });
     assert.deepEqual(triggered, []);
 });
+
+test("chainNextRoles never triggers a role's own hop, even with real waiting work -- reproduces the live self-trigger loop", async () => {
+    // Live incident, 2026-08-16: gate2-prep held an item for missing evidence,
+    // its own post-run check saw the same gate2-ready count unchanged, and
+    // re-triggered itself -- an unbounded loop, only stopped by patching the
+    // job's env var directly in production. This is the regression test for
+    // the actual fix: currentRole must exclude a role from triggering itself.
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const env = { ORCHARD_CHAIN_GATE2PREP_JOB_ID: "/jobs/caj-g2p" };
+    const triggered = await chainNextRoles({
+        counts: { "gate2-ready": 1 }, env, tokenProvider: fakeToken(), fetchImpl, currentRole: "gate2-prep",
+    });
+    assert.deepEqual(triggered, []);
+    assert.equal(started.length, 0);
+});
+
+test("chainNextRoles still lets a DIFFERENT role trigger the hop currentRole would have been excluded from", async () => {
+    const fetchImpl = async () => ({ ok: true, json: async () => ({ name: "exec" }) });
+    const env = { ORCHARD_CHAIN_GATE2PREP_JOB_ID: "/jobs/caj-g2p" };
+    const triggered = await chainNextRoles({
+        counts: { "gate2-ready": 1 }, env, tokenProvider: fakeToken(), fetchImpl, currentRole: "authoring",
+    });
+    assert.deepEqual(triggered, ["gate2-prep"]);
+});
+
+test("the authoring hop counts ado-linked and authoring-recoverable work together", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    // ado-linked alone is 0, but authoring-recoverable (the crashed-run
+    // backlog generateBriefs.mjs also picks up) is not -- must still fire.
+    const triggered = await chainNextRoles({
+        counts: { "ado-linked": 0, "authoring-recoverable": 11 }, env, tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.deepEqual(triggered, ["authoring"]);
+    assert.equal(started.length, 1);
+});

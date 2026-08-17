@@ -227,7 +227,23 @@ export class BlobStateAdapter {
             const store = openStateStore(scratchPath);
             try {
                 const rows = store.db.prepare("SELECT current_state, COUNT(*) AS n FROM workflow_item GROUP BY current_state").all();
-                return Object.fromEntries(rows.map((row) => [row.current_state, row.n]));
+                const counts = Object.fromEntries(rows.map((row) => [row.current_state, row.n]));
+                // Mirrors generate-briefs.mjs's own recovery eligibility exactly
+                // (executing, no artifact_binding for the current revision): a
+                // plain 'executing' count alone hides this from the chain
+                // trigger, since every one of tonight's stuck items sits there
+                // too, just like real in-flight/completed work does. Without
+                // this, auto-chaining can only ever see freshly-approved
+                // ado-linked work, never a backlog recovering from a crash.
+                const recoverable = store.db.prepare(
+                    `SELECT COUNT(*) AS n FROM workflow_item i
+                      WHERE i.current_state = 'executing' AND NOT EXISTS (
+                        SELECT 1 FROM artifact_binding b
+                         WHERE b.item_id = i.item_id AND b.item_revision = i.current_revision
+                      )`,
+                ).get().n;
+                if (recoverable > 0) counts["authoring-recoverable"] = recoverable;
+                return counts;
             } finally {
                 store.close();
             }
