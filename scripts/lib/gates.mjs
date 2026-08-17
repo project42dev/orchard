@@ -81,6 +81,43 @@ export function decisionCommand(manifest, item, decision = 'approve') {
 }
 const safe = (value) => String(value).replaceAll('|', '\\|').replaceAll('\n', '<br>');
 
+// Found live 2026-08-17: an owner staring at a Gate 2 issue full of digests
+// had no way to tell, without reading every table cell, that one of three
+// items had FAILED its factual review while the other two passed -- and a
+// bare "approve" comment approves every item on the issue with no
+// distinction. This surfaces exactly that distinction up front, once, in
+// plain language, instead of leaving it buried in a table row the reader
+// has to already know to look for.
+function gate2AttentionReason(item) {
+    const bad = [];
+    if (item.factual_review && item.factual_review.status !== 'passed') bad.push(`factual review ${item.factual_review.status}`);
+    if (item.accessibility_review && item.accessibility_review.status !== 'passed') bad.push(`accessibility review ${item.accessibility_review.status}`);
+    return bad.length ? bad.join(', ') : null;
+}
+
+function renderGateSummary(manifest) {
+    if (manifest.gate !== 'gate-2') {
+        return [`**${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'}**, all newly proposed -- there is nothing to compare against yet, so nothing here is flagged.`, ''];
+    }
+    const attention = manifest.items
+        .map((item) => ({ item, reason: gate2AttentionReason(item) }))
+        .filter((entry) => entry.reason);
+    if (attention.length === 0) {
+        return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];
+    }
+    const clean = manifest.items.length - attention.length;
+    const lines = [
+        `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`,
+        `Commenting the bare word \`approve\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`,
+        '',
+    ];
+    if (clean > 0) lines.push(`${clean} item${clean === 1 ? '' : 's'} passed every review and are safe to approve individually.`, '');
+    lines.push('| Needs attention | Why |', '| --- | --- |');
+    for (const { item, reason } of attention) lines.push(`| \`${item.item_id}\` (${safe(item.target.path)}) | ${safe(reason)} |`);
+    lines.push('');
+    return lines;
+}
+
 // `compact` drops the per-item prose (rationale, evidence, risks, review
 // detail) and keeps only what a human needs to act: which item, its target,
 // and the exact decision command. Used when the full rendering plus the
@@ -93,16 +130,23 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
     `Manifest schema: \`${manifest.schema_version}\``, `Run: \`${manifest.run_id}\``, `Track: \`${manifest.track}\``,
     `Batch: ${manifest.batch.ordinal} of ${manifest.batch.count}; ${manifest.batch.item_count} item(s) in this issue; ${manifest.batch.total_item_count} total`,
     `Full manifest digest: \`${manifest.full_manifest_digest}\``, `Batch digest: \`${manifest.batch_digest}\``, `Idempotency key: \`${manifest.idempotency_key}\``, '',
+        ...renderGateSummary(manifest),
         '> Decisions are item-specific. General prose, reactions, labels, and whole-issue approval do not change state.', ''];
     if (compact) {
         lines.push('> Per-item rationale, evidence, risks, and review detail are omitted from this rendering so the machine-readable manifest below fits GitHub\'s body limit. Every field is still in that manifest and on the item\'s own ADO work item.', '');
     }
     for (const item of manifest.items) {
         const digest = manifest.gate === 'gate-1' ? item.proposal_digest : item.artifact_digest;
+        const attention = manifest.gate === 'gate-2' ? gate2AttentionReason(item) : null;
+        const badge = manifest.gate === 'gate-2' ? (attention ? `⚠️ NEEDS ATTENTION -- ${attention}` : '✅ passed every review') : null;
         if (compact) {
-            lines.push(`### ${safe(item.title ?? item.item_id)}`, '', `Item \`${item.item_id}\` revision \`${item.item_revision}\`, target \`${item.target.repository}/${item.target.path}\`.`, '');
+            lines.push(`### ${safe(item.title ?? item.item_id)}`, '');
+            if (badge) lines.push(`**${badge}**`, '');
+            lines.push(`Item \`${item.item_id}\` revision \`${item.item_revision}\`, target \`${item.target.repository}/${item.target.path}\`.`, '');
         } else {
-            lines.push(`### ${safe(item.title ?? item.item_id)}`, '', '| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
+            lines.push(`### ${safe(item.title ?? item.item_id)}`, '');
+            if (badge) lines.push(`**${badge}**`, '');
+            lines.push('| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
                 `| Revision | \`${item.item_revision}\` |`, `| Decision digest | \`${digest}\` |`, `| Target | \`${item.target.repository}/${item.target.path}\` |`);
             if (manifest.gate === 'gate-1') lines.push(`| Category | \`${item.category}\` |`, `| Rationale | ${safe(item.rationale)} |`,
                 `| Evidence | ${safe(item.evidence_refs.join('; '))} |`, `| Risks | ${safe(item.risks.join('; '))} |`,

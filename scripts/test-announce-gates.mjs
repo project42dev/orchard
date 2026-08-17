@@ -20,7 +20,7 @@ import { announceGates, gateAssignees, pendingForGate, renderGateIssue } from '.
 import { gateMarker } from './lib/github-issues.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 import { heldSetDigest, persistDiscoveryItems } from './lib/gate-queue.mjs';
-import { generateGateManifests } from './lib/gates.mjs';
+import { generateGateManifests, renderGateIssueBody } from './lib/gates.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 
 const DIGEST = `sha256:${'0'.repeat(64)}`;
@@ -173,6 +173,70 @@ test('the body carries its marker and the normative decision grammar', async () 
   const embedded = /```json\n(.*)\n```/s.exec(body);
   assert.ok(embedded, 'the issue must carry the exact manifest a capture can verify against');
   assert.equal(sha256Digest(JSON.parse(embedded[1])), sha256Digest(manifest));
+  store.close();
+});
+
+function gate2Item(itemId, { reviewsPassed = true } = {}) {
+  return {
+    item_id: itemId, item_revision: 2, artifact_digest: sha256Digest(`artifact:${itemId}`),
+    proposal_digest: sha256Digest(`proposal:${itemId}`), displayed_diff_digest: sha256Digest(`diff:${itemId}`),
+    prepared_tree_digest: sha256Digest(`tree:${itemId}`), base_commit: '0'.repeat(40),
+    diff_ref: `github:commit:${'a'.repeat(40)}:path:x.json`, artifact_ref: `orchard:artifact:${sha256Digest(itemId)}`,
+    ado_external_key: `orchard:track-1:${itemId}:r2`, handoff_chain_digest: sha256Digest(`handoffs:${itemId}`),
+    target: { repository: 'project42dev/project42-platform', path: `content/modules/discovery/${itemId}.json` },
+    factual_review: { status: reviewsPassed ? 'passed' : 'failed', evidence_ref: `orchard:handoff:${itemId}-factual` },
+    accessibility_review: { status: 'passed', evidence_ref: `orchard:handoff:${itemId}-a11y` },
+    title: `Module ${itemId}`, decision_state: 'pending',
+  };
+}
+
+function gate2Manifest(items) {
+  return {
+    schema_version: '1.0.0', gate: 'gate-2', run_id: generateUuidV7(), track: 'track-1',
+    batch: { ordinal: 1, count: 1, item_count: items.length, total_item_count: items.length, maximum_size: 20 },
+    full_manifest_digest: DIGEST, batch_digest: DIGEST, idempotency_key: 'github:gate-2:x:y', items,
+  };
+}
+
+test('a Gate 2 issue where every item passed review tells the owner it is safe to bare-approve', () => {
+  const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true })]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('All 2 items passed every review'), 'the summary must say plainly that every item is clean');
+  assert.ok(body.includes('safe to bare-approve') || body.includes('approves all of them'), 'the summary must say a bare approve is safe here');
+  assert.ok(!body.includes('NEEDS ATTENTION'), 'a clean issue must not show any attention badge');
+  const okBadges = (body.match(/✅ passed every review/g) || []).length;
+  assert.equal(okBadges, 2, 'every item must carry its own clean badge, not just the summary');
+});
+
+test('a Gate 2 issue with one failed review warns against bare-approve and names exactly which item, and why -- found live 2026-08-17', () => {
+  // The owner stared at a real 3-item Gate 2 issue where one item had FAILED
+  // factual review, buried in a table cell identical in style to the two
+  // that passed, with no summary distinguishing them -- "how the fuck do I
+  // read this to approve" was the exact, fair reaction. A bare `approve`
+  // comment approves every item on the issue, so silence here is not neutral,
+  // it is a trap: the reader has no way to know a bare approve would also
+  // approve the failed one.
+  const failing = gate2Item('c-failed-item', { reviewsPassed: false });
+  const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true }), failing]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('2 of 3 items need') === false, 'exactly ONE item is bad here, the count must say 1 of 3, not 2 of 3');
+  assert.ok(body.includes('1 of 3 item'), 'the summary must state the exact count needing attention');
+  assert.ok(/bare word `approve`.*approves EVERY item.*including the 1 below/s.test(body) || body.includes('including the 1 below'),
+    'the summary must explicitly warn that bare-approve would also approve the failed item, not just mention attention is needed');
+  assert.ok(body.includes('c-failed-item') && body.includes('factual review failed'),
+    'the summary table must name the specific item and the specific reason, not a generic "needs review"');
+  assert.ok(body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'the failed item\'s own section must carry a visible badge, not just the summary table');
+  const okBadges = (body.match(/✅ passed every review/g) || []).length;
+  assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
+});
+
+test('Gate 1 issues get a plain item-count summary, not a pass/fail table -- there is nothing to compare against yet', async () => {
+  const { store, runId } = await estate([candidate('summary-gate1')]);
+  const items = pendingForGate(store.db, 'gate-1', 'track-1');
+  const [manifest] = await generateGateManifests({ gate: 'gate-1', runId, track: 'track-1', items: items.map(({ track: _t, ...entry }) => entry) });
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('all newly proposed'), 'Gate 1 has no review verdict yet, the summary must not imply one');
+  assert.ok(!body.includes('NEEDS ATTENTION') && !body.includes('passed every review'), 'the pass/fail badge is a Gate 2 concept and must not appear on Gate 1');
   store.close();
 });
 
