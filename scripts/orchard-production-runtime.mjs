@@ -18,6 +18,7 @@ import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles } from "./lib/job-chain.mjs";
+import { applyRetry } from "./apply-blocked-retry.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -52,10 +53,22 @@ const ROLE_ENTRY_POINTS = Object.freeze({
     "verification": "./run-verification.mjs",
 });
 
-function parseRuntimeArgs(argv) {
+export function parseRuntimeArgs(argv) {
     const separator = argv.indexOf("--");
     const runtime = separator === -1 ? argv : argv.slice(0, separator);
     const controller = separator === -1 ? [] : argv.slice(separator + 1);
+    // A one-off human decision (retry a blocked item), not a survey or a role
+    // in the pipeline -- kept as its own form rather than folded into --role
+    // so it never has to satisfy the env contract those roles require
+    // (ORCHARD_RUN_MODE, ORCHARD_TRIGGER_TYPE, etc, none of which apply to an
+    // operator retrying one item by id).
+    const adminRetryIndex = runtime.indexOf("--admin-retry-blocked");
+    if (adminRetryIndex !== -1) {
+        if (runtime.length !== 2 || adminRetryIndex !== 0) throw new TypeError("runtime accepts only --admin-retry-blocked <item-id>, alone");
+        const item = runtime[adminRetryIndex + 1];
+        if (!item) throw new TypeError("--admin-retry-blocked requires an item id");
+        return { adminRetryBlocked: item, controller };
+    }
     const trackIndex = runtime.indexOf("--track");
     const roleIndex = runtime.indexOf("--role");
     if (trackIndex !== -1 && roleIndex !== -1) throw new TypeError("runtime accepts --track or --role, never both");
@@ -327,12 +340,60 @@ async function runRoleAzure(role, log) {
     return outcome;
 }
 
+// A blocked item was refused by the ensemble's own internal review, not by a
+// human at a gate, and state-machine.mjs's only way back in is a fresh
+// revision from 'executing'. This is the one place that fresh revision can be
+// created against the REAL state: content.db is a blob behind a private
+// endpoint (BlobStateAdapter), so there is no local path to point
+// apply-blocked-retry.mjs's store at outside a fenced session, same as every
+// other write this runtime makes. ORCHARD_ADMIN_RETRY_TRACK selects the scope
+// (state is partitioned per track); it defaults to track-1 because every
+// blocked item observed in this estate so far is track-1's.
+async function runBlockedRetryAzure(itemId, log) {
+    const clients = blobClients();
+    const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
+    mkdirSync(root, { recursive: true });
+    const track = process.env.ORCHARD_ADMIN_RETRY_TRACK ?? "track-1";
+    if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ADMIN_RETRY_TRACK must be track-1 or track-2");
+    const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    const outcome = await withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state }) => {
+        const store = openStateStore(state.path);
+        let result;
+        try {
+            result = await applyRetry(store, { item: itemId, actor: "orchard/admin-retry-blocked" });
+        } finally {
+            store.close();
+        }
+        if (result.errors.length) throw new Error(`blocked retry refused: ${result.errors.join("; ")}`);
+        log("info", "admin.blocked-retry.applied", result);
+        // A retry with nothing left to change is not written back: an empty
+        // publish would still bump the fencing generation over a byte-identical
+        // state, which is exactly the kind of no-op churn withFencedState's
+        // CAS is there to make visible as a bug, not paper over.
+        return { statePath: state.path, value: result };
+    });
+    // Same ordering as runRoleAzure: only after the lease is released, so the
+    // authoring run this retry just made eligible acquires its own fresh
+    // lease rather than contending with this one.
+    try {
+        const counts = await adapter.peekStateCounts(track);
+        await chainNextRoles({ counts, log });
+    } catch (error) {
+        log("warn", "chain.peek-failed", { error: error.message });
+    }
+    return outcome;
+}
+
 export async function main(argv = process.argv.slice(2)) {
-    const { track, role, controller } = parseRuntimeArgs(argv);
-    const log = createStructuredLogger({ base: { service: "orchard", ...(role ? { role } : {}), ...(track ? { track } : {}) } });
+    const { track, role, adminRetryBlocked, controller } = parseRuntimeArgs(argv);
+    const logRole = role ?? (adminRetryBlocked ? "admin-retry-blocked" : null);
+    const log = createStructuredLogger({ base: { service: "orchard", ...(logRole ? { role: logRole } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
-        if (process.env.ORCHARD_RUNTIME_CONFIG === "azure") await (role ? runRoleAzure(role, log) : runAzure(track, log));
+        if (adminRetryBlocked) {
+            if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-retry-blocked requires ORCHARD_RUNTIME_CONFIG=azure; there is no local state to retry against");
+            await runBlockedRetryAzure(adminRetryBlocked, log);
+        } else if (process.env.ORCHARD_RUNTIME_CONFIG === "azure") await (role ? runRoleAzure(role, log) : runAzure(track, log));
         else await runController(role ?? track, controller, log);
         log("info", "runtime.completed");
     } catch (error) {
