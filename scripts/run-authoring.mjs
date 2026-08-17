@@ -43,7 +43,7 @@
 // the run. Two independent brakes, matching Track 2's pattern.
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
@@ -51,7 +51,10 @@ import { openStateStore } from "./lib/state-store.mjs";
 import { estimatedItemCostUsd } from "./lib/gate-queue.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { generateBriefs } from "./generate-briefs.mjs";
-import { ingest } from "./ingest-proposals.mjs";
+import { ingest, readProposals } from "./ingest-proposals.mjs";
+import { buildHandoffsFromProposal, reconstructStageContent, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
+import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
+import { readGateToken } from "./announce-gates.mjs";
 
 function argOf(argv, name, fallback = null) {
     const index = argv.indexOf(`--${name}`);
@@ -145,6 +148,136 @@ export function recordAuthoringEvidence({ store, applied, runRecordDir, now }) {
     }
 }
 
+/**
+ * For each item this run just moved to gate2-ready, try to prepare real
+ * Gate 2 evidence NOW, in this same execution, while the winning proposal
+ * still exists on local disk and the run that produced it is still in
+ * scope. See lib/prepare-gate2-evidence.mjs for what "real" means here.
+ *
+ * This is deliberately best-effort per item: any missing precondition (no
+ * GitHub token configured, no persisted target, a proposal whose final
+ * output could not be reconstructed intact) holds that one item at
+ * gate2-ready with the reason logged, exactly like run-gate2-prep.mjs's own
+ * no-evidence hold -- never a fabricated pass. An item held here is not
+ * stuck: it is exactly where every item has always started, and a later
+ * gate2-prep run (or a future improvement to this function) can still try
+ * again if a real evidence file is ever supplied for it by other means.
+ */
+export async function attemptGate2Evidence({ store, applied, runRecordDir, proposalRoot, now, env = process.env, log, fetchImpl = fetch }) {
+    const gate2Ready = applied.filter((entry) => entry.to === "gate2-ready");
+    if (gate2Ready.length === 0) return { prepared: 0, held: 0 };
+
+    const runProposals = readProposals(runRecordDir);
+    const summary = { prepared: 0, held: 0 };
+    let token;
+
+    for (const entry of gate2Ready) {
+        const itemId = entry.subjectId;
+        try {
+            const row = store.db.prepare(
+                "SELECT item_id, track, current_state, current_revision, origin_run_id FROM workflow_item WHERE item_id = ?",
+            ).get(itemId);
+            const revision = store.db.prepare(
+                "SELECT run_id, proposal_digest, target_repository, target_path FROM item_revision WHERE item_id = ? AND item_revision = ?",
+            ).get(itemId, Number(row.current_revision));
+            if (!revision?.target_repository || !revision?.target_path) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: "item_revision carries no persisted publication target" });
+                continue;
+            }
+            const link = store.db.prepare(
+                `SELECT external_key, external_id FROM external_link
+                  WHERE provider = 'ado' AND item_id = ? AND item_revision = ? ORDER BY linked_at DESC LIMIT 1`,
+            ).get(itemId, Number(row.current_revision));
+            if (!link) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: "no persisted ADO link" });
+                continue;
+            }
+            const gate1 = store.db.prepare(
+                `SELECT event_id FROM decision_event
+                  WHERE item_id = ? AND item_revision = ? AND gate = 'gate-1' AND decision = 'approve'
+                  ORDER BY occurred_at DESC LIMIT 1`,
+            ).get(itemId, Number(row.current_revision));
+            if (!gate1) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: "no recorded Gate 1 approval decision event" });
+                continue;
+            }
+
+            const proposalMatch = runProposals.find((p) => p.file === entry.file);
+            const proposalPath = join(proposalRoot, entry.file);
+            const proposal = JSON.parse(readFileSync(proposalPath, "utf8"));
+            const finalStage = proposal.modelStages?.find((stage) => stage.stage === "release-proposal");
+            if (!finalStage) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: "proposal carries no release-proposal stage" });
+                continue;
+            }
+            const reconstructed = reconstructStageContent(finalStage);
+            if (!reconstructed.complete) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", {
+                    item: itemId, reason: "release-proposal output could not be reconstructed intact from its findings (likely truncated past 20000 characters)",
+                });
+                continue;
+            }
+
+            token ??= await readGateToken({
+                log, env, prefix: "commitprep",
+                vaultUrlVar: "ORCHARD_PUBLICATION_VAULT_URL", repoVar: "ORCHARD_PUBLICATION_GITHUB_REPO",
+                appIdVar: "ORCHARD_PUBLICATION_APP_ID_SECRET", installationIdVar: "ORCHARD_PUBLICATION_INSTALLATION_ID_SECRET",
+                appKeyVar: "ORCHARD_PUBLICATION_APP_KEY_SECRET", tokenVar: "ORCHARD_PUBLICATION_TOKEN_SECRET",
+            });
+            if (!token) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: "no publication GitHub credential is configured on this job" });
+                continue;
+            }
+
+            const target = { repository: revision.target_repository, path: revision.target_path };
+            const commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: reconstructed.content, token, fetchImpl });
+
+            const rawProposalDigest = revision.proposal_digest ?? proposalMatch?.doc?.proposalDigest ?? null;
+            if (!rawProposalDigest) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: "no proposal digest is available from either item_revision or the run record" });
+                continue;
+            }
+            const binding = {
+                run_id: revision.run_id ?? row.origin_run_id,
+                item_id: itemId,
+                item_revision: Number(row.current_revision),
+                track: row.track,
+                proposal_digest: rawProposalDigest.startsWith("sha256:") ? rawProposalDigest : `sha256:${rawProposalDigest}`,
+                gate1_decision_event_id: gate1.event_id,
+                ado_external_key: link.external_key,
+                ado_work_item_id: Number(link.external_id),
+            };
+
+            const handoffs = await buildHandoffsFromProposal({ proposal, binding, runStartedAt: now });
+            const evidence = buildEvidenceDocument({ handoffs, binding, target, commit, proposal });
+
+            const evidenceRoot = env.ORCHARD_EVIDENCE_ROOT ?? env.RUN_RECORD_ROOT ?? process.cwd();
+            const evidencePath = evidencePathFor(evidenceRoot, itemId);
+            mkdirSync(join(evidencePath, ".."), { recursive: true });
+            writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+
+            await prepareGate2Item({ store, row, evidence, now, actor: "orchard/run-authoring/gate2-evidence" });
+            summary.prepared += 1;
+            log("info", "gate2evidence.prepared", { item: itemId, state: "gate2-pending", preparedCommit: commit.preparedCommit, target });
+        } catch (error) {
+            summary.held += 1;
+            log("warn", "gate2evidence.refused", {
+                item: itemId,
+                code: error instanceof Gate2EvidenceError ? error.code : (error.code ?? null),
+                reason: error.message,
+            });
+        }
+    }
+    return summary;
+}
+
 export async function main(argv = process.argv.slice(2), { log = (level, event, detail) => console.log(JSON.stringify({ level, event, ...detail })), env = process.env, spawn = spawnSync } = {}) {
     const dbPath = argOf(argv, "state-db");
     if (!dbPath) fail("ERR_ORCHARD_CONFIGURATION", "run-authoring requires --state-db");
@@ -226,15 +359,18 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     for (const entry of ingested.applied) log("info", "authoring.item.moved", entry);
     for (const entry of ingested.unmatched) log("warn", "authoring.proposal.unmatched", entry);
 
+    let gate2Evidence = { prepared: 0, held: 0 };
     if (ingested.applied.length > 0) {
         const store = openStateStore(resolve(dbPath));
         try {
             recordAuthoringEvidence({ store, applied: ingested.applied, runRecordDir, now });
+            gate2Evidence = await attemptGate2Evidence({ store, applied: ingested.applied, runRecordDir, proposalRoot, now, env, log });
+            log("info", "gate2evidence.finished", gate2Evidence);
         } finally {
             store.close();
         }
     }
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length };
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
