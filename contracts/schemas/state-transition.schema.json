@@ -565,6 +565,30 @@
         {
             "properties": {
                 "from_state": {
+                    "const": "gate2-ready"
+                },
+                "to_state": {
+                    "const": "executing"
+                },
+                "cause": {
+                    "const": "revision-created"
+                },
+                "recovery_gate": {
+                    "const": "gate-2"
+                },
+                "successor_revision": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "required": [
+                "recovery_gate",
+                "successor_revision"
+            ]
+        },
+        {
+            "properties": {
+                "from_state": {
                     "not": {
                         "enum": [
                             "closed",

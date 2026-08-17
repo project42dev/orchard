@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-// apply-blocked-retry.mjs - give a blocked item a second attempt.
+// apply-blocked-retry.mjs - give a stalled item a second attempt.
+//
+// Two dead-end states share the identical recovery shape, so one tool
+// handles both:
 //
 // A 'blocked' item was refused by the ensemble's OWN internal review (verifier
 // or adversary), not by a human at a gate. Gate 1 already approved the
@@ -9,31 +12,41 @@
 // operator wanted -- the lifecycle could record a verdict but never act on a
 // decision to retry it.
 //
+// A 'gate2-ready' item with no evidence file is the same dead end for a
+// different reason: gate2-prep.mjs (or authoring's own inline evidence step)
+// held it there, honestly, when no evidence document could be found to
+// advance it to gate2-pending, rather than fabricate a review. Found live
+// 2026-08-17: Track 1 had 11 such items, some old enough to predate the
+// authoring role itself being deployed, and none of them could ever reach a
+// Gate 2 announcement -- gate2-ready has no more of a way out than blocked
+// did before this tool existed.
+//
 // This mirrors apply-gate2-rework.mjs's shape: find the live item, refuse
-// unless it is actually in the recoverable state, then record the recovery
+// unless it is actually in a recoverable state, then record the recovery
 // transition. The difference is WHAT the recovery transition does. Gate 2
 // rework only records a decision -- the successor revision is created later,
-// when authoring picks the rework up. A blocked item has no future "pick up"
-// step to defer to: nothing about it is under review, and 'executing' is
-// where generate-briefs.mjs's own crash-recovery query (current_state =
-// 'executing' AND NOT EXISTS an artifact_binding for current_revision)
-// already looks. So this tool creates the successor revision itself, as a
-// copy of the blocked revision's content with a new revision number, and
-// records the blocked -> executing transition in the same call. That is
-// enough for the very next generate-briefs.mjs pass to pick the item back up
-// through a path that already exists and is already tested.
+// when authoring picks the rework up. Neither blocked nor gate2-ready has a
+// future "pick up" step to defer to: nothing about either is under review,
+// and 'executing' is where generate-briefs.mjs's own crash-recovery query
+// (current_state = 'executing' AND NOT EXISTS an artifact_binding for
+// current_revision) already looks. So this tool creates the successor
+// revision itself, as a copy of the stalled revision's content with a new
+// revision number, and records the recovery transition in the same call.
+// That is enough for the very next generate-briefs.mjs pass to pick the item
+// back up through a path that already exists and is already tested.
 //
-// The ensemble's reason for blocking the item is not repeated here -- it is
-// already permanent on the state_transition_event that recorded the block,
-// and generate-briefs.mjs reads it back from there (blockedNoteFor) the same
-// way it reads a Gate 2 rework reason back, so an operator retrying an item
-// does not need to (and cannot accidentally) restate or overwrite it.
+// The reason the item stalled is not repeated here -- it is already
+// permanent on the state_transition_event that recorded blocked or the
+// gate2.prep.no-evidence log line, and generate-briefs.mjs reads it back from
+// the transition the same way it reads a Gate 2 rework reason back, so an
+// operator retrying an item does not need to (and cannot accidentally)
+// restate or overwrite it.
 
 import { openStateStore } from "./lib/state-store.mjs";
 import { generateUuidV7 } from "./lib/identity.mjs";
 
 export const DEFAULT_ACTOR = "orchard/apply-blocked-retry";
-const RECOVERABLE = "blocked";
+const RECOVERABLE = new Set(["blocked", "gate2-ready"]);
 
 function findItem(db, item) {
   // Same lookup as apply-gate2-rework.mjs: a semantic identity can match a
@@ -62,8 +75,8 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
 
   const row = findItem(store.db, item);
   if (!row) { result.errors.push(`no workflow item matches ${item}`); return result; }
-  if (row.current_state !== RECOVERABLE) {
-    result.errors.push(`${row.item_id} is in state ${row.current_state}, which cannot be retried; only a ${RECOVERABLE} item has a review verdict to reopen`);
+  if (!RECOVERABLE.has(row.current_state)) {
+    result.errors.push(`${row.item_id} is in state ${row.current_state}, which cannot be retried; only ${[...RECOVERABLE].join(" or ")} have a stalled attempt to reopen`);
     return result;
   }
 
@@ -146,7 +159,7 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
       run_id: row.origin_run_id,
       item_id: row.item_id,
       item_revision: currentRevision,
-      from_state: RECOVERABLE,
+      from_state: row.current_state,
       to_state: "executing",
       cause: "revision-created",
       recovery_gate: "gate-2",

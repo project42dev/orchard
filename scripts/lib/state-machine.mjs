@@ -91,6 +91,19 @@ export function isTransitionAllowed(transition) {
     if (from === "blocked" && cause === "revision-created") {
         return transition.recovery_gate === "gate-2" && to === "executing";
     }
+    // A gate2-ready item with no evidence file has the identical dead end
+    // 'blocked' had: state-machine.mjs allowed executing -> gate2-ready but
+    // nothing ever allowed a way back out when gate2-prep or authoring's own
+    // inline evidence step could not find evidence to advance it to
+    // gate2-pending (gate2-prep.mjs holds it there, honestly, rather than
+    // fabricate a review). Found live 2026-08-17: Track 1 had 11 such items,
+    // some old enough to predate the authoring role even being deployed, and
+    // zero of them could ever reach a Gate 2 announcement. Same recovery
+    // shape as 'blocked': a fresh revision re-attempts authoring from
+    // 'executing', so a real evidence document can be produced this time.
+    if (from === "gate2-ready" && cause === "revision-created") {
+        return transition.recovery_gate === "gate-2" && to === "executing";
+    }
     return false;
 }
 
@@ -130,6 +143,7 @@ export function reviewResumptionTarget(gate) {
 export function revisionRecoveryTargets(fromState, gate) {
     if (fromState === "denied") return [expectedRecoveryState(gate, "proposed", "executing")];
     if (fromState === "blocked") return gate === "gate-2" ? ["executing"] : [];
+    if (fromState === "gate2-ready") return gate === "gate-2" ? ["executing"] : [];
     if (!["changes-requested", "stale-approval"].includes(fromState)) return [];
     return gate === "gate-1" ? ["proposed", "gate1-pending"] : gate === "gate-2" ? ["executing", "gate2-ready", "gate2-pending"] : [];
 }

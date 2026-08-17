@@ -162,6 +162,75 @@ const stateOf = (store, id) =>
   store.close();
 }
 
+// --- a gate2-ready item with no evidence has the identical dead end blocked
+// had, and the identical recovery. Found live 2026-08-17: Track 1 had 11 such
+// items, none of which could ever reach a Gate 2 announcement. ---
+{
+  const { store, runId } = await estate();
+  const [id] = await seedGateItems(store, runId, ["gate2-ready-subject"]);
+  await walkTo(store, runId, id, "gate2-ready");
+  const before = stateOf(store, id);
+  ok(before.current_state === "gate2-ready", "sanity: the fixture actually reaches gate2-ready");
+
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 1 && r.errors.length === 0, "a gate2-ready item can be retried, the same as a blocked one");
+  ok(r.revision === 2, "the retry reports the new revision number");
+  const row = stateOf(store, id);
+  ok(row.current_state === "executing", "the item is back in executing, ready for authoring to produce real evidence this time");
+  ok(Number(row.current_revision) === 2, "the item's current revision advanced");
+
+  const link1 = store.db.prepare(
+    "SELECT external_id FROM external_link WHERE item_id = ? AND item_revision = 1 AND provider = 'ado'",
+  ).get(id);
+  const link2 = store.db.prepare(
+    "SELECT external_id FROM external_link WHERE item_id = ? AND item_revision = 2 AND provider = 'ado'",
+  ).get(id);
+  ok(link1 !== undefined && link2 !== undefined && link1.external_id === link2.external_id,
+    "the ADO link carries forward here too -- gate2-ready items already passed ado-sync on the way to executing");
+
+  const transition = store.db.prepare(
+    "SELECT from_state FROM state_transition_event WHERE item_id = ? AND to_state = 'executing' ORDER BY occurred_at DESC LIMIT 1",
+  ).get(id);
+  ok(transition.from_state === "gate2-ready", "the recorded transition names its real origin state, not a hardcoded 'blocked'");
+  store.close();
+}
+
+// --- a retried gate2-ready item is picked up by the same crash-recovery query, unmodified ---
+{
+  const { store, runId, dbPath } = await estate();
+  const [id] = await seedGateItems(store, runId, ["gate2-ready-reaches-briefs"]);
+  await walkTo(store, runId, id, "gate2-ready");
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 1, "the gate2-ready retry is recorded before generating briefs");
+  store.close();
+
+  const root = mkdtempSync(join(tmpdir(), "orchard-gate2ready-retry-"));
+  const inventoryPath = join(root, "inventory.json");
+  writeFileSync(inventoryPath, JSON.stringify({
+    "model-a": { name: "A", format: "VendorOne" },
+    "model-b": { name: "B", format: "VendorTwo" },
+    "model-c": { name: "C", format: "VendorThree" },
+    "model-d": { name: "D", format: "VendorFour" },
+  }));
+  const mapPath = join(root, "map.json");
+  writeFileSync(mapPath, JSON.stringify({
+    jobs: Object.fromEntries(Object.entries({
+      [ROLE_JOBS.researcher]: "model-a", [ROLE_JOBS.drafter]: "model-a",
+      [ROLE_JOBS.verifier]: "model-b", [ROLE_JOBS.adversary]: "model-c",
+      [ROLE_JOBS.arbiter]: "model-d", [ROLE_JOBS.finalizer]: "model-d",
+    }).map(([job, model]) => [job, { model }])),
+  }));
+  const targetsPath = join(root, "targets.json");
+  writeFileSync(targetsPath, JSON.stringify({
+    repository: "example/content",
+    surfaces: { learn: { pathTemplates: ["content/modules/{topic}/"], suffix: "-learn" } },
+  }));
+
+  const result = await generateBriefs({ dbPath, mapPath, targetsPath, inventoryPath, limit: 10 });
+  ok(result.briefs.some((b) => b.subjectId === id),
+    "a retried gate2-ready item is picked up by the same query that recovers a crashed executing item -- this is what actually closes Track 1's real 11-item Gate 2 gap");
+}
+
 cleanupFixtures();
 
 console.log(
