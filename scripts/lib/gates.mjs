@@ -21,6 +21,38 @@ export function verifyGateManifestDigests(manifest, allItems) {
     return manifest;
 }
 
+// A conservative budget on the RAW JSON size of one batch's items, well
+// short of GitHub's 65536-character issue body limit. Found live 2026-08-17:
+// Track 2 currency items can carry up to 50 evidence entries at up to 1000
+// characters each (track-2-controller.mjs), so a batch of 20 such items can
+// serialize past the body limit on its own, before the human-readable
+// rendering even joins it. All nine of Track 2's real 20-item batches from
+// 2026-08-16 did. A batch whose own manifest cannot fit is one no decision
+// can ever bind to (apply-gate-decisions.mjs has no way to read a manifest
+// except the fenced JSON block in the issue body), so batches split on
+// serialized size, not on a flat item count alone. 20 stays the ceiling;
+// this only ever makes a batch smaller, never larger, and the last batch was
+// already allowed to be smaller than 20 before this existed.
+const MAX_MANIFEST_ITEM_BYTES = 30_000;
+
+function sizedBatches(sorted) {
+    const batches = [];
+    let current = [];
+    let currentSize = 0;
+    for (const item of sorted) {
+        const itemSize = JSON.stringify(item).length;
+        if (current.length > 0 && (current.length >= 20 || currentSize + itemSize > MAX_MANIFEST_ITEM_BYTES)) {
+            batches.push(current);
+            current = [];
+            currentSize = 0;
+        }
+        current.push(item);
+        currentSize += itemSize;
+    }
+    if (current.length) batches.push(current);
+    return batches;
+}
+
 export async function generateGateManifests({ gate, runId, run_id: snakeRunId, track, items, maximumSize = 20 }) {
     schemaName(gate); runId ??= snakeRunId;
     if (maximumSize !== 20) throw new RangeError('Gate issues must use the normative maximum size of 20');
@@ -28,9 +60,9 @@ export async function generateGateManifests({ gate, runId, run_id: snakeRunId, t
     const sorted = structuredClone(items).sort((a, b) => a.item_id.localeCompare(b.item_id));
     if (new Set(sorted.map((item) => item.item_id)).size !== sorted.length) throw new Error('each item_id must appear exactly once');
     const full = sha256Digest(fullInput(gate, runId, track, sorted));
-    const count = Math.ceil(sorted.length / 20); const manifests = [];
-    for (let offset = 0; offset < sorted.length; offset += 20) {
-        const batchItems = sorted.slice(offset, offset + 20);
+    const batches = sizedBatches(sorted);
+    const count = batches.length; const manifests = [];
+    for (const batchItems of batches) {
         const manifest = {
             schema_version: '1.0.0', gate, run_id: runId, track,
             batch: { ordinal: manifests.length + 1, count, item_count: batchItems.length, total_item_count: sorted.length, maximum_size: 20 },
@@ -49,23 +81,37 @@ export function decisionCommand(manifest, item, decision = 'approve') {
 }
 const safe = (value) => String(value).replaceAll('|', '\\|').replaceAll('\n', '<br>');
 
-export function renderGateIssueBody(manifest) {
+// `compact` drops the per-item prose (rationale, evidence, risks, review
+// detail) and keeps only what a human needs to act: which item, its target,
+// and the exact decision command. Used when the full rendering plus the
+// embedded machine-readable manifest would exceed GitHub's body limit --
+// the manifest is what makes a decision bindable at all, so it must never be
+// the thing dropped to make room. Full detail still lives in the manifest
+// itself and in the item's own ADO work item.
+export function renderGateIssueBody(manifest, { compact = false } = {}) {
     const lines = [`## Orchard ${manifest.gate === 'gate-1' ? 'Gate 1 proposal authorization' : 'Gate 2 publication authorization'}`, '',
     `Manifest schema: \`${manifest.schema_version}\``, `Run: \`${manifest.run_id}\``, `Track: \`${manifest.track}\``,
     `Batch: ${manifest.batch.ordinal} of ${manifest.batch.count}; ${manifest.batch.item_count} item(s) in this issue; ${manifest.batch.total_item_count} total`,
     `Full manifest digest: \`${manifest.full_manifest_digest}\``, `Batch digest: \`${manifest.batch_digest}\``, `Idempotency key: \`${manifest.idempotency_key}\``, '',
         '> Decisions are item-specific. General prose, reactions, labels, and whole-issue approval do not change state.', ''];
+    if (compact) {
+        lines.push('> Per-item rationale, evidence, risks, and review detail are omitted from this rendering so the machine-readable manifest below fits GitHub\'s body limit. Every field is still in that manifest and on the item\'s own ADO work item.', '');
+    }
     for (const item of manifest.items) {
         const digest = manifest.gate === 'gate-1' ? item.proposal_digest : item.artifact_digest;
-        lines.push(`### ${safe(item.title ?? item.item_id)}`, '', '| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
-            `| Revision | \`${item.item_revision}\` |`, `| Decision digest | \`${digest}\` |`, `| Target | \`${item.target.repository}/${item.target.path}\` |`);
-        if (manifest.gate === 'gate-1') lines.push(`| Category | \`${item.category}\` |`, `| Rationale | ${safe(item.rationale)} |`,
-            `| Evidence | ${safe(item.evidence_refs.join('; '))} |`, `| Risks | ${safe(item.risks.join('; '))} |`,
-            `| Score | ${item.score.value} (\`${item.score.formula_version}\`) |`, `| Estimated cost | ${item.estimated_cost.currency} ${item.estimated_cost.amount} |`);
-        else lines.push(`| Proposal digest | \`${item.proposal_digest}\` |`, `| Displayed diff digest | \`${item.displayed_diff_digest}\` |`,
-            `| Prepared tree digest | \`${item.prepared_tree_digest}\` |`, `| Base commit | \`${item.base_commit}\` |`, `| Diff reference | ${safe(item.diff_ref)} |`,
-            `| Artifact reference | ${safe(item.artifact_ref)} |`, `| ADO external key | \`${item.ado_external_key}\` |`, `| Handoff chain | \`${item.handoff_chain_digest}\` |`,
-            `| Factual review | \`${item.factual_review.status}\`: ${safe(item.factual_review.evidence_ref)} |`, `| Accessibility review | \`${item.accessibility_review.status}\`: ${safe(item.accessibility_review.evidence_ref)} |`);
+        if (compact) {
+            lines.push(`### ${safe(item.title ?? item.item_id)}`, '', `Item \`${item.item_id}\` revision \`${item.item_revision}\`, target \`${item.target.repository}/${item.target.path}\`.`, '');
+        } else {
+            lines.push(`### ${safe(item.title ?? item.item_id)}`, '', '| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
+                `| Revision | \`${item.item_revision}\` |`, `| Decision digest | \`${digest}\` |`, `| Target | \`${item.target.repository}/${item.target.path}\` |`);
+            if (manifest.gate === 'gate-1') lines.push(`| Category | \`${item.category}\` |`, `| Rationale | ${safe(item.rationale)} |`,
+                `| Evidence | ${safe(item.evidence_refs.join('; '))} |`, `| Risks | ${safe(item.risks.join('; '))} |`,
+                `| Score | ${item.score.value} (\`${item.score.formula_version}\`) |`, `| Estimated cost | ${item.estimated_cost.currency} ${item.estimated_cost.amount} |`);
+            else lines.push(`| Proposal digest | \`${item.proposal_digest}\` |`, `| Displayed diff digest | \`${item.displayed_diff_digest}\` |`,
+                `| Prepared tree digest | \`${item.prepared_tree_digest}\` |`, `| Base commit | \`${item.base_commit}\` |`, `| Diff reference | ${safe(item.diff_ref)} |`,
+                `| Artifact reference | ${safe(item.artifact_ref)} |`, `| ADO external key | \`${item.ado_external_key}\` |`, `| Handoff chain | \`${item.handoff_chain_digest}\` |`,
+                `| Factual review | \`${item.factual_review.status}\`: ${safe(item.factual_review.evidence_ref)} |`, `| Accessibility review | \`${item.accessibility_review.status}\`: ${safe(item.accessibility_review.evidence_ref)} |`);
+        }
         lines.push('', '**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
             'For deny or request-changes, replace `approve` and append `reason="..."`.',
             'For defer, replace `approve` and append `reason="..." review-after=YYYY-MM-DD`.', '', '---', '');

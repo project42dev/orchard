@@ -80,18 +80,22 @@ export function manifestRunId(db, track, fallback) {
  * version of this file invented its own shorter grammar, and a command that a
  * reader can copy but the engine will not parse is worse than no command.
  */
-export function renderGateIssue({ gate, track, items, marker, runId, manifest }) {
-    const head = [
+function buildHead({ gate, track, items, marker, runId, manifest, compact }) {
+    return [
         marker,
         "",
         `## ${items.length} item${items.length === 1 ? "" : "s"} waiting`,
         "",
         GATES[gate].lead,
         "",
-        renderGateIssueBody(manifest),
+        renderGateIssueBody(manifest, { compact }),
         "",
         `Run \`${runId}\`, track \`${track}\`. Nothing proceeds until a decision is recorded, and no decision is inferred from silence.`,
     ].join("\n");
+}
+
+export function renderGateIssue({ gate, track, items, marker, runId, manifest }) {
+    const head = buildHead({ gate, track, items, marker, runId, manifest, compact: false });
 
     // The exact manifest, machine readable, folded away.
     //
@@ -113,12 +117,25 @@ export function renderGateIssue({ gate, track, items, marker, runId, manifest })
         "</details>",
     ].join("\n");
 
-    // GitHub refuses a body over 65536 characters. A gate that cannot post
-    // because its manifest is long must still post: the human rendering is what
-    // makes the decision possible, and the omission is stated rather than
-    // silently dropped.
+    // GitHub refuses a body over 65536 characters. Found live 2026-08-17: the
+    // omission path below existed but nothing ever read a batch digest back
+    // out of an issue that used it -- apply-gate-decisions.mjs's only manifest
+    // source is the fenced JSON block via manifestFromIssueBody, so a batch
+    // that hit this path was permanently unapprovable, silently, with the
+    // issue itself claiming otherwise ("the batch digest still binds every
+    // decision below"). It did not; nothing bound it to anything. Confirmed
+    // live: Track 2's 9 currency batches (20 items each) all hit this path.
+    //
+    // The manifest is what makes a decision bindable at all, so it must be the
+    // last thing dropped, not the first. Retry with the compact per-item
+    // rendering (drops prose, keeps the decision command) before ever falling
+    // back to omitting the manifest -- raw JSON is far denser than a markdown
+    // table with rationale/evidence/risks prose, so this should fit in
+    // practically every real case.
     if (head.length + embedded.length > 60_000) {
-        return `${head}\n\n> The machine-readable manifest is omitted from this issue: it would exceed GitHub's body limit. Batch digest \`${manifest.batch_digest}\` still binds every decision below.`;
+        const compactHead = buildHead({ gate, track, items, marker, runId, manifest, compact: true });
+        if (compactHead.length + embedded.length <= 60_000) return compactHead + embedded;
+        return `${compactHead}\n\n> The machine-readable manifest is omitted from this issue: it would exceed GitHub's body limit even in the compact rendering. Batch digest \`${manifest.batch_digest}\` cannot currently bind a decision -- this batch needs a smaller MAX_GATE_BATCH_SIZE or the manifest moved out of the issue body entirely, neither of which this code does yet.`;
     }
     return head + embedded;
 }

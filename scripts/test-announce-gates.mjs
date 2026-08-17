@@ -176,6 +176,86 @@ test('the body carries its marker and the normative decision grammar', async () 
   store.close();
 });
 
+test('a batch of items with real-world-heavy evidence splits below the body limit instead of losing its manifest', async () => {
+  // Found live 2026-08-17: Track 2's 9 currency Gate 1 issues (20 items each,
+  // the normative MAX_GATE_BATCH_SIZE) all hit the old overflow branch, which
+  // dropped the embedded manifest and left only a claim that a batch digest
+  // "still binds every decision below" -- nothing in apply-gate-decisions.mjs
+  // ever reads a manifest any way but the fenced JSON block, so those 9
+  // issues were permanently unapprovable. Root cause, not a hypothetical: a
+  // currency item's evidence_refs can carry up to 50 entries at up to 1000
+  // characters each (gate-queue.mjs slices to 50, track-2-controller.mjs
+  // truncates each entry to 1000) -- 20 such items serialize well past
+  // GitHub's 65536-character body limit before the human-readable rendering
+  // even joins it. This reproduces that shape directly.
+  const heavyEvidence = Array.from({ length: 20 }, (_, i) => `evidence entry ${i}: `.padEnd(1000, 'x'));
+  const candidates = Array.from({ length: 20 }, (_, index) => ({
+    ...candidate(`overflow-term-${index}`, 20),
+    evidence: heavyEvidence,
+  }));
+  const { store, runId } = await estate(candidates);
+  const items = pendingForGate(store.db, 'gate-1', 'track-1');
+  assert.equal(items.length, 20, 'the fixture must actually produce 20 pending items to reproduce the real batch size');
+  const manifests = await generateGateManifests({
+    gate: 'gate-1', runId, track: 'track-1', items: items.map(({ track: _t, ...entry }) => entry),
+  });
+  assert.ok(manifests.length > 1, 'a batch this heavy must actually split, or the fixture proves nothing about the fix');
+  assert.equal(manifests.reduce((sum, m) => sum + m.items.length, 0), 20, 'splitting must not gain or lose an item');
+  assert.equal(new Set(manifests.flatMap((m) => m.items.map((i) => i.item_id))).size, 20, 'no item may appear in two batches');
+
+  for (const manifest of manifests) {
+    const marker = gateMarker({ track: 'track-1', gate: 'gate-1', runId, batchDigest: heldSetDigest('gate-1', manifest.items) });
+    const body = renderGateIssue({ gate: 'gate-1', track: 'track-1', runId, marker, items: manifest.items, manifest });
+    assert.ok(body.length <= 65_536, `batch ${manifest.batch.ordinal}/${manifest.batch.count} must fit GitHub's body limit`);
+    const embedded = /```json\n(.*)\n```/s.exec(body);
+    assert.ok(embedded, `batch ${manifest.batch.ordinal}/${manifest.batch.count} must still carry its manifest -- the manifest is what makes a decision bindable at all`);
+    assert.equal(sha256Digest(JSON.parse(embedded[1])), sha256Digest(manifest), 'the embedded manifest must be exact and unmodified');
+  }
+  store.close();
+});
+
+test('renderGateIssue falls back to the compact rendering, and never drops the manifest, when a single batch is still oversized', () => {
+  // A safety net independent of generateGateManifests' own splitting above:
+  // proves renderGateIssue itself never regresses to silently omitting the
+  // manifest for an oversized batch, even one built by hand rather than
+  // through the normal item-splitting path. 1500 characters of rationale
+  // across 20 items is chosen because it reproduces exactly the case the
+  // compact rendering exists for: the full human-readable table (which
+  // duplicates every field a second time, in prose) pushes the body over
+  // the limit on its own (measured ~84KB), while the raw JSON manifest alone
+  // does not (~28KB) -- so dropping the duplicate table, not the manifest,
+  // is what should fix it. A rationale near gate-queue.mjs's 4000-character
+  // cap is deliberately NOT used here: at that size the raw JSON alone
+  // already exceeds the body limit, which no amount of compacting the human
+  // table can fix -- that case is what sizedBatches (generateGateManifests)
+  // exists to prevent from ever reaching this function in the first place,
+  // proven by the test above.
+  const longRationale = 'x'.repeat(1500);
+  const items = Array.from({ length: 20 }, (_, index) => ({
+    item_id: generateUuidV7(), item_revision: 1, proposal_digest: DIGEST, category: 'new-module',
+    title: `Overflow item ${index}`, rationale: longRationale, evidence_refs: [`https://example.invalid/${index}`],
+    score: { value: 1, formula_version: 'v1' }, target: { repository: 'o/r', path: `docs/${index}.md` },
+    risks: ['none'], estimated_cost: { currency: 'USD', amount: 1 }, decision_state: 'pending',
+  }));
+  const runId = generateUuidV7();
+  const manifest = {
+    schema_version: '1.0.0', gate: 'gate-1', run_id: runId, track: 'track-1',
+    batch: { ordinal: 1, count: 1, item_count: 20, total_item_count: 20, maximum_size: 20 },
+    full_manifest_digest: DIGEST, batch_digest: DIGEST, idempotency_key: 'github:gate-1:x:y', items,
+  };
+  const marker = gateMarker({ track: 'track-1', gate: 'gate-1', runId, batchDigest: heldSetDigest('gate-1', items) });
+  const body = renderGateIssue({ gate: 'gate-1', track: 'track-1', runId, marker, items, manifest });
+  assert.ok(body.length <= 65_536, 'GitHub refuses a body over 65536 characters');
+  const embedded = /```json\n(.*)\n```/s.exec(body);
+  assert.ok(embedded, 'an oversized single batch must still carry its manifest, compacted, never omitted');
+  assert.equal(sha256Digest(JSON.parse(embedded[1])), sha256Digest(manifest), 'the compacted rendering must still carry the exact, unmodified manifest');
+  assert.ok(body.includes(`revision=${items[0].item_revision}`), 'the decision command must still be present even in the compact rendering');
+  const rationaleOccurrences = body.split(longRationale).length - 1;
+  assert.equal(rationaleOccurrences, 20, 'the rationale must appear exactly once per item -- inside the embedded manifest -- not a second time duplicated into a human-readable table row');
+  const head = body.slice(0, body.indexOf('```json'));
+  assert.ok(!head.includes(longRationale), 'the compact human-readable portion must not duplicate the prose that caused the overflow');
+});
+
 test('a created gate issue assigns the owner, because assignment is what makes GitHub send the email', async () => {
   const { store, runId } = await estate([candidate('assignment-email')]);
   const { impl, calls } = recordingFetch([
@@ -296,3 +376,4 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
+
