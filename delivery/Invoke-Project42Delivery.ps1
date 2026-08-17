@@ -1921,7 +1921,21 @@ try {
                     -ExtraFindings @("Adversary verdict: $verdictA.")
             )
         )
-        if ($null -ne $arbiterResult) {
+        # The arbiter and the finalizer both map onto the schema's single
+        # 'release-proposal' stage ($script:Project42DeliveryRoleStage), and
+        # New-Project42MaintenanceProposal refuses two stage records that
+        # claim the same name ("Two delivery roles both claim the
+        # release-proposal proposal stage"). When both roles are configured
+        # this collided on every such brief, not just a second item in a
+        # session. The finalizer already supersedes the arbiter here: its own
+        # prompt is built with the arbiter's resolution folded in verbatim
+        # (below), so the finalizer's stage record already carries and
+        # reflects it. The arbiter gets its own release-proposal record only
+        # when no finalizer is configured to absorb it.
+        $finalizerConfigured = $null -ne (
+            Get-Project42OptionalValue -InputObject $brief.roles -Name 'finalizer' -Default $null
+        )
+        if ($null -ne $arbiterResult -and -not $finalizerConfigured) {
             $stages.Add(
                 (
                     New-DeliveryStageRecord -RoleResult $arbiterResult -Brief $brief `
@@ -1975,11 +1989,15 @@ try {
         }
 
         if ($null -ne $finalizerResult) {
+            $finalizerFindings = @('Finalizer package review.')
+            if ($null -ne $arbiterResult) {
+                $finalizerFindings += "Arbiter resolution folded in: $verdictR."
+            }
             $stages.Add(
                 (
                     New-DeliveryStageRecord -RoleResult $finalizerResult -Brief $brief `
                         -Status 'passed' `
-                        -ExtraFindings @('Finalizer package review.')
+                        -ExtraFindings $finalizerFindings
                 )
             )
         }
