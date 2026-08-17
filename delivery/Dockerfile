@@ -82,6 +82,7 @@ COPY --chown=delivery:delivery delivery/style/ ./style/
 
 # ---- Orchard Node.js scripts (phases 1-4, 6-7) ----
 COPY --chown=delivery:delivery scripts/ ./scripts/
+COPY --chown=delivery:delivery contracts/ ./contracts/
 COPY --chown=delivery:delivery package.json ./
 COPY --chown=delivery:delivery package-lock.json ./
 
