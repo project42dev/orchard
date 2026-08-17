@@ -103,6 +103,43 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
       updated_at: stamp,
     });
 
+    // Every OTHER path into 'executing' goes through the ado-linked
+    // transition, which requires (and therefore always leaves behind) an
+    // external_link row for that exact revision -- run-authoring.mjs reads
+    // gate2-prep evidence eligibility off that exact-revision link
+    // (scripts/run-authoring.mjs:189-190). This recovery path is the only
+    // one that reaches 'executing' directly from an exception state, so it
+    // is the only one that has to make that link exist itself, or evidence
+    // prep holds forever with "no persisted ADO link" -- found live tonight,
+    // first real item ever to reach this far. The ADO work item itself does
+    // not change on a retry (same requirement, being re-drafted), so this
+    // copies the most recent link forward onto the new revision rather than
+    // creating a second ADO work item for the same content.
+    const priorLink = store.db.prepare(
+      `SELECT external_id FROM external_link
+        WHERE item_id = ? AND provider = 'ado' AND operation = 'ado-link'
+        ORDER BY item_revision DESC, linked_at DESC LIMIT 1`,
+    ).get(row.item_id);
+    if (priorLink) {
+      store.recordExternalLink({
+        link_id: generateUuidV7(),
+        run_id: row.origin_run_id,
+        item_id: row.item_id,
+        item_revision: successorRevision,
+        provider: "ado",
+        operation: "ado-link",
+        // external_key is Orchard's own revision-scoped lookup key
+        // (ado-sync.mjs's adoExternalKey: orchard:track:item_id:r{revision}),
+        // not the ADO ticket identity -- (provider, external_key) is unique
+        // per row, so a new revision needs its own key. external_id is the
+        // actual ADO work item number, unchanged: retrying re-drafts the
+        // same requirement, it does not open a second ticket for it.
+        external_key: `orchard:${row.track}:${row.item_id}:r${successorRevision}`,
+        external_id: priorLink.external_id,
+        linked_at: stamp,
+      });
+    }
+
     await store.recordTransition({
       schema_version: "1.0.0",
       transition_id: generateUuidV7(),

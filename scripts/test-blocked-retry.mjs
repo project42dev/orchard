@@ -67,6 +67,20 @@ const stateOf = (store, id) =>
   const revisionRecord = JSON.parse(revisionRow.record_json);
   ok(revisionRecord.state === "executing", "the persisted revision 2 record says executing");
   ok(revisionRecord.artifact_digest === null, "the retried revision starts with no artifact, honestly");
+
+  const link1 = store.db.prepare(
+    "SELECT external_key, external_id FROM external_link WHERE item_id = ? AND item_revision = 1 AND provider = 'ado'",
+  ).get(id);
+  const link2 = store.db.prepare(
+    "SELECT external_key, external_id FROM external_link WHERE item_id = ? AND item_revision = 2 AND provider = 'ado'",
+  ).get(id);
+  ok(link1 !== undefined, "sanity: the fixture's own walk to executing left an ADO link on revision 1");
+  ok(link2 !== undefined,
+    "the retry carries the ADO link forward onto the new revision -- without this, gate2-prep's exact-revision lookup holds forever with 'no persisted ADO link'");
+  ok(link2 && link2.external_id === link1.external_id,
+    "the carried-forward link points at the SAME ADO work item id, not a freshly created one -- a retry is a re-draft of the same requirement, not a new one");
+  ok(link2 && link2.external_key !== link1.external_key && link2.external_key.endsWith(":r2"),
+    "the external_key is still revision-scoped (orchard:track:item:rN), since (provider, external_key) is unique per row");
   store.close();
 }
 
