@@ -194,14 +194,28 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 log("warn", "gate2evidence.held", { item: itemId, reason: "no persisted ADO link" });
                 continue;
             }
+            // Matched on digest, not item_revision. A blocked-item retry (or
+            // any other exception-state recovery) reaches 'executing'
+            // directly, without going back through Gate 1 -- deliberately:
+            // Gate 1 approved the PROPOSAL, and a retry's successor revision
+            // carries that exact same proposal_digest forward unchanged
+            // (apply-blocked-retry.mjs never edits it, only the authoring
+            // attempt is retried). Requiring the approval to sit on the exact
+            // current item_revision, found live tonight on the second real
+            // item ever to reach gate2-ready, held it forever: the approval
+            // that already covers this content is real and on record, just
+            // on an earlier revision row. Matching by digest is the same
+            // proof the exact-revision match was trying to establish
+            // (a human approved THIS content), without requiring a second,
+            // redundant Gate 1 review of a proposal that did not change.
             const gate1 = store.db.prepare(
                 `SELECT event_id FROM decision_event
-                  WHERE item_id = ? AND item_revision = ? AND gate = 'gate-1' AND decision = 'approve'
+                  WHERE item_id = ? AND gate = 'gate-1' AND decision = 'approve' AND digest = ?
                   ORDER BY occurred_at DESC LIMIT 1`,
-            ).get(itemId, Number(row.current_revision));
+            ).get(itemId, revision.proposal_digest);
             if (!gate1) {
                 summary.held += 1;
-                log("warn", "gate2evidence.held", { item: itemId, reason: "no recorded Gate 1 approval decision event" });
+                log("warn", "gate2evidence.held", { item: itemId, reason: "no recorded Gate 1 approval decision event for this exact proposal digest" });
                 continue;
             }
 
