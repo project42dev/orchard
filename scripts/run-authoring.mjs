@@ -189,7 +189,14 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
                 BRIEF_PATH: briefPath,
                 RUN_RECORD_ROOT: runRecordDir,
                 PROPOSAL_ROOT: proposalRoot,
-                DELIVERY_MODE: env.DELIVERY_MODE ?? "content-proposal",
+                // "harness" is the only correct value here: this call is
+                // always a one-shot run against a just-written brief file,
+                // exactly what the engine's own docstring calls "harness"
+                // mode ("runs once against a named brief"), never "engine"
+                // mode (its scheduled watched-sources trigger). The engine's
+                // own ValidateSet('harness','engine') rejects anything else,
+                // including the "content-proposal" value this used to send.
+                DELIVERY_MODE: "harness",
                 MAX_SPEND_USD_PER_RUN: String(budget.capUsd),
             },
         });
