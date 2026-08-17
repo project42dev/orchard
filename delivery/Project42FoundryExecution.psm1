@@ -1937,11 +1937,19 @@ function New-Project42ProposalModelStage {
     }
 
     # The role's own report is its findings. It is chunked rather than
-    # summarized so a reviewer sees what the model actually said, bounded by the
-    # schema's 2000 character limit per finding.
+    # summarized so a reviewer sees what the model actually said, bounded by
+    # the schema's 2000 character limit per finding. The schema places no
+    # limit on how many findings a stage may carry (no maxItems on this
+    # array), so the chunk count below is this engine's own safety bound, not
+    # a schema requirement -- 100 chunks (200000 characters) comfortably
+    # covers a real Learn module or field guide entry, which the original
+    # 10-chunk (20000 character) bound did not: it silently discarded the
+    # tail of the first real proposal long enough to hit it, which is also
+    # the one thing downstream (Orchard's Gate 2 evidence preparation) needs
+    # intact to reconstruct exactly what a model produced.
     $remaining = [string] $Output
     $chunkCount = 0
-    while ($remaining.Length -gt 0 -and $chunkCount -lt 10) {
+    while ($remaining.Length -gt 0 -and $chunkCount -lt 100) {
         $take = [Math]::Min(2000, $remaining.Length)
         $findings.Add($remaining.Substring(0, $take))
         $remaining = $remaining.Substring($take)
@@ -1949,7 +1957,7 @@ function New-Project42ProposalModelStage {
     }
     if ($remaining.Length -gt 0) {
         $findings.Add(
-            "Output truncated after 20000 characters; $($remaining.Length) " +
+            "Output truncated after 200000 characters; $($remaining.Length) " +
             'characters are not reproduced here. The outputDigest covers the ' +
             'whole output, so the truncation is detectable.'
         )
