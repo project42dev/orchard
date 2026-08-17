@@ -334,7 +334,7 @@ export async function main(argv = process.argv.slice(2)) {
             "ERR_ORCHARD_STATE_OPEN_FAILED",
         ]);
         const errorCode = safeErrorCodes.has(error?.code) ? error.code : "ERR_ORCHARD_RUNTIME_FAILED";
-        log("error", "runtime.failed", { error: { code: errorCode, name: error instanceof TypeError ? "TypeError" : "Error", message: String(error?.message ?? error) } });
+        log("error", "runtime.failed", { error: { code: errorCode, name: error instanceof TypeError ? "TypeError" : "Error", message: String(error?.message ?? error), ...(Array.isArray(error?.problems) ? { problems: error.problems } : {}) } });
     }
 }
 
