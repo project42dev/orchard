@@ -231,8 +231,26 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             const reconstructed = reconstructStageContent(finalStage);
             if (!reconstructed.complete) {
                 summary.held += 1;
+                // Diagnostic breakdown, not just the fact of failure: found
+                // live tonight, twice in a row, on the first two real items
+                // ever to get this far -- distinguishing "the PS1 side really
+                // did truncate past its own 200000-char chunk cap" from "the
+                // findings rejoin exactly but do not hash to outputDigest"
+                // (an encoding mismatch between PowerShell's and Node's
+                // hashing, or a chunking bug that reorders/drops content
+                // without triggering the truncation-notice path) needs to be
+                // visible without another live run to guess between them.
+                const truncationNoticePresent = (finalStage.findings ?? []).some(
+                    (entry) => /^Output truncated after \d+ characters;/.test(entry),
+                );
                 log("warn", "gate2evidence.held", {
-                    item: itemId, reason: "release-proposal output could not be reconstructed intact from its findings (likely truncated past 20000 characters)",
+                    item: itemId,
+                    reason: "release-proposal output could not be reconstructed intact from its findings",
+                    rejoinedLength: reconstructed.content.length,
+                    findingCount: (finalStage.findings ?? []).length,
+                    truncationNoticePresent,
+                    rejoinedDigest: reconstructed.digest,
+                    recordedDigest: finalStage.outputDigest,
                 });
                 continue;
             }
