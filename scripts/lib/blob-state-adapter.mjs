@@ -66,7 +66,23 @@ export class BlobStateAdapter {
         await lease.acquireLease(60);
         try {
             const current = await this.#readManifest(scope);
-            if (current.manifest?.backupBlob) await this.#writeCommitMarker(current.manifest, current.etag);
+            // Backfill a missing marker for whatever was last actually published
+            // (recovers a run that crashed between replicateBackup's manifest
+            // write and its own commit-marker write). Checked for existence
+            // FIRST, not written unconditionally: a prior acquire that itself
+            // crashed before publishing anything new still bumps
+            // fencingGeneration on the very manifest we are reading right now,
+            // so an unconditional re-write here would race the marker's own
+            // strict field comparison against fencingGeneration values that
+            // were never actually published under, throwing a false conflict
+            // for content nothing is really wrong with. Existence is checked
+            // by commitGeneration+digest, the identity that reflects what was
+            // truly published, not the fencing token of whichever acquire
+            // happens to run this backfill.
+            if (current.manifest?.backupBlob) {
+                const alreadyRecorded = await this.backup.getBlockBlobClient(this.#commitMarkerName(current.manifest)).exists();
+                if (!alreadyRecorded) await this.#writeCommitMarker(current.manifest, current.etag);
+            }
             const manifest = current.manifest ?? { schemaVersion: 1, scope, fencingGeneration: 0, stateGeneration: 0, stateBlob: null, stateDigest: null };
             manifest.fencingGeneration += 1;
             manifest.owner = owner;
@@ -159,6 +175,10 @@ export class BlobStateAdapter {
         return { blobName: targetName, digest: verified, manifestEtag: written.etag, commitMarker: commitName };
     }
 
+    #commitMarkerName(manifest) {
+        return `${this.prefix}/${manifest.scope}/backup-commits/${String(manifest.stateGeneration).padStart(12, "0")}-${manifest.stateDigest.slice(7)}.json`;
+    }
+
     async #writeCommitMarker(manifest, manifestEtag) {
         const commit = {
             schemaVersion: 1,
@@ -171,7 +191,7 @@ export class BlobStateAdapter {
             manifestEtag,
         };
         const commitPayload = `${JSON.stringify(commit)}\n`;
-        const commitName = `${this.prefix}/${manifest.scope}/backup-commits/${String(manifest.stateGeneration).padStart(12, "0")}-${manifest.stateDigest.slice(7)}.json`;
+        const commitName = this.#commitMarkerName(manifest);
         const commitBlob = this.backup.getBlockBlobClient(commitName);
         try {
             await commitBlob.upload(commitPayload, Buffer.byteLength(commitPayload), { conditions: { ifNoneMatch: "*" }, blobHTTPHeaders: { blobContentType: "application/json" } });

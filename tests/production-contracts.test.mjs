@@ -109,6 +109,7 @@ class MemoryBlobClient {
         if (!value) throw statusError(404);
         return { etag: value.etag, contentLength: value.bytes.byteLength, metadata: value.metadata };
     }
+    async exists() { return this.store.values.has(this.name); }
     async download() {
         const value = this.store.values.get(this.name);
         if (!value) throw statusError(404);
@@ -241,6 +242,46 @@ test("Blob state repairs a missing backup commit marker on the next acquisition"
         const second = await adapter.acquire("track-1", "owner-two");
         assert.equal(backup.store.values.has(replicated.commitMarker), true);
         await adapter.release(second);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("Blob state does not false-conflict when a crashed acquire bumped fencingGeneration without publishing", async () => {
+    // Reproduces the live 2026-08-16 authoring incident: a run acquires
+    // (bumping fencingGeneration on the authoritative manifest), then dies
+    // before ever calling publishState/replicateBackup. The NEXT acquire's
+    // marker-backfill used to unconditionally re-write the commit marker
+    // using the manifest it just read -- whose fencingGeneration had already
+    // moved past what the ORIGINAL publish recorded -- so the strict field
+    // comparison inside #writeCommitMarker threw "backup commit marker
+    // conflicts with the authoritative manifest" even though the actually
+    // published content (stateGeneration/stateDigest/stateBlob/backupBlob)
+    // never changed. Existence-checking before writing (the fix) means an
+    // already-recorded marker is left alone regardless of how many
+    // publish-less acquires happened since.
+    const root = mkdtempSync(join(tmpdir(), "orchard-blob-crash-"));
+    const primary = memoryContainer();
+    const backup = memoryContainer();
+    const adapter = new BlobStateAdapter({ containerClient: primary, backupContainerClient: backup, workRoot: root });
+    try {
+        const first = await adapter.acquire("track-1", "owner-one");
+        const state = await adapter.readState(first);
+        writeFileSync(state.path, "sqlite-one");
+        const published = await adapter.publishState(first, state.path, state);
+        await adapter.replicateBackup(first, published);
+        await adapter.release(first);
+
+        // A crashed run: acquires (fencingGeneration advances) but never
+        // publishes -- exactly what happened live when the authoring job
+        // died mid-callback. withFencedState's finally block still releases
+        // the lease even when the operation throws, so the crash is clean at
+        // the lease layer; the manifest is what's left bumped-but-unpublished.
+        const crashed = await adapter.acquire("track-1", "owner-crashed");
+        await adapter.release(crashed);
+
+        // The next real run must not see a false conflict.
+        const third = await adapter.acquire("track-1", "owner-three");
+        assert.equal(third.manifest.stateGeneration, 1);
+        await adapter.release(third);
     } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
