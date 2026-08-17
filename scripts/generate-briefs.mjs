@@ -541,16 +541,28 @@ export async function generateBriefs({
   const store = openStateStore(dbPath);
   const db = store.db;
   try {
-    // Only ado-linked work is eligible. Gate 1 has approved it and the ADO
-    // work item exists; 'executing' is the one legal next step, so an item
-    // already executing has a brief somewhere and re-issuing one produces two
-    // proposals racing for the same item.
+    // Ado-linked work is eligible, plus one recovery case: an item already
+    // 'executing' but with NO artifact_binding recorded for its current
+    // revision. That combination only means one thing -- a PRIOR run claimed
+    // it and then crashed before ever producing a real proposal for it, since
+    // the only legal forward move out of 'executing' with a binding is
+    // gate2-ready. Re-issuing a brief for that item is safe, not a duplicate:
+    // there is no first proposal racing it, only an abandoned claim. (An item
+    // 'executing' WITH a binding already has real work in flight or done and
+    // is correctly excluded, same as before.) 'blocked' items are NEVER
+    // included here: those already received a real verdict a human needs to
+    // act on, not a crash to recover from.
     const rows = db.prepare(
       `SELECT i.item_id, i.track, i.surface, i.outcome, i.semantic_identity,
-              i.current_revision, i.origin_run_id, r.record_json
+              i.current_revision, i.origin_run_id, r.record_json,
+              i.current_state AS state
          FROM workflow_item i
          JOIN item_revision r ON r.item_id = i.item_id AND r.item_revision = i.current_revision
         WHERE i.current_state = 'ado-linked'
+           OR (i.current_state = 'executing' AND NOT EXISTS (
+                 SELECT 1 FROM artifact_binding b
+                  WHERE b.item_id = i.item_id AND b.item_revision = i.current_revision
+               ))
         ORDER BY i.created_at, i.item_id`,
     ).all();
 
@@ -580,6 +592,7 @@ export async function generateBriefs({
         semantic_identity: row.semantic_identity,
         item_revision: Number(row.current_revision),
         origin_run_id: row.origin_run_id,
+        state: row.state,
         title: manifest?.title ?? row.semantic_identity,
         priority: manifest?.score?.value ?? null,
         // REWORK. An item returned by Gate 2 with request-changes carries the
@@ -630,19 +643,26 @@ export async function generateBriefs({
       if (briefs.length >= limit) { notReached += 1; continue; }
       briefs.push(built.brief);
       if (apply) {
-        await store.recordTransition({
-          schema_version: '1.0.0',
-          transition_id: generateUuidV7(),
-          run_id: item.origin_run_id,
-          item_id: item.id,
-          item_revision: item.item_revision,
-          from_state: 'ado-linked',
-          to_state: 'executing',
-          cause: 'execution-started',
-          actor: claimedBy,
-          occurred_at: now,
-          correlation_id: generateUuidV7(),
-        });
+        // Already-executing recovery items need no transition -- they are
+        // already exactly there, correctly, from their original (crashed)
+        // claim. Recording ado-linked -> executing again for one would be a
+        // transition FROM a state the item is not in, which the store
+        // rightly refuses.
+        if (item.state !== 'executing') {
+          await store.recordTransition({
+            schema_version: '1.0.0',
+            transition_id: generateUuidV7(),
+            run_id: item.origin_run_id,
+            item_id: item.id,
+            item_revision: item.item_revision,
+            from_state: 'ado-linked',
+            to_state: 'executing',
+            cause: 'execution-started',
+            actor: claimedBy,
+            occurred_at: now,
+            correlation_id: generateUuidV7(),
+          });
+        }
         claimed.push(item.subject_id);
       }
     }

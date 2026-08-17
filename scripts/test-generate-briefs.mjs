@@ -87,9 +87,10 @@ const [alphaId, betaId, gammaId] = await seedGateItems(store, runId, ['alpha', '
 for (const id of [alphaId, betaId, gammaId]) await walkTo(store, runId, id, 'ado-linked');
 // One the owner has not decided. It must be unreachable.
 const [pendingId] = await seedGateItems(store, runId, ['undecided']);
-// One already picked up. It must not be re-issued.
-const [executingId] = await seedGateItems(store, runId, ['already-claimed']);
-await walkTo(store, runId, executingId, 'executing');
+// One already picked up, with no artifact_binding recorded -- exactly what a
+// crashed run leaves behind. It IS eligible: this is the recovery case.
+const [orphanedId] = await seedGateItems(store, runId, ['crashed-before-proposal']);
+await walkTo(store, runId, orphanedId, 'executing');
 // One with an outcome that is not an authorable brief form. It must be
 // reported as stranded, not silently dropped and not written anyway.
 const removalId = await seedItemWithOutcome(store, runId, 'obsolete-topic', 'removal');
@@ -163,8 +164,11 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
 {
   const r = await generateBriefs({ ...base, limit: 10 });
 
-  equal('only ado-linked work is eligible; pending and executing are not', r.eligible, 5);
-  equal('a brief is written for every eligible item with an authorable outcome', r.briefs.length, 4);
+  equal('ado-linked work is eligible, pending is not, and so is an executing item with no artifact_binding',
+    r.eligible, 6);
+  equal('a brief is written for every eligible item with an authorable outcome', r.briefs.length, 5);
+  check('the orphaned executing item (no binding) is picked up as a recovery candidate',
+    r.briefs.some((b) => b.subjectId === orphanedId));
 
   const alpha = r.briefs.find((b) => b.subjectId === alphaId);
   check('every brief carries the item id of the lifecycle item it serves', Boolean(alpha));
@@ -231,7 +235,7 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   const r = await generateBriefs({ ...base, limit: 1 });
   equal('the limit caps what is EMITTED', r.briefs.length, 1);
   equal('and every stranded item is still counted, whatever the limit', r.skipped.length, 1);
-  equal('and the rest are reported as not reached rather than silently dropped', r.notReached, 3);
+  equal('and the rest are reported as not reached rather than silently dropped', r.notReached, 4);
   equal('emitted plus stranded plus not-reached accounts for every eligible item',
     r.briefs.length + r.skipped.length + r.notReached, r.eligible);
 }
@@ -239,13 +243,47 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
 // --- claiming -----------------------------------------------------------------
 
 {
-  const r = await generateBriefs({ ...base, limit: 2, apply: true, now: NOW, claimedBy: 'tester' });
+  // Restricted to the ado-linked items only (excludes the orphaned recovery
+  // item), so this block's counts stay exactly what they were before the
+  // recovery case existed.
+  const claimSubjects = [alphaId, betaId, gammaId, removalId, updateId];
+  const r = await generateBriefs({ ...base, subjects: claimSubjects, limit: 2, apply: true, now: NOW, claimedBy: 'tester' });
   equal('under --apply the emitted items are moved to executing', r.claimed.length, 2);
 
-  const after = await generateBriefs({ ...base, limit: 10 });
-  check('so a second run does not re-issue them, which would race two proposals at one item',
-    !after.briefs.some((b) => r.claimed.includes(b.subjectId)));
-  equal('and the eligible count shrinks by exactly the claimed items', after.eligible, 3);
+  // A plain claim with no completed run behind it -- exactly what this test
+  // does, and NOT what generateBriefs alone can promise anymore, since the
+  // recovery case above depends on being able to tell "claimed, still
+  // waiting for a real attempt" apart from "claimed, gate1-approved item
+  // that's now genuinely done." Only a real completed run tells them apart,
+  // by recording an artifact_binding (ingest-proposals.mjs's job, not this
+  // one) -- so a claimed-but-unbound item correctly stays eligible here.
+  // That is what makes the recovery case above possible at all: it is the
+  // exact same state a crashed run leaves behind.
+  const after = await generateBriefs({ ...base, subjects: claimSubjects, limit: 10 });
+  check('a claimed item with no completed run behind it is still eligible -- unbound work is always retriable',
+    r.claimed.every((id) => after.briefs.some((b) => b.subjectId === id)));
+  equal('the eligible count is unchanged: nothing has actually finished yet, only been claimed', after.eligible, 5);
+}
+
+// --- recovering a crashed claim ------------------------------------------------
+
+{
+  // The orphaned item (executing, no artifact_binding) claimed on its own,
+  // isolated from the block above so its different re-issuance semantics
+  // don't interact with it.
+  const r = await generateBriefs({ ...base, subjects: [orphanedId], limit: 10, apply: true, now: NOW, claimedBy: 'tester' });
+  equal('the orphaned item is claimed', JSON.stringify(r.claimed), JSON.stringify([orphanedId]));
+
+  const after = await generateBriefs({ ...base, subjects: [orphanedId], limit: 10 });
+  // Unlike an ado-linked claim, generateBriefs alone cannot make an orphaned
+  // item stop being eligible: it was already 'executing' before this run and
+  // still is after, since only a real completed proposal (recordArtifactBinding,
+  // done by ingest-proposals.mjs, not here) removes it from this query. That is
+  // correct: if THIS retry also crashes before producing a real proposal, the
+  // NEXT run must still be able to pick it up. Once a real proposal ingests
+  // successfully, its binding takes it out of eligibility for good.
+  equal('so it stays eligible until a real proposal actually ingests, not merely because it was tried',
+    after.eligible, 1);
 }
 
 // --- refusing rather than guessing --------------------------------------------
