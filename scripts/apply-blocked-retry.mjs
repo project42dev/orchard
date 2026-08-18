@@ -58,6 +58,7 @@
 
 import { openStateStore } from "./lib/state-store.mjs";
 import { generateUuidV7 } from "./lib/identity.mjs";
+import { GATE_MANIFEST_REFERENCE_PREFIX } from "./lib/gate-queue.mjs";
 
 export const DEFAULT_ACTOR = "orchard/apply-blocked-retry";
 const RECOVERABLE = new Set(["blocked", "gate2-ready", "denied"]);
@@ -182,6 +183,43 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
         external_key: `orchard:${row.track}:${row.item_id}:r${successorRevision}`,
         external_id: priorLink.external_id,
         linked_at: stamp,
+      });
+    }
+
+    // The Gate 1 title, rationale, score, and cost live ONLY in an
+    // observation_event keyed to the exact item_revision they were recorded
+    // against (gate-queue.mjs: "the gate issue needs a title... none of them
+    // fit in the item record"). generate-briefs.mjs looks that observation up
+    // by the item's CURRENT revision, with no fallback to an earlier
+    // revision's copy -- so a retry that advances the revision without also
+    // carrying this forward leaves the brief with no recorded title at all.
+    // Found live 2026-08-18, after the finalizer-content fix (602ec32) let a
+    // retried item's real drafted content be inspected for the first time:
+    // the drafter correctly refused to write anything, because all it was
+    // given was `title: manifest?.title ?? row.semantic_identity` falling
+    // through to the raw semantic identifier ("Requested identifier:
+    // sid:v1:..."), not the actual subject. This bug predates today and
+    // applies equally to the blocked and gate2-ready recovery paths above;
+    // it was invisible before because gate2-ready's items were ALSO carrying
+    // the wrong content from the finalizer bug, so nobody could see a title
+    // problem underneath a content problem.
+    const priorManifestObservation = store.db.prepare(
+      `SELECT record_json FROM observation_event
+        WHERE item_id = ? AND evidence_reference = ?
+        ORDER BY item_revision DESC, observed_at DESC LIMIT 1`,
+    ).get(row.item_id, `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${row.item_id}`);
+    if (priorManifestObservation) {
+      const priorRecord2 = JSON.parse(priorManifestObservation.record_json);
+      await store.recordObservation({
+        observation_id: generateUuidV7(),
+        run_id: row.origin_run_id,
+        item_id: row.item_id,
+        item_revision: successorRevision,
+        evidence_reference: priorRecord2.evidence_reference,
+        evidence_digest: priorRecord2.evidence_digest,
+        observed_at: stamp,
+        gate: "gate-1",
+        manifest_item: priorRecord2.manifest_item,
       });
     }
 

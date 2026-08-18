@@ -21,8 +21,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { generateBriefs, buildPrompt, parseBlockedRetryNote, blockedNoteFor, BLOCKED_RETRY_PREFIX, ROLE_JOBS } from "./generate-briefs.mjs";
-import { generateUuidV7 } from "./lib/identity.mjs";
+import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { estate, seedGateItems, walkTo, cleanupFixtures } from "./test-fixtures.mjs";
+import { GATE_MANIFEST_REFERENCE_PREFIX } from "./lib/gate-queue.mjs";
 
 let assertions = 0, failures = 0;
 const ok = (c, m) => { assertions++; if (!c) { failures++; console.error(`FAIL: ${m}`); } };
@@ -81,6 +82,53 @@ const stateOf = (store, id) =>
     "the carried-forward link points at the SAME ADO work item id, not a freshly created one -- a retry is a re-draft of the same requirement, not a new one");
   ok(link2 && link2.external_key !== link1.external_key && link2.external_key.endsWith(":r2"),
     "the external_key is still revision-scoped (orchard:track:item:rN), since (provider, external_key) is unique per row");
+  store.close();
+}
+
+// --- a retry carries the Gate 1 title/rationale/score forward onto the new
+// revision, not just the ADO link. Found live 2026-08-18: generate-briefs.mjs
+// looks up the item's title from an observation_event keyed to the EXACT
+// current revision, with no fallback to an earlier revision's copy -- so a
+// retried item's brief carried no title at all, and the drafter (correctly,
+// per its own no-invention rules) refused to write content for an unnamed
+// topic. Invisible on the gate2-ready path until now because the finalizer
+// content bug (fixed in 602ec32) hid it behind a bigger, more obvious defect. ---
+{
+  const { store, runId } = await estate();
+  const [id] = await seedGateItems(store, runId, ["title-carry-subject"]);
+  const manifestItem = { title: "How to teach title-carry-subject", score: { value: 5, formula_version: "v1" } };
+  await store.recordObservation({
+    observation_id: generateUuidV7(),
+    run_id: runId,
+    item_id: id,
+    item_revision: 1,
+    evidence_reference: `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${id}`,
+    evidence_digest: sha256Digest(manifestItem),
+    observed_at: "2026-08-15T00:00:00.000Z",
+    gate: "gate-1",
+    manifest_item: manifestItem,
+  });
+  await walkTo(store, runId, id, "executing");
+  await store.recordTransition({
+    schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: runId, item_id: id, item_revision: 1,
+    from_state: "executing", to_state: "blocked", cause: "policy-block",
+    reason: "test refusal", actor: "orchard/run-authoring", occurred_at: "2026-08-15T00:00:00.000Z", correlation_id: generateUuidV7(),
+  });
+
+  const beforeObs = store.db.prepare(
+    "SELECT COUNT(*) AS n FROM observation_event WHERE item_id = ? AND item_revision = 2",
+  ).get(id);
+  ok(beforeObs.n === 0, "sanity: no revision-2 observation exists before the retry");
+
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 1, "the retry is recorded");
+  const carried = store.db.prepare(
+    "SELECT record_json FROM observation_event WHERE item_id = ? AND item_revision = 2 ORDER BY observed_at DESC LIMIT 1",
+  ).get(id);
+  ok(carried !== undefined, "the retry carries a Gate 1 manifest observation forward onto the new revision");
+  const carriedRecord = JSON.parse(carried.record_json);
+  ok(carriedRecord.manifest_item.title === "How to teach title-carry-subject",
+    "the carried observation has the REAL title, not just any observation");
   store.close();
 }
 
