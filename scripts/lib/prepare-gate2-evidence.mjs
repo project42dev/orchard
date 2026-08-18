@@ -59,8 +59,13 @@ function fail(code, message) {
 }
 
 // New-Project42MaintenanceProposal's own six-stage vocabulary, mapped onto
-// agent-handoff's role enum. curriculum-writing and release-proposal both
-// produce authored text (draft, then finalized); the rest are review roles.
+// agent-handoff's role enum. Only curriculum-writing produces the artifact
+// text. release-proposal is a review role (delivery-prompts/finalizer.md:
+// "You do not re-draft... Do not propose edits to the artifact") that
+// produces a completeness/consistency summary for the human reviewer, not
+// content -- found live 2026-08-17 after that summary was mistakenly
+// committed as the publishable artifact for every real item that reached
+// this stage. Every stage other than curriculum-writing is a review role.
 export const STAGE_ROLE = Object.freeze({
     "evidence-research": "evidence-researcher",
     "curriculum-writing": "writer",
@@ -105,6 +110,14 @@ export function reconstructStageContent(modelStage) {
 
 function sha256(text) {
     return sha256Digest(text).slice("sha256:".length);
+}
+
+// The one stage whose output is the publishable artifact. See STAGE_ROLE
+// above for why every other stage, including release-proposal, is excluded.
+export const CONTENT_STAGE = "curriculum-writing";
+
+export function selectContentStage(proposal) {
+    return proposal.modelStages?.find((stage) => stage.stage === CONTENT_STAGE) ?? null;
 }
 
 /**

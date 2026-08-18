@@ -52,7 +52,7 @@ import { estimatedItemCostUsd } from "./lib/gate-queue.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { generateBriefs } from "./generate-briefs.mjs";
 import { ingest, readProposals } from "./ingest-proposals.mjs";
-import { buildHandoffsFromProposal, reconstructStageContent, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
+import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
 import { readGateToken } from "./announce-gates.mjs";
 
@@ -222,13 +222,26 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             const proposalMatch = runProposals.find((p) => p.file === entry.file);
             const proposalPath = join(proposalRoot, entry.file);
             const proposal = JSON.parse(readFileSync(proposalPath, "utf8"));
-            const finalStage = proposal.modelStages?.find((stage) => stage.stage === "release-proposal");
-            if (!finalStage) {
+            // The artifact to publish is the DRAFTER's output ("curriculum-writing",
+            // STAGE_ROLE "writer"), not the finalizer's ("release-proposal",
+            // STAGE_ROLE "final-reviewer"). Found live 2026-08-17: every real item
+            // that reached this point had the finalizer's own review narrative
+            // ("COMPLETENESS.", "CONSISTENCY.", "DEFECTS.", "SUMMARY.",
+            // "RECOMMENDATION: ...") committed and gated for publication instead of
+            // the lesson content -- confirmed by reading delivery-prompts/finalizer.md,
+            // whose own instructions say "You do not re-draft... Do not propose
+            // edits to the artifact", and produce exactly that five-section review
+            // format for a HUMAN to read, never content for a learner. The finalizer
+            // stage stays in the handoff chain for its actual purpose -- the
+            // completeness/consistency check the human sees in the evidence record --
+            // it is simply never the source of what gets committed to the repo.
+            const contentStage = selectContentStage(proposal);
+            if (!contentStage) {
                 summary.held += 1;
-                log("warn", "gate2evidence.held", { item: itemId, reason: "proposal carries no release-proposal stage" });
+                log("warn", "gate2evidence.held", { item: itemId, reason: "proposal carries no curriculum-writing stage" });
                 continue;
             }
-            const reconstructed = reconstructStageContent(finalStage);
+            const reconstructed = reconstructStageContent(contentStage);
             if (!reconstructed.complete) {
                 summary.held += 1;
                 // Diagnostic breakdown, not just the fact of failure: found
@@ -240,17 +253,17 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 // hashing, or a chunking bug that reorders/drops content
                 // without triggering the truncation-notice path) needs to be
                 // visible without another live run to guess between them.
-                const truncationNoticePresent = (finalStage.findings ?? []).some(
+                const truncationNoticePresent = (contentStage.findings ?? []).some(
                     (entry) => /^Output truncated after \d+ characters;/.test(entry),
                 );
                 log("warn", "gate2evidence.held", {
                     item: itemId,
-                    reason: "release-proposal output could not be reconstructed intact from its findings",
+                    reason: "curriculum-writing output could not be reconstructed intact from its findings",
                     rejoinedLength: reconstructed.content.length,
-                    findingCount: (finalStage.findings ?? []).length,
+                    findingCount: (contentStage.findings ?? []).length,
                     truncationNoticePresent,
                     rejoinedDigest: reconstructed.digest,
-                    recordedDigest: finalStage.outputDigest,
+                    recordedDigest: contentStage.outputDigest,
                 });
                 continue;
             }
