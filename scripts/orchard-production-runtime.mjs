@@ -19,6 +19,7 @@ import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles } from "./lib/job-chain.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
+import { blockedNoteFor } from "./generate-briefs.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -68,6 +69,20 @@ export function parseRuntimeArgs(argv) {
         const item = runtime[adminRetryIndex + 1];
         if (!item) throw new TypeError("--admin-retry-blocked requires an item id");
         return { adminRetryBlocked: item, controller };
+    }
+    // Read-only companion to --admin-retry-blocked: an operator (or the owner,
+    // through one) needs to see WHY the ensemble refused an item before
+    // deciding whether to retry it blind again. The refusal reason is real and
+    // already persisted (state_transition_event.reason, the same field
+    // generate-briefs.mjs reads via blockedNoteFor to hand back to a retried
+    // item's brief) -- it was just never exposed anywhere a human could read
+    // it directly. This never writes to the state store.
+    const adminShowReasonIndex = runtime.indexOf("--admin-show-reason");
+    if (adminShowReasonIndex !== -1) {
+        if (runtime.length !== 2 || adminShowReasonIndex !== 0) throw new TypeError("runtime accepts only --admin-show-reason <item-id>, alone");
+        const item = runtime[adminShowReasonIndex + 1];
+        if (!item) throw new TypeError("--admin-show-reason requires an item id");
+        return { adminShowReason: item, controller };
     }
     const trackIndex = runtime.indexOf("--track");
     const roleIndex = runtime.indexOf("--role");
@@ -384,15 +399,46 @@ async function runBlockedRetryAzure(itemId, log) {
     return outcome;
 }
 
+// Read-only: opens the SAME fenced state a retry would, but never calls
+// applyRetry and never mutates anything, so nothing is written back
+// (withFencedState's own no-op detection makes that safe rather than
+// something this function has to get right itself). Surfaces the exact
+// persisted refusal reason -- the same field a retried item's brief already
+// receives -- so an operator can decide whether to retry blind or not.
+async function runShowReasonAzure(itemId, log) {
+    const clients = blobClients();
+    const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
+    mkdirSync(root, { recursive: true });
+    const track = process.env.ORCHARD_ADMIN_RETRY_TRACK ?? "track-1";
+    if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ADMIN_RETRY_TRACK must be track-1 or track-2");
+    const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state }) => {
+        const store = openStateStore(state.path);
+        let row, reason;
+        try {
+            row = store.db.prepare("SELECT current_state, current_revision FROM workflow_item WHERE item_id = ?").get(itemId);
+            reason = blockedNoteFor(store.db, itemId);
+        } finally {
+            store.close();
+        }
+        if (!row) throw new Error(`no workflow item matches ${itemId}`);
+        log("info", "admin.show-reason", { item: itemId, currentState: row.current_state, currentRevision: Number(row.current_revision), reason: reason ?? "(no blocked transition on record for this item)" });
+        return { statePath: state.path, value: { row, reason } };
+    });
+}
+
 export async function main(argv = process.argv.slice(2)) {
-    const { track, role, adminRetryBlocked, controller } = parseRuntimeArgs(argv);
-    const logRole = role ?? (adminRetryBlocked ? "admin-retry-blocked" : null);
+    const { track, role, adminRetryBlocked, adminShowReason, controller } = parseRuntimeArgs(argv);
+    const logRole = role ?? (adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : null);
     const log = createStructuredLogger({ base: { service: "orchard", ...(logRole ? { role: logRole } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
         if (adminRetryBlocked) {
             if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-retry-blocked requires ORCHARD_RUNTIME_CONFIG=azure; there is no local state to retry against");
             await runBlockedRetryAzure(adminRetryBlocked, log);
+        } else if (adminShowReason) {
+            if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-show-reason requires ORCHARD_RUNTIME_CONFIG=azure; there is no local state to read");
+            await runShowReasonAzure(adminShowReason, log);
         } else if (process.env.ORCHARD_RUNTIME_CONFIG === "azure") await (role ? runRoleAzure(role, log) : runAzure(track, log));
         else await runController(role ?? track, controller, log);
         log("info", "runtime.completed");
