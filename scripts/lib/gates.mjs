@@ -140,6 +140,32 @@ function renderGateSummary(manifest) {
 // the manifest is what makes a decision bindable at all, so it must never be
 // the thing dropped to make room. Full detail still lives in the manifest
 // itself and in the item's own ADO work item.
+// Found live 2026-08-17: the owner pasted a real Gate 2 issue back and
+// rejected it a second time -- the badge/summary fix above made the TOP of
+// the issue readable, but each item still dropped a 13-row table of raw
+// SHA-256 digests between the badge and the approve command. Nine items
+// meant ~117 rows of hashes standing between the reader and the nine
+// one-line commands they actually needed. Verifying "the badge renders
+// correctly" is not the same as verifying a human can actually use the
+// page -- this is the concrete lesson from shipping that half-fix. The
+// digests are not decoration: they are what apply-gate-decisions.mjs binds
+// an approval to, so they cannot be dropped (that is what `compact` is
+// for, and compact drops far more than this). They can, however, be
+// collapsed: GitHub renders <details> natively, so the binding table moves
+// there and the visible page becomes badge, target, command -- the digests
+// are one click away for the review, not blocking it.
+function pushBindingDetails(lines, manifest, item, digest) {
+    lines.push('<details>', '<summary>Binding details (for the approval record -- not needed to decide)</summary>', '',
+        '| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
+        `| Revision | \`${item.item_revision}\` |`, `| Decision digest | \`${digest}\` |`, `| Target | \`${item.target.repository}/${item.target.path}\` |`);
+    if (manifest.gate === 'gate-1') lines.push(`| Evidence | ${safe(item.evidence_refs.join('; '))} |`);
+    else lines.push(`| Proposal digest | \`${item.proposal_digest}\` |`, `| Displayed diff digest | \`${item.displayed_diff_digest}\` |`,
+        `| Prepared tree digest | \`${item.prepared_tree_digest}\` |`, `| Base commit | \`${item.base_commit}\` |`, `| Diff reference | ${safe(item.diff_ref)} |`,
+        `| Artifact reference | ${safe(item.artifact_ref)} |`, `| ADO external key | \`${item.ado_external_key}\` |`, `| Handoff chain | \`${item.handoff_chain_digest}\` |`,
+        `| Factual review | \`${item.factual_review.status}\`: ${safe(item.factual_review.evidence_ref)} |`, `| Accessibility review | \`${item.accessibility_review.status}\`: ${safe(item.accessibility_review.evidence_ref)} |`);
+    lines.push('', '</details>', '');
+}
+
 export function renderGateIssueBody(manifest, { compact = false } = {}) {
     const lines = [`## Orchard ${manifest.gate === 'gate-1' ? 'Gate 1 proposal authorization' : 'Gate 2 publication authorization'}`, '',
     `Manifest schema: \`${manifest.schema_version}\``, `Run: \`${manifest.run_id}\``, `Track: \`${manifest.track}\``,
@@ -154,26 +180,21 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
         const digest = manifest.gate === 'gate-1' ? item.proposal_digest : item.artifact_digest;
         const attention = manifest.gate === 'gate-2' ? gate2AttentionReason(item) : null;
         const badge = manifest.gate === 'gate-2' ? (attention ? `⚠️ NEEDS ATTENTION -- ${attention}` : '✅ passed every review') : null;
+        lines.push(`### ${safe(item.target.path)}`, '');
+        if (badge) lines.push(`**${badge}**`, '');
+        if (manifest.gate === 'gate-1' && !compact) {
+            lines.push(`Category: \`${item.category}\`  |  Score: ${item.score.value} (\`${item.score.formula_version}\`)  |  Estimated cost: ${item.estimated_cost.currency} ${item.estimated_cost.amount}`, '',
+                `Rationale: ${safe(item.rationale)}`, '', `Risks: ${safe(item.risks.join('; '))}`, '');
+        }
+        lines.push('**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
+            'For deny or request-changes, replace `approve` and append `reason="..."`.',
+            'For defer, replace `approve` and append `reason="..." review-after=YYYY-MM-DD`.', '');
         if (compact) {
-            lines.push(`### ${safe(item.title ?? item.item_id)}`, '');
-            if (badge) lines.push(`**${badge}**`, '');
             lines.push(`Item \`${item.item_id}\` revision \`${item.item_revision}\`, target \`${item.target.repository}/${item.target.path}\`.`, '');
         } else {
-            lines.push(`### ${safe(item.title ?? item.item_id)}`, '');
-            if (badge) lines.push(`**${badge}**`, '');
-            lines.push('| Field | Bound value |', '| --- | --- |', `| Item | \`${item.item_id}\` |`,
-                `| Revision | \`${item.item_revision}\` |`, `| Decision digest | \`${digest}\` |`, `| Target | \`${item.target.repository}/${item.target.path}\` |`);
-            if (manifest.gate === 'gate-1') lines.push(`| Category | \`${item.category}\` |`, `| Rationale | ${safe(item.rationale)} |`,
-                `| Evidence | ${safe(item.evidence_refs.join('; '))} |`, `| Risks | ${safe(item.risks.join('; '))} |`,
-                `| Score | ${item.score.value} (\`${item.score.formula_version}\`) |`, `| Estimated cost | ${item.estimated_cost.currency} ${item.estimated_cost.amount} |`);
-            else lines.push(`| Proposal digest | \`${item.proposal_digest}\` |`, `| Displayed diff digest | \`${item.displayed_diff_digest}\` |`,
-                `| Prepared tree digest | \`${item.prepared_tree_digest}\` |`, `| Base commit | \`${item.base_commit}\` |`, `| Diff reference | ${safe(item.diff_ref)} |`,
-                `| Artifact reference | ${safe(item.artifact_ref)} |`, `| ADO external key | \`${item.ado_external_key}\` |`, `| Handoff chain | \`${item.handoff_chain_digest}\` |`,
-                `| Factual review | \`${item.factual_review.status}\`: ${safe(item.factual_review.evidence_ref)} |`, `| Accessibility review | \`${item.accessibility_review.status}\`: ${safe(item.accessibility_review.evidence_ref)} |`);
+            pushBindingDetails(lines, manifest, item, digest);
         }
-        lines.push('', '**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
-            'For deny or request-changes, replace `approve` and append `reason="..."`.',
-            'For defer, replace `approve` and append `reason="..." review-after=YYYY-MM-DD`.', '', '---', '');
+        lines.push('---', '');
     }
     return lines.join('\n');
 }

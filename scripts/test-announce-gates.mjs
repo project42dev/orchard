@@ -262,6 +262,29 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
 });
 
+test('a Gate 2 item shows badge, target, and the approve command before any digest -- the binding table is collapsed, not a wall between them', () => {
+  // Found live 2026-08-17, TWICE: the owner rejected the same issue twice
+  // because the badge/summary fix (previous test above) was necessary but
+  // not sufficient -- each item still put a 13-row table of raw SHA-256
+  // hashes between its badge and its approve command. Nine items meant
+  // ~117 rows of hashes standing between the reader and the nine one-line
+  // commands they needed. "the badge renders" was verified; "a human can
+  // scan this" was not -- that gap is what this test exists to close.
+  const manifest = gate2Manifest([gate2Item('readable-item', { reviewsPassed: true })]);
+  const body = renderGateIssueBody(manifest);
+  const heading = body.indexOf('### content/modules/discovery/readable-item.json');
+  const command = body.indexOf('/orchard gate2 approve item=readable-item');
+  const details = body.indexOf('<details>');
+  assert.ok(heading >= 0, 'the heading must name the file, not the raw item id -- that is what a human recognizes');
+  assert.ok(command >= 0, 'the approve command must be present');
+  assert.ok(details >= 0, 'the binding table must be wrapped in a collapsed <details> block');
+  assert.ok(heading < command && command < details,
+    'reading order must be: what file, then the command to run -- the digest table comes after, collapsed, not between them');
+  const beforeDetails = body.slice(0, details);
+  assert.ok(!beforeDetails.includes('Proposal digest') && !beforeDetails.includes('Handoff chain'),
+    'no digest field may appear before the collapsed details block -- that is the exact wall the owner rejected');
+});
+
 test('Gate 1 issues get a plain item-count summary, not a pass/fail table -- there is nothing to compare against yet', async () => {
   const { store, runId } = await estate([candidate('summary-gate1')]);
   const items = pendingForGate(store.db, 'gate-1', 'track-1');
