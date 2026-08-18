@@ -176,7 +176,7 @@ test('the body carries its marker and the normative decision grammar', async () 
   store.close();
 });
 
-function gate2Item(itemId, { reviewsPassed = true, accessibilityStatus = 'human-review' } = {}) {
+function gate2Item(itemId, { reviewsPassed = true, accessibilityStatus = 'human-review', factualFinding = undefined } = {}) {
   // accessibilityStatus defaults to 'human-review', not 'passed': that is the
   // REAL, permanent, every-item status in production (no accessibility-review
   // agent exists), confirmed live 2026-08-17 -- a fixture defaulting to
@@ -189,7 +189,10 @@ function gate2Item(itemId, { reviewsPassed = true, accessibilityStatus = 'human-
     diff_ref: `github:commit:${'a'.repeat(40)}:path:x.json`, artifact_ref: `orchard:artifact:${sha256Digest(itemId)}`,
     ado_external_key: `orchard:track-1:${itemId}:r2`, handoff_chain_digest: sha256Digest(`handoffs:${itemId}`),
     target: { repository: 'project42dev/project42-platform', path: `content/modules/discovery/${itemId}.json` },
-    factual_review: { status: reviewsPassed ? 'passed' : 'failed', evidence_ref: `orchard:handoff:${itemId}-factual` },
+    factual_review: {
+      status: reviewsPassed ? 'passed' : 'failed', evidence_ref: `orchard:handoff:${itemId}-factual`,
+      ...(factualFinding ? { finding: factualFinding } : {}),
+    },
     accessibility_review: { status: accessibilityStatus, evidence_ref: `orchard:handoff:${itemId}-a11y` },
     title: `Module ${itemId}`, decision_state: 'pending',
   };
@@ -311,6 +314,32 @@ test('an escalated (rejected-twice) item shows a distinct badge and the real rea
   const draftIndex = escalatedSection.indexOf('This is the entire document');
   assert.ok(draftIndex >= 0 && draftIndex < detailsIndex, 'the rejected draft must appear BEFORE the escalated item\'s own collapsed details block, never inside one');
   assert.ok(body.includes('✅ passed every review'), 'a clean neighbor item in the same batch keeps its own ordinary badge');
+});
+
+test('a factual-review-failed item shows the REAL finding text, not just a handoff-id pointer the owner cannot follow', () => {
+  // Found live 2026-08-18: the owner pasted a real issue with "factual
+  // review failed" and nothing else to go on except an
+  // orchard:handoff:<uuid> reference no comment command can resolve --
+  // "what the fuck am I reading" was the exact, fair reaction. The finding
+  // text was already captured on the same handoff record
+  // (prepare-gate2-evidence.mjs's reviewFor), just never read back out.
+  const item = gate2Item('finding-item', { reviewsPassed: false, factualFinding: 'The claim that the API is GA is not supported by the cited source, which describes it as in preview.' });
+  const manifest = gate2Manifest([item]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('**Factual review finding:** The claim that the API is GA is not supported'),
+    'the real finding text must be visible directly, not just a handoff-id pointer');
+  const findingIndex = body.indexOf('**Factual review finding:**');
+  const detailsIndex = body.indexOf('<details>');
+  assert.ok(findingIndex >= 0 && findingIndex < detailsIndex,
+    'the finding must appear BEFORE the collapsed binding details -- readable without chasing the handoff-id pointer inside them');
+});
+
+test('a factual-review-failed item with NO captured finding (older evidence, predates this capture) still shows the badge honestly, without inventing text', () => {
+  const item = gate2Item('no-finding-item', { reviewsPassed: false });
+  const manifest = gate2Manifest([item]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'the badge still fires');
+  assert.ok(!body.includes('**Factual review finding:**'), 'no finding line is fabricated when none was captured');
 });
 
 test('Gate 1 issues get a plain item-count summary, not a pass/fail table -- there is nothing to compare against yet', async () => {

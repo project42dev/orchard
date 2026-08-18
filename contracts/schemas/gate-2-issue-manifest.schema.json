@@ -223,6 +223,11 @@
                         "evidence_ref": {
                             "type": "string",
                             "minLength": 1
+                        },
+                        "finding": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "The reviewer's own finding text, present only when status is failed. Found live 2026-08-18: a bare 'failed' with only a handoff-id pointer gave the owner nothing to actually review."
                         }
                     }
                 },
@@ -244,6 +249,11 @@
                         "evidence_ref": {
                             "type": "string",
                             "minLength": 1
+                        },
+                        "finding": {
+                            "type": "string",
+                            "minLength": 1,
+                            "description": "The reviewer's own finding text, present only when status is failed."
                         }
                     }
                 },

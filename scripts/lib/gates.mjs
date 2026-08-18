@@ -199,6 +199,20 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
                 '', '**Why the ensemble rejected it:**', '', item.rejection_reason, '',
                 '**The rejected document, in full:**', '', '````', item.rejected_draft, '````', '',
             );
+        } else if (manifest.gate === 'gate-2' && attention) {
+            // Found live 2026-08-18: a bare "factual review failed" badge,
+            // with the finding text only reachable via a handoff-id pointer
+            // no command here can follow, gave the owner nothing to actually
+            // decide from. The finding is real and was already captured
+            // (prepare-gate2-evidence.mjs's reviewFor); show it directly,
+            // in both renderings -- this is exactly the "why" content that
+            // must never be the thing dropped to save space.
+            if (item.factual_review?.status === 'failed' && item.factual_review.finding) {
+                lines.push(`**Factual review finding:** ${safe(item.factual_review.finding)}`, '');
+            }
+            if (item.accessibility_review?.status === 'failed' && item.accessibility_review.finding) {
+                lines.push(`**Accessibility review finding:** ${safe(item.accessibility_review.finding)}`, '');
+            }
         }
         lines.push('**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
             'For deny or request-changes, replace `approve` and append `reason="..."`.',

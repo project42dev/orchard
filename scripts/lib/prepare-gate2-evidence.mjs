@@ -268,11 +268,26 @@ export function buildEvidenceDocument({ handoffs, binding, target, commit, propo
     };
     artifactBinding.idempotency_key = `artifact-binding:${binding.track}:${binding.item_id}:r${binding.item_revision}:${sha256Digest(artifactBinding)}`;
 
+    // Found live 2026-08-18: a factual_review or accessibility_review of
+    // "failed" told the owner nothing but the word "failed" and a handoff id
+    // pointer -- the actual finding text was already sitting on the SAME
+    // handoff record this function already has in memory (buildHandoffsFromProposal
+    // carries each stage's own finding forward, per New-Project42MaintenanceProposal's
+    // convention), it was just never read back out. No new query, no new
+    // capture step: the data already existed, only the read of it was missing.
     const reviewFor = (stageId) => {
         const handoff = handoffs.find((entry, index) => STAGE_ORDER[index] === stageId);
+        const status = handoff.status === "passed" ? "passed" : handoff.status === "failed" ? "failed" : "human-review";
+        const finding = handoff.findings?.[0]?.summary;
         return {
-            status: handoff.status === "passed" ? "passed" : handoff.status === "failed" ? "failed" : "human-review",
+            status,
             evidence_ref: `orchard:handoff:${handoff.handoff_id}`,
+            // Only carried when there is something to say: a clean "passed"
+            // handoff's finding is boilerplate ("criteria met"), not a
+            // defect to surface, and the permanent human-review state
+            // (accessibility, always, in this deployed engine) has no
+            // per-item finding worth repeating either.
+            ...(status === "failed" && finding ? { finding } : {}),
         };
     };
 
