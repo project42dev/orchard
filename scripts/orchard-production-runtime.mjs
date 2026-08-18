@@ -416,6 +416,7 @@ async function runShowReasonAzure(itemId, log) {
         const store = openStateStore(state.path);
         let row, reason;
         let rejectionEvidence = null;
+        let failedReviewFindings = [];
         try {
             row = store.db.prepare("SELECT current_state, current_revision FROM workflow_item WHERE item_id = ?").get(itemId);
             reason = blockedNoteFor(store.db, itemId);
@@ -428,6 +429,23 @@ async function runShowReasonAzure(itemId, log) {
                 "SELECT record_json FROM observation_event WHERE item_id = ? AND evidence_reference LIKE 'orchard/rejection-evidence/%' ORDER BY observed_at DESC LIMIT 1",
             ).get(itemId);
             if (observation) rejectionEvidence = JSON.parse(observation.record_json).rejection_evidence;
+            // Found live 2026-08-18: an ALREADY gate2-pending item's
+            // "factual review failed" badge, with the finding only
+            // reachable via a handoff-id pointer, gave the owner nothing
+            // to review -- fixed in e1c9327 for evidence built from here
+            // forward, but that fix cannot retroactively enrich evidence
+            // already recorded before it deployed. This is the retroactive
+            // answer for exactly that case: read the failed review handoff
+            // directly, for any item, not only a blocked one.
+            const handoffRows = store.db.prepare(
+                `SELECT role, record_json FROM agent_handoff
+                  WHERE item_id = ? AND status = 'failed' AND role IN ('factual-verifier', 'assessment-reviewer', 'accessibility-reviewer')
+                  ORDER BY completed_at DESC`,
+            ).all(itemId);
+            failedReviewFindings = handoffRows.map((r) => {
+                const record = JSON.parse(r.record_json);
+                return { role: r.role, finding: record.findings?.[0]?.summary ?? "(handoff carries no findings text)" };
+            });
         } finally {
             store.close();
         }
@@ -436,8 +454,9 @@ async function runShowReasonAzure(itemId, log) {
             item: itemId, currentState: row.current_state, currentRevision: Number(row.current_revision),
             reason: reason ?? "(no blocked transition on record for this item)",
             rejectionEvidence: rejectionEvidence ?? "(no rejection evidence recorded -- either this item predates that capture, or it was never blocked)",
+            failedReviewFindings: failedReviewFindings.length ? failedReviewFindings : "(no failed review handoff found for this item)",
         });
-        return { statePath: state.path, value: { row, reason, rejectionEvidence } };
+        return { statePath: state.path, value: { row, reason, rejectionEvidence, failedReviewFindings } };
     });
 }
 
