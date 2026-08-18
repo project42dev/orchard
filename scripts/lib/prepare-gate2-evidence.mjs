@@ -155,10 +155,22 @@ export async function buildHandoffsFromProposal({ proposal, binding, runStartedA
             output: `sha256:${stage.outputDigest}`,
             predecessor,
             status: stage.status === "passed" ? "passed" : stage.status === "failed" ? "failed" : "human-review",
-            findings: (stage.findings ?? []).slice(0, 1).map((summary) => ({
-                severity: stage.status === "failed" ? "blocking" : "info",
-                summary: summary.slice(0, 2000),
-            })),
+            // Found live 2026-08-18: a bare .slice(0, 1) of the RAW findings
+            // array can capture an ORCHARD_NOTE_PREFIX marker (e.g.
+            // "ORCHARD_NOTE: Verifier verdict: FAIL.") instead of the
+            // model's actual reasoning, when Format-Project42ModelStage
+            // prepends a note before the real content chunks -- the owner
+            // asked "what am I reading" and the honest answer was "a status
+            // restated as a sentence, not a finding." Prefer the first REAL
+            // (non-note) entry; only fall back to the note itself if the
+            // stage genuinely produced nothing else, so this never throws
+            // fewer findings away than before, only picks a better first one.
+            findings: (() => {
+                const raw = stage.findings ?? [];
+                const real = raw.find((entry) => !entry.startsWith(ORCHARD_NOTE_PREFIX));
+                const chosen = real ?? raw[0];
+                return chosen ? [{ severity: stage.status === "failed" ? "blocking" : "info", summary: chosen.slice(0, 2000) }] : [];
+            })(),
             startedAt,
             completedAt,
         });

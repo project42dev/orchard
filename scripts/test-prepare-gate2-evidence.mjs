@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { reconstructStageContent, selectContentStage, CONTENT_STAGE, STAGE_ROLE } from "./lib/prepare-gate2-evidence.mjs";
+import { reconstructStageContent, selectContentStage, buildHandoffsFromProposal, CONTENT_STAGE, STAGE_ROLE } from "./lib/prepare-gate2-evidence.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
 
 function sha256(text) {
@@ -69,4 +69,41 @@ test("reconstructStageContent excludes ORCHARD_NOTE_PREFIX entries and truncatio
     const reconstructed = reconstructStageContent(stage);
     assert.equal(reconstructed.content, REAL_LESSON);
     assert.equal(reconstructed.complete, false, "a truncation notice present must mark the reconstruction incomplete even if the digest happens to match");
+});
+
+test("a handoff's captured finding is the real reasoning, not an ORCHARD_NOTE marker that happens to sort first", async () => {
+    // Found live 2026-08-18: the owner asked "what am I reading" about a
+    // factual_review.finding that turned out to be the literal string
+    // "ORCHARD_NOTE: Verifier verdict: FAIL." -- a status restated as a
+    // sentence, not a finding. buildHandoffsFromProposal's OWN raw
+    // .slice(0, 1) had captured whichever entry happened to be first,
+    // including a note Format-Project42ModelStage prepends before the
+    // real content chunks.
+    const proposal = realisticProposal();
+    const verifierStage = proposal.modelStages.find((s) => s.stage === "factual-verification");
+    verifierStage.status = "failed";
+    verifierStage.findings = ["ORCHARD_NOTE: Verifier verdict: FAIL.", "The claim that the API is generally available is not supported by the cited source, which describes it as in preview."];
+    const binding = {
+        run_id: "01a00000-0000-7000-8000-000000000000", item_id: "01a00000-0000-7000-8000-000000000001", item_revision: 1,
+        track: "track-1", ado_external_key: "orchard:track-1:01a00000-0000-7000-8000-000000000001:r1", ado_work_item_id: 4242,
+        proposal_digest: "sha256:" + "1".repeat(64), gate1_decision_event_id: "01a00000-0000-7000-8000-0000000000aa",
+    };
+    const handoffs = await buildHandoffsFromProposal({ proposal, binding, runStartedAt: "2026-08-15T00:00:00.000Z" });
+    const verifierHandoff = handoffs[2];
+    assert.equal(verifierHandoff.findings[0].summary, "The claim that the API is generally available is not supported by the cited source, which describes it as in preview.",
+        "the real reasoning must be captured, not the ORCHARD_NOTE marker that happened to be findings[0]");
+});
+
+test("a handoff falls back to the note itself when a stage produced nothing else -- never fewer findings than before, only a better first pick", async () => {
+    const proposal = realisticProposal();
+    const verifierStage = proposal.modelStages.find((s) => s.stage === "factual-verification");
+    verifierStage.status = "failed";
+    verifierStage.findings = ["ORCHARD_NOTE: Verifier verdict: FAIL."];
+    const binding = {
+        run_id: "01a00000-0000-7000-8000-000000000000", item_id: "01a00000-0000-7000-8000-000000000002", item_revision: 1,
+        track: "track-1", ado_external_key: "orchard:track-1:01a00000-0000-7000-8000-000000000002:r1", ado_work_item_id: 4243,
+        proposal_digest: "sha256:" + "2".repeat(64), gate1_decision_event_id: "01a00000-0000-7000-8000-0000000000bb",
+    };
+    const handoffs = await buildHandoffsFromProposal({ proposal, binding, runStartedAt: "2026-08-15T00:00:00.000Z" });
+    assert.equal(handoffs[2].findings[0].summary, "ORCHARD_NOTE: Verifier verdict: FAIL.", "with nothing else to pick, the note is still shown rather than nothing at all");
 });
