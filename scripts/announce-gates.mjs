@@ -178,10 +178,18 @@ export async function announceGates({ db, track, runId, repo, token, log, fetchI
             });
             for (const manifest of manifests) {
                 const marker = gateMarker({ track, gate, runId: manifestRun, batchDigest: heldSetDigest(gate, manifest.items) });
+                // Rejection gate (docs/design/rejection-gate.md): a batch
+                // carrying an escalated item is not an ordinary "awaiting
+                // publication" batch -- the title says so, so it is never
+                // mistaken for a routine one before it is even opened.
+                const escalatedCount = manifest.items.filter((item) => item.escalated).length;
+                const title = escalatedCount > 0
+                    ? `Orchard Gate 2: ${escalatedCount} item${escalatedCount === 1 ? "" : "s"} rejected twice, needs your call (${trackLabel(track)}) batch ${manifest.batch.ordinal}/${manifest.batch.count}`
+                    : `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`;
                 const issue = await openOrUpdateGateIssue({
                     repo,
                     marker,
-                    title: `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`,
+                    title,
                     body: renderGateIssue({ gate, track, items: manifest.items, marker, runId: manifestRun, manifest }),
                     labels: ["orchard", `orchard-${gate}`],
                     assignees,

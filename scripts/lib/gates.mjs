@@ -179,12 +179,26 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
     for (const item of manifest.items) {
         const digest = manifest.gate === 'gate-1' ? item.proposal_digest : item.artifact_digest;
         const attention = manifest.gate === 'gate-2' ? gate2AttentionReason(item) : null;
-        const badge = manifest.gate === 'gate-2' ? (attention ? `⚠️ NEEDS ATTENTION -- ${attention}` : '✅ passed every review') : null;
+        const badge = manifest.gate === 'gate-2'
+            ? (item.escalated ? '🛑 REJECTED TWICE BY THE ENSEMBLE -- YOUR CALL' : attention ? `⚠️ NEEDS ATTENTION -- ${attention}` : '✅ passed every review')
+            : null;
         lines.push(`### ${safe(item.target.path)}`, '');
         if (badge) lines.push(`**${badge}**`, '');
         if (manifest.gate === 'gate-1' && !compact) {
             lines.push(`Category: \`${item.category}\`  |  Score: ${item.score.value} (\`${item.score.formula_version}\`)  |  Estimated cost: ${item.estimated_cost.currency} ${item.estimated_cost.amount}`, '',
                 `Rationale: ${safe(item.rationale)}`, '', `Risks: ${safe(item.risks.join('; '))}`, '');
+        }
+        // Rejection gate (docs/design/rejection-gate.md): the real reason and
+        // the actual rejected content, shown directly -- not collapsed the
+        // way binding digests are. The owner asked to read the whole thing,
+        // not click to expand it; digests are noise to hide, the content
+        // under dispute is not.
+        if (item.escalated) {
+            lines.push(
+                'The authoring ensemble blocked this item twice, including one automatic retry. This is what it actually found and what it actually wrote -- approving publishes it exactly as shown below; denying leaves it denied, available for a fresh attempt later via the admin recovery path.',
+                '', '**Why the ensemble rejected it:**', '', item.rejection_reason, '',
+                '**The rejected document, in full:**', '', '````', item.rejected_draft, '````', '',
+            );
         }
         lines.push('**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
             'For deny or request-changes, replace `approve` and append `reason="..."`.',

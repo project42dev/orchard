@@ -272,6 +272,20 @@
                         "deferred",
                         "changes-requested"
                     ]
+                },
+                "escalated": {
+                    "type": "boolean",
+                    "description": "True only for an item reaching Gate 2 via the rejection-gate escalation (blocked -> gate2-ready on cause escalated-for-human-review) rather than a normal passing authoring run. Absent (not false) on every ordinary item."
+                },
+                "rejection_reason": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The ensemble's real verifier/adversary/arbiter finding text for an escalated item -- required alongside escalated:true, present only then."
+                },
+                "rejected_draft": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "The full drafted content the ensemble rejected, for an escalated item to be readable without leaving the issue -- required alongside escalated:true, present only then."
                 }
             },
             "allOf": [
@@ -316,6 +330,34 @@
                                 }
                             }
                         }
+                    }
+                },
+                {
+                    "if": {
+                        "properties": {
+                            "escalated": {
+                                "const": true
+                            }
+                        },
+                        "required": [
+                            "escalated"
+                        ]
+                    },
+                    "then": {
+                        "properties": {
+                            "rejection_reason": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "rejected_draft": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        },
+                        "required": [
+                            "rejection_reason",
+                            "rejected_draft"
+                        ]
                     }
                 }
             ]

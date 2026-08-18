@@ -285,6 +285,34 @@ test('a Gate 2 item shows badge, target, and the approve command before any dige
     'no digest field may appear before the collapsed details block -- that is the exact wall the owner rejected');
 });
 
+test('an escalated (rejected-twice) item shows a distinct badge and the real reason and full draft, not the ordinary review table', () => {
+  // docs/design/rejection-gate.md: an item the ensemble blocked twice reaches
+  // Gate 2 the same way any other item does, but the owner needs to
+  // immediately see this is NOT an ordinary clean item -- a distinct badge,
+  // the actual verifier/adversary finding text, and the entire rejected
+  // document, visible without clicking anything.
+  const clean = gate2Item('clean-neighbor', { reviewsPassed: true });
+  const escalated = {
+    ...gate2Item('escalated-item', { reviewsPassed: false }),
+    escalated: true,
+    rejection_reason: 'Verifier (FAIL): the claim about X is not supported.\n\nAdversary (REFUTED): the diagram omits a failure path.',
+    rejected_draft: '# The rejected lesson\n\nThis is the entire document that was blocked twice.',
+  };
+  const manifest = gate2Manifest([clean, escalated]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('🛑 REJECTED TWICE BY THE ENSEMBLE -- YOUR CALL'), 'the escalated item must carry its own distinct badge, not the generic NEEDS ATTENTION one');
+  assert.ok(!body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'an escalated item must not ALSO show the generic attention badge');
+  assert.ok(body.includes('Verifier (FAIL): the claim about X is not supported.'), 'the real verifier finding must be visible, not just a verdict label');
+  assert.ok(body.includes('Adversary (REFUTED): the diagram omits a failure path.'), 'the real adversary finding must be visible, not just a verdict label');
+  assert.ok(body.includes('This is the entire document that was blocked twice.'), 'the full rejected draft must be shown directly, not collapsed and not omitted');
+  const escalatedSectionStart = body.indexOf('### content/modules/discovery/escalated-item.json');
+  const escalatedSection = body.slice(escalatedSectionStart);
+  const detailsIndex = escalatedSection.indexOf('<details>');
+  const draftIndex = escalatedSection.indexOf('This is the entire document');
+  assert.ok(draftIndex >= 0 && draftIndex < detailsIndex, 'the rejected draft must appear BEFORE the escalated item\'s own collapsed details block, never inside one');
+  assert.ok(body.includes('✅ passed every review'), 'a clean neighbor item in the same batch keeps its own ordinary badge');
+});
+
 test('Gate 1 issues get a plain item-count summary, not a pass/fail table -- there is nothing to compare against yet', async () => {
   const { store, runId } = await estate([candidate('summary-gate1')]);
   const items = pendingForGate(store.db, 'gate-1', 'track-1');

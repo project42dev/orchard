@@ -224,6 +224,35 @@ export async function prepareRealCommit({ repository, path, content, baseBranch 
  * fields. Every field traces to something this function actually computed
  * or was actually told; nothing here is a placeholder.
  */
+/**
+ * Rejection evidence: what the pipeline actually persists about a blocked
+ * item, versus the one-line note ("blocked by the authoring ensemble,
+ * <file>") ingest-proposals.mjs has recorded, confirmed live 2026-08-18 to
+ * be the entire prior extent. The verifier's and adversary's own finding
+ * text is real, already produced, and reconstructible from the SAME
+ * findings-chunking convention reconstructStageContent already proves out
+ * for the drafter stage -- it was just never captured before this. Used
+ * both for the ADO comment posted on every block (ado-sync.mjs) and for
+ * the rejection-gate escalation issue on a second block (gates.mjs).
+ */
+export function buildRejectionEvidence(proposal) {
+    const stagesById = new Map(proposal.modelStages.map((stage) => [stage.stage, stage]));
+    const contentStage = stagesById.get(CONTENT_STAGE);
+    const verifierStage = stagesById.get("factual-verification");
+    const adversaryStage = stagesById.get("assessment-review");
+    const draft = contentStage ? reconstructStageContent(contentStage) : null;
+    const verifier = verifierStage ? reconstructStageContent(verifierStage) : null;
+    const adversary = adversaryStage ? reconstructStageContent(adversaryStage) : null;
+    return {
+        draft: draft?.content ?? null,
+        draftComplete: draft?.complete ?? false,
+        verifierVerdict: verifierStage?.status ?? null,
+        verifierFinding: verifier?.content ?? null,
+        adversaryVerdict: adversaryStage?.status ?? null,
+        adversaryFinding: adversary?.content ?? null,
+    };
+}
+
 export function buildEvidenceDocument({ handoffs, binding, target, commit, proposal }) {
     const last = handoffs.at(-1);
     const artifactBinding = {

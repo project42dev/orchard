@@ -52,7 +52,8 @@ import { estimatedItemCostUsd } from "./lib/gate-queue.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { generateBriefs } from "./generate-briefs.mjs";
 import { ingest, readProposals } from "./ingest-proposals.mjs";
-import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
+import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage, buildRejectionEvidence, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
+import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
 import { readGateToken } from "./announce-gates.mjs";
 
@@ -323,6 +324,174 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
     return summary;
 }
 
+/**
+ * Rejection gate (owner request 2026-08-18, docs/design/rejection-gate.md):
+ * an item the ensemble just blocked gets ONE automatic retry (the same
+ * recovery apply-blocked-retry.mjs already offers an operator, called here
+ * inline instead of waiting for one), and on a SECOND block is escalated
+ * straight to a human at Gate 2 with the real rejection reason and the
+ * actual rejected draft, rather than retried a third time blind. Real
+ * rejection evidence -- the verifier's and adversary's own finding text,
+ * plus the draft itself -- is recorded as a durable observation on EVERY
+ * block, not only an escalated one, because the ADO audit trail this was
+ * built for needs it on the first block too.
+ */
+export async function attemptRejectionRecovery({ store, applied, runRecordDir, proposalRoot, now, env = process.env, log, fetchImpl = fetch, readGateTokenImpl = readGateToken }) {
+    const blocked = applied.filter((entry) => entry.to === "blocked");
+    const summary = { retried: 0, escalated: 0, held: 0 };
+    if (blocked.length === 0) return summary;
+
+    const runProposals = readProposals(runRecordDir);
+    let token;
+
+    for (const entry of blocked) {
+        const itemId = entry.subjectId;
+        try {
+            const row = store.db.prepare(
+                "SELECT item_id, track, current_state, current_revision, origin_run_id FROM workflow_item WHERE item_id = ?",
+            ).get(itemId);
+            if (!row || row.current_state !== "blocked") {
+                log("info", "rejection.recovery.skipped", { item: itemId, reason: "item is no longer blocked, another path already moved it" });
+                continue;
+            }
+            const revision = Number(row.current_revision);
+
+            const proposalMatch = runProposals.find((p) => p.file === entry.file);
+            const proposalPath = join(proposalRoot, entry.file);
+            const proposal = JSON.parse(readFileSync(proposalPath, "utf8"));
+            const rejection = buildRejectionEvidence(proposal);
+
+            await store.recordObservation({
+                observation_id: generateUuidV7(),
+                run_id: row.origin_run_id,
+                item_id: itemId,
+                item_revision: revision,
+                evidence_reference: `orchard/rejection-evidence/${itemId}:r${revision}`,
+                evidence_digest: sha256Digest(rejection),
+                observed_at: now,
+                rejection_evidence: rejection,
+            });
+
+            const priorBlocks = Number(store.db.prepare(
+                "SELECT COUNT(*) AS n FROM state_transition_event WHERE item_id = ? AND to_state = 'blocked'",
+            ).get(itemId).n);
+            log("info", "rejection.evidence.recorded", { item: itemId, priorBlocks, verifierVerdict: rejection.verifierVerdict, adversaryVerdict: rejection.adversaryVerdict });
+
+            if (priorBlocks <= 1) {
+                const result = await applyRetry(store, { item: itemId, actor: "orchard/auto-retry-blocked", now });
+                if (result.errors.length) {
+                    summary.held += 1;
+                    log("warn", "rejection.auto-retry.refused", { item: itemId, errors: result.errors });
+                } else {
+                    summary.retried += 1;
+                    log("info", "rejection.auto-retry.applied", result);
+                }
+                continue;
+            }
+
+            // Second block: escalate. blocked -> gate2-ready first (a pure
+            // state move, the content under review is not changing), then
+            // the SAME evidence pipeline a passing item uses -- on the
+            // rejected draft, which is why factual_review naturally comes
+            // back "failed" below: it is the ensemble's own real verdict,
+            // not something this path has to fake.
+            const link = store.db.prepare(
+                `SELECT external_key, external_id FROM external_link
+                  WHERE provider = 'ado' AND item_id = ? AND item_revision = ? ORDER BY linked_at DESC LIMIT 1`,
+            ).get(itemId, revision);
+            if (!link) {
+                summary.held += 1;
+                log("warn", "rejection.escalate.held", { item: itemId, reason: "no persisted ADO link" });
+                continue;
+            }
+            const gate1 = store.db.prepare(
+                `SELECT event_id FROM decision_event
+                  WHERE item_id = ? AND gate = 'gate-1' AND decision = 'approve' AND digest = ?
+                  ORDER BY occurred_at DESC LIMIT 1`,
+            ).get(itemId, store.db.prepare("SELECT proposal_digest FROM item_revision WHERE item_id = ? AND item_revision = ?").get(itemId, revision).proposal_digest);
+            if (!gate1) {
+                summary.held += 1;
+                log("warn", "rejection.escalate.held", { item: itemId, reason: "no recorded Gate 1 approval decision event for this exact proposal digest" });
+                continue;
+            }
+
+            token ??= await readGateTokenImpl({
+                log, env, prefix: "commitprep",
+                vaultUrlVar: "ORCHARD_PUBLICATION_VAULT_URL", repoVar: "ORCHARD_PUBLICATION_GITHUB_REPO",
+                appIdVar: "ORCHARD_PUBLICATION_APP_ID_SECRET", installationIdVar: "ORCHARD_PUBLICATION_INSTALLATION_ID_SECRET",
+                appKeyVar: "ORCHARD_PUBLICATION_APP_KEY_SECRET", tokenVar: "ORCHARD_PUBLICATION_TOKEN_SECRET",
+            });
+            if (!token) {
+                summary.held += 1;
+                log("warn", "rejection.escalate.held", { item: itemId, reason: "no publication GitHub credential is configured on this job" });
+                continue;
+            }
+
+            const revisionRecord = store.db.prepare(
+                "SELECT proposal_digest, target_repository, target_path FROM item_revision WHERE item_id = ? AND item_revision = ?",
+            ).get(itemId, revision);
+            const target = { repository: revisionRecord.target_repository, path: revisionRecord.target_path };
+            if (!rejection.draft) {
+                summary.held += 1;
+                log("warn", "rejection.escalate.held", { item: itemId, reason: "rejected draft could not be reconstructed intact from its findings" });
+                continue;
+            }
+            const commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: rejection.draft, token, fetchImpl });
+
+            const rawProposalDigest = revisionRecord.proposal_digest ?? proposalMatch?.doc?.proposalDigest ?? null;
+            if (!rawProposalDigest) {
+                summary.held += 1;
+                log("warn", "rejection.escalate.held", { item: itemId, reason: "no proposal digest is available from either item_revision or the run record" });
+                continue;
+            }
+            const binding = {
+                run_id: row.origin_run_id,
+                item_id: itemId,
+                item_revision: revision,
+                track: row.track,
+                proposal_digest: rawProposalDigest.startsWith("sha256:") ? rawProposalDigest : `sha256:${rawProposalDigest}`,
+                gate1_decision_event_id: gate1.event_id,
+                ado_external_key: link.external_key,
+                ado_work_item_id: Number(link.external_id),
+            };
+            const handoffs = await buildHandoffsFromProposal({ proposal, binding, runStartedAt: now });
+            const evidence = buildEvidenceDocument({ handoffs, binding, target, commit, proposal });
+
+            await store.recordTransition({
+                schema_version: "1.0.0",
+                transition_id: generateUuidV7(),
+                run_id: row.origin_run_id,
+                item_id: itemId,
+                item_revision: revision,
+                from_state: "blocked",
+                to_state: "gate2-ready",
+                cause: "escalated-for-human-review",
+                actor: "orchard/rejection-gate",
+                occurred_at: now,
+                correlation_id: generateUuidV7(),
+            });
+
+            const rejectionReason = [
+                rejection.verifierVerdict ? `Verifier (${rejection.verifierVerdict}): ${rejection.verifierFinding ?? "(no finding text reconstructed)"}` : null,
+                rejection.adversaryVerdict ? `Adversary (${rejection.adversaryVerdict}): ${rejection.adversaryFinding ?? "(no finding text reconstructed)"}` : null,
+            ].filter(Boolean).join("\n\n") || "(the ensemble blocked this item twice; no finding text could be reconstructed)";
+
+            await prepareGate2Item({
+                store,
+                row: { item_id: itemId, current_revision: revision, origin_run_id: row.origin_run_id },
+                evidence, now, actor: "orchard/rejection-gate",
+                extra: { escalated: true, rejection_reason: rejectionReason, rejected_draft: rejection.draft },
+            });
+            summary.escalated += 1;
+            log("info", "rejection.escalated", { item: itemId, state: "gate2-pending", preparedCommit: commit.preparedCommit, target });
+        } catch (error) {
+            summary.held += 1;
+            log("warn", "rejection.recovery.failed", { item: itemId, reason: error.message });
+        }
+    }
+    return summary;
+}
+
 export async function main(argv = process.argv.slice(2), { log = (level, event, detail) => console.log(JSON.stringify({ level, event, ...detail })), env = process.env, spawn = spawnSync } = {}) {
     const dbPath = argOf(argv, "state-db");
     if (!dbPath) fail("ERR_ORCHARD_CONFIGURATION", "run-authoring requires --state-db");
@@ -405,17 +574,20 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     for (const entry of ingested.unmatched) log("warn", "authoring.proposal.unmatched", entry);
 
     let gate2Evidence = { prepared: 0, held: 0 };
+    let rejectionRecovery = { retried: 0, escalated: 0, held: 0 };
     if (ingested.applied.length > 0) {
         const store = openStateStore(resolve(dbPath));
         try {
             recordAuthoringEvidence({ store, applied: ingested.applied, runRecordDir, now });
             gate2Evidence = await attemptGate2Evidence({ store, applied: ingested.applied, runRecordDir, proposalRoot, now, env, log });
             log("info", "gate2evidence.finished", gate2Evidence);
+            rejectionRecovery = await attemptRejectionRecovery({ store, applied: ingested.applied, runRecordDir, proposalRoot, now, env, log });
+            log("info", "rejection.recovery.finished", rejectionRecovery);
         } finally {
             store.close();
         }
     }
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence };
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

@@ -104,6 +104,21 @@ export function isTransitionAllowed(transition) {
     if (from === "gate2-ready" && cause === "revision-created") {
         return transition.recovery_gate === "gate-2" && to === "executing";
     }
+    // Rejection gate (owner request 2026-08-18, docs/design/rejection-gate.md):
+    // a SECOND ensemble block on the same item is not retried a third time
+    // automatically -- the pipeline escalates the SAME rejected content
+    // straight to a human at Gate 2 instead, carrying the real rejection
+    // reason and the rejected draft itself. No new revision here: the
+    // content under review did not change, only who is allowed to decide on
+    // it did, so this moves directly to 'gate2-ready' rather than looping
+    // back through 'executing'. The caller (attemptRejectionRecovery in
+    // run-authoring.mjs) is the one place that counts prior blocks before
+    // ever recording this cause -- the state machine only enforces the
+    // shape of the transition, not the business rule for when it applies,
+    // matching every other cause in this file.
+    if (from === "blocked" && cause === "escalated-for-human-review") {
+        return to === "gate2-ready";
+    }
     return false;
 }
 

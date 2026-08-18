@@ -52,7 +52,7 @@ const REVIEW_FIELDS = ["tests", "factual_review", "accessibility_review", "cost"
  * Prepare one gate2-ready item from its evidence document. Throws on any
  * refusal so the caller can hold the item and log exactly why.
  */
-export async function prepareItem({ store, row, evidence, now, actor = "orchard/run-gate2-prep" }) {
+export async function prepareItem({ store, row, evidence, now, actor = "orchard/run-gate2-prep", extra = {} }) {
     if (!Array.isArray(evidence.handoffs) || evidence.handoffs.length === 0) {
         throw new Error("evidence carries no handoff chain");
     }
@@ -99,6 +99,11 @@ export async function prepareItem({ store, row, evidence, now, actor = "orchard/
         accessibility_review: evidence.manifest.accessibility_review,
         cost: evidence.manifest.cost,
         decision_state: "pending",
+        // Rejection-gate escalation (docs/design/rejection-gate.md) is the
+        // only caller that ever passes `extra` -- the normal path's default
+        // {} spreads to nothing, so an ordinary item's manifest is byte-for-
+        // byte what it always was.
+        ...extra,
     };
     store.recordObservation({
         observation_id: generateUuidV7(),
