@@ -296,6 +296,10 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "The full drafted content the ensemble rejected, for an escalated item to be readable without leaving the issue -- required alongside escalated:true, present only then."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The actual artifact content being proposed for publication -- present on every item, escalated or not. Found live 2026-08-18: 'passed every review' plus a wall of digests is still nothing to review; the owner had never once been shown the artifact itself, only cryptographic proof one exists. Optional (not required) so evidence built before this field existed still validates; those items render without a content section rather than failing."
                 }
             },
             "allOf": [

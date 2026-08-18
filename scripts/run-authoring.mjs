@@ -309,7 +309,16 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             mkdirSync(join(evidencePath, ".."), { recursive: true });
             writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
 
-            await prepareGate2Item({ store, row, evidence, now, actor: "orchard/run-authoring/gate2-evidence" });
+            // Found live 2026-08-18, on a CLEAN item this time, not a
+            // flagged one: "passed every review" plus a wall of digests is
+            // still nothing to actually review -- the owner has never once
+            // been shown the artifact itself, only cryptographic proof one
+            // exists. Every Gate 2 item now carries its own content, the
+            // same way an escalated item's rejected draft already does.
+            await prepareGate2Item({
+                store, row, evidence, now, actor: "orchard/run-authoring/gate2-evidence",
+                extra: { content: reconstructed.content },
+            });
             summary.prepared += 1;
             log("info", "gate2evidence.prepared", { item: itemId, state: "gate2-pending", preparedCommit: commit.preparedCommit, target });
         } catch (error) {

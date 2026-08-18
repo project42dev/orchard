@@ -214,6 +214,19 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
                 lines.push(`**Accessibility review finding:** ${safe(item.accessibility_review.finding)}`, '');
             }
         }
+        // Found live 2026-08-18, on a CLEAN item this time: "passed every
+        // review" plus a wall of digests is still nothing to review -- a
+        // badge is a claim, not evidence. Every gate-2 item now shows the
+        // actual artifact content directly, the same way an escalated
+        // item's rejected draft already does, in both renderings. Optional:
+        // evidence built before this field existed renders without a
+        // content section rather than failing (contracts/schemas/gate-2-issue-manifest
+        // makes `content` optional for exactly this reason) -- if that gap
+        // is ever seen live, it means the item's evidence predates this fix
+        // and needs a fresh authoring pass, not a re-render.
+        if (manifest.gate === 'gate-2' && !item.escalated && item.content) {
+            lines.push('**The proposed content, in full:**', '', '````', item.content, '````', '');
+        }
         lines.push('**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
             'For deny or request-changes, replace `approve` and append `reason="..."`.',
             'For defer, replace `approve` and append `reason="..." review-after=YYYY-MM-DD`.', '');

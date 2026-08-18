@@ -342,6 +342,28 @@ test('a factual-review-failed item with NO captured finding (older evidence, pre
   assert.ok(!body.includes('**Factual review finding:**'), 'no finding line is fabricated when none was captured');
 });
 
+test('a CLEAN gate-2 item still shows its actual content, not just a passed badge and a wall of digests', () => {
+  // Found live 2026-08-18: the owner stared at a "✅ passed every review"
+  // item and asked "what am I reading" -- a badge is a claim, not
+  // evidence, and nothing before this showed the actual artifact for
+  // ANY item, escalated or not.
+  const item = { ...gate2Item('clean-with-content', { reviewsPassed: true }), content: 'flowchart TB\n  A --> B' };
+  const manifest = gate2Manifest([item]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('**The proposed content, in full:**'));
+  assert.ok(body.includes('flowchart TB\n  A --> B'), 'the actual content must be visible, not just referenced');
+  const contentIndex = body.indexOf('flowchart TB');
+  const detailsIndex = body.indexOf('<details>');
+  assert.ok(contentIndex >= 0 && contentIndex < detailsIndex, 'content must appear before the collapsed binding details');
+});
+
+test('an item with no captured content (evidence predates this field) renders without a fabricated content section', () => {
+  const item = gate2Item('no-content-item', { reviewsPassed: true });
+  const manifest = gate2Manifest([item]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(!body.includes('**The proposed content, in full:**'), 'no content section is invented when none was captured');
+});
+
 test('Gate 1 issues get a plain item-count summary, not a pass/fail table -- there is nothing to compare against yet', async () => {
   const { store, runId } = await estate([candidate('summary-gate1')]);
   const items = pendingForGate(store.db, 'gate-1', 'track-1');
