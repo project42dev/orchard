@@ -195,6 +195,67 @@ const stateOf = (store, id) =>
   store.close();
 }
 
+// --- a denied item (a real human/operator gate-2 decision, not a stalled
+// attempt) can also be retried, once a real deny decision_event is on
+// record -- state-machine.mjs's denied -> executing rule requires
+// predecessor_decision_event_id, proof an actual decision authorized the
+// retry. Found live 2026-08-17: run-authoring.mjs was committing the
+// finalizer's review narrative instead of the drafter's content; every item
+// that had already reached gate2-pending under that defect needed a real
+// deny recorded before it could be retried through the fix. ---
+// --- a denied item with NO recorded deny decision_event is refused, not silently retried ---
+{
+  const { store, runId } = await estate();
+  const [id] = await seedGateItems(store, runId, ["denied-no-decision-subject"]);
+  await walkTo(store, runId, id, "gate2-pending");
+  await store.recordTransition({
+    schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: runId, item_id: id, item_revision: 1,
+    from_state: "gate2-pending", to_state: "denied", cause: "decision-denied",
+    reason: "content is the finalizer review stage output, not the lesson",
+    actor: "orchard/apply-gate-decisions", occurred_at: "2026-08-15T00:01:00.000Z", correlation_id: generateUuidV7(),
+  });
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 0, "a denied item with no recorded deny decision_event must be refused, not retried on an operator's say-so alone");
+  ok(r.errors[0].includes("no recorded gate-2 deny decision_event"), "the refusal names exactly why");
+  store.close();
+}
+
+// --- a denied item WITH a real deny decision_event retries cleanly, carrying the decision forward ---
+{
+  const { store, runId } = await estate();
+  const [id] = await seedGateItems(store, runId, ["denied-with-decision-subject"]);
+  await walkTo(store, runId, id, "gate2-pending");
+  const eventId = generateUuidV7();
+  store.db.prepare(
+    `INSERT INTO decision_event
+      (event_id, gate, run_id, item_id, item_revision, digest, decision, actor_provider,
+       actor_immutable_id, source_repository, source_issue_number, source_comment_id,
+       correlation_id, supersedes_event_id, idempotency_key, occurred_at, record_json)
+      VALUES (?, 'gate-2', ?, ?, 1, 'sha256:test', 'deny', 'github', 'test-user',
+              'o/r', 1, 2, ?, NULL, ?, '2026-08-15T00:00:00.000Z', '{}')`,
+  ).run(eventId, runId, id, generateUuidV7(), `test-idempotency2:${eventId}`);
+  await store.recordTransition({
+    schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: runId, item_id: id, item_revision: 1,
+    from_state: "gate2-pending", to_state: "denied", cause: "decision-denied",
+    reason: "content is the finalizer review stage output, not the lesson",
+    actor: "orchard/apply-gate-decisions", occurred_at: "2026-08-15T00:01:00.000Z", correlation_id: generateUuidV7(),
+  });
+
+  const r = await applyRetry(store, { item: id });
+  ok(r.retried === 1 && r.errors.length === 0, "a denied item WITH a recorded deny decision_event can be retried");
+  ok(r.revision === 2, "the retry reports the new revision number");
+  const row = stateOf(store, id);
+  ok(row.current_state === "executing", "the item is back in executing for a fresh authoring attempt");
+
+  const transitionRow = store.db.prepare(
+    "SELECT from_state, record_json FROM state_transition_event WHERE item_id = ? AND to_state = 'executing' ORDER BY occurred_at DESC LIMIT 1",
+  ).get(id);
+  const transition = JSON.parse(transitionRow.record_json);
+  ok(transitionRow.from_state === "denied", "the recorded transition names its real origin state");
+  ok(transition.predecessor_decision_event_id === eventId, "the retry carries the exact deny decision_event id that authorized it, not a placeholder");
+  store.close();
+}
+
 // --- a retried gate2-ready item is picked up by the same crash-recovery query, unmodified ---
 {
   const { store, runId, dbPath } = await estate();

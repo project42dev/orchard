@@ -21,6 +21,20 @@
 // Gate 2 announcement -- gate2-ready has no more of a way out than blocked
 // did before this tool existed.
 //
+// A 'denied' item is different in kind from the other two: it was not stuck
+// by a missing capability, a human (or an operator acting on the owner's
+// explicit instruction) actively decided gate2-pending content was not
+// right. state-machine.mjs already had a legal denied -> executing rule
+// (revision-created, recovery_gate gate-2) before this tool ever touched
+// denied -- it is gated on carrying a real predecessor_decision_event_id,
+// proof an actual recorded decision authorized the retry, not just an
+// operator's say-so. Found live 2026-08-17: run-authoring.mjs was
+// committing the finalizer's review narrative as the publishable artifact
+// instead of the drafter's content (fixed in 602ec32) -- every item that
+// had already reached gate2-pending under the old code carries that wrong
+// content and needs a real deny recorded against it before it can be
+// retried through the fixed code.
+//
 // This mirrors apply-gate2-rework.mjs's shape: find the live item, refuse
 // unless it is actually in a recoverable state, then record the recovery
 // transition. The difference is WHAT the recovery transition does. Gate 2
@@ -46,7 +60,16 @@ import { openStateStore } from "./lib/state-store.mjs";
 import { generateUuidV7 } from "./lib/identity.mjs";
 
 export const DEFAULT_ACTOR = "orchard/apply-blocked-retry";
-const RECOVERABLE = new Set(["blocked", "gate2-ready"]);
+const RECOVERABLE = new Set(["blocked", "gate2-ready", "denied"]);
+
+function latestGate2DenyEventId(db, itemId) {
+  const row = db.prepare(
+    `SELECT event_id FROM decision_event
+      WHERE item_id = ? AND gate = 'gate-2' AND decision = 'deny'
+      ORDER BY occurred_at DESC LIMIT 1`,
+  ).get(itemId);
+  return row?.event_id ?? null;
+}
 
 function findItem(db, item) {
   // Same lookup as apply-gate2-rework.mjs: a semantic identity can match a
@@ -88,6 +111,15 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
   }
 
   const successorRevision = currentRevision + 1;
+
+  let predecessorDecisionEventId = null;
+  if (row.current_state === "denied") {
+    predecessorDecisionEventId = latestGate2DenyEventId(store.db, row.item_id);
+    if (!predecessorDecisionEventId) {
+      result.errors.push(`${row.item_id} is denied but has no recorded gate-2 deny decision_event to retry against`);
+      return result;
+    }
+  }
 
   try {
     // The successor revision must exist before the transition that recovers
@@ -167,6 +199,7 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
       actor,
       occurred_at: stamp,
       correlation_id: generateUuidV7(),
+      ...(predecessorDecisionEventId ? { predecessor_decision_event_id: predecessorDecisionEventId } : {}),
     });
 
     result.retried = 1;
