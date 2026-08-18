@@ -176,7 +176,12 @@ test('the body carries its marker and the normative decision grammar', async () 
   store.close();
 });
 
-function gate2Item(itemId, { reviewsPassed = true } = {}) {
+function gate2Item(itemId, { reviewsPassed = true, accessibilityStatus = 'human-review' } = {}) {
+  // accessibilityStatus defaults to 'human-review', not 'passed': that is the
+  // REAL, permanent, every-item status in production (no accessibility-review
+  // agent exists), confirmed live 2026-08-17 -- a fixture defaulting to
+  // 'passed' would never have caught the bug where that normal status got
+  // flagged as a warning on literally every Gate 2 item.
   return {
     item_id: itemId, item_revision: 2, artifact_digest: sha256Digest(`artifact:${itemId}`),
     proposal_digest: sha256Digest(`proposal:${itemId}`), displayed_diff_digest: sha256Digest(`diff:${itemId}`),
@@ -185,7 +190,7 @@ function gate2Item(itemId, { reviewsPassed = true } = {}) {
     ado_external_key: `orchard:track-1:${itemId}:r2`, handoff_chain_digest: sha256Digest(`handoffs:${itemId}`),
     target: { repository: 'project42dev/project42-platform', path: `content/modules/discovery/${itemId}.json` },
     factual_review: { status: reviewsPassed ? 'passed' : 'failed', evidence_ref: `orchard:handoff:${itemId}-factual` },
-    accessibility_review: { status: 'passed', evidence_ref: `orchard:handoff:${itemId}-a11y` },
+    accessibility_review: { status: accessibilityStatus, evidence_ref: `orchard:handoff:${itemId}-a11y` },
     title: `Module ${itemId}`, decision_state: 'pending',
   };
 }
@@ -206,6 +211,33 @@ test('a Gate 2 issue where every item passed review tells the owner it is safe t
   assert.ok(!body.includes('NEEDS ATTENTION'), 'a clean issue must not show any attention badge');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
   assert.equal(okBadges, 2, 'every item must carry its own clean badge, not just the summary');
+});
+
+test('accessibility_review of "human-review" is NOT flagged as needing attention -- it is the permanent, every-item state in production, not a warning', () => {
+  // Found live 2026-08-17, in a REAL issue the owner refused to touch: a
+  // single item with factual_review "passed" and accessibility_review
+  // "human-review" got flagged "NEEDS ATTENTION", because the first version
+  // of this fix treated anything short of "passed" as a red flag. But no
+  // accessibility-review agent exists in this deployed engine -- every
+  // single Gate 2 item, forever, carries accessibility_review:"human-review".
+  // Flagging it made the summary fire on literally 100% of items, which is
+  // not a summary, it is noise with extra steps -- the owner correctly said
+  // so and refused to approve anything until it was fixed.
+  const item = gate2Item('real-world-item', { reviewsPassed: true, accessibilityStatus: 'human-review' });
+  const manifest = gate2Manifest([item]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('All 1 item passed every review'), 'accessibility_review:"human-review" alongside a passed factual review must read as clean, not flagged');
+  assert.ok(!body.includes('NEEDS ATTENTION'), 'the permanent human-review state must never trigger the attention badge');
+  assert.ok(body.includes('✅ passed every review'), 'the item must show the clean badge');
+});
+
+test('accessibility_review that actually FAILED is still flagged -- only "human-review" is exempt, not every non-"passed" state', () => {
+  const item = gate2Item('accessibility-failed-item', { reviewsPassed: true, accessibilityStatus: 'failed' });
+  const manifest = gate2Manifest([item]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('1 of 1 item'), 'a real accessibility failure must still be surfaced');
+  assert.ok(body.includes('accessibility review failed'), 'the reason must name accessibility specifically, not just say "needs attention"');
+  assert.ok(body.includes('⚠️ NEEDS ATTENTION -- accessibility review failed'));
 });
 
 test('a Gate 2 issue with one failed review warns against bare-approve and names exactly which item, and why -- found live 2026-08-17', () => {

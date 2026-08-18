@@ -88,10 +88,25 @@ const safe = (value) => String(value).replaceAll('|', '\\|').replaceAll('\n', '<
 // distinction. This surfaces exactly that distinction up front, once, in
 // plain language, instead of leaving it buried in a table row the reader
 // has to already know to look for.
+//
+// ONLY "failed" is a red flag. The schema (gate-2-issue-manifest) allows
+// three statuses -- passed, failed, human-review -- and "human-review" is
+// not a warning, it is the PERMANENT, EVERY-SINGLE-ITEM state of
+// accessibility_review in this deployed engine: no accessibility-review
+// agent exists, so every item's accessibility field reads "human-review"
+// forever, by design. The first version of this function treated anything
+// short of "passed" as needing attention, which meant literally 100% of
+// Gate 2 items were flagged -- found live 2026-08-17 when the owner got a
+// real issue where the ONLY thing wrong was the normal, universal
+// accessibility state, and correctly refused to trust a warning that
+// fires on everything. factual_review DOES vary for real (a dedicated
+// agent produces passed/failed), so a "human-review" there is left alone
+// too, for the same reason: it is not evidence of a problem, only of no
+// automated verdict, which is not this function's job to editorialize on.
 function gate2AttentionReason(item) {
     const bad = [];
-    if (item.factual_review && item.factual_review.status !== 'passed') bad.push(`factual review ${item.factual_review.status}`);
-    if (item.accessibility_review && item.accessibility_review.status !== 'passed') bad.push(`accessibility review ${item.accessibility_review.status}`);
+    if (item.factual_review && item.factual_review.status === 'failed') bad.push('factual review failed');
+    if (item.accessibility_review && item.accessibility_review.status === 'failed') bad.push('accessibility review failed');
     return bad.length ? bad.join(', ') : null;
 }
 
