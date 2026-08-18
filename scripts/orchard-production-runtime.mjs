@@ -415,15 +415,29 @@ async function runShowReasonAzure(itemId, log) {
     return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state }) => {
         const store = openStateStore(state.path);
         let row, reason;
+        let rejectionEvidence = null;
         try {
             row = store.db.prepare("SELECT current_state, current_revision FROM workflow_item WHERE item_id = ?").get(itemId);
             reason = blockedNoteFor(store.db, itemId);
+            // docs/design/rejection-gate.md: attemptRejectionRecovery now
+            // captures the real verifier/adversary finding text and the
+            // rejected draft itself on EVERY block, not only an escalated
+            // one -- this tool should show that when it exists, not just
+            // the generic one-liner blockedNoteFor was always limited to.
+            const observation = store.db.prepare(
+                "SELECT record_json FROM observation_event WHERE item_id = ? AND evidence_reference LIKE 'orchard/rejection-evidence/%' ORDER BY observed_at DESC LIMIT 1",
+            ).get(itemId);
+            if (observation) rejectionEvidence = JSON.parse(observation.record_json).rejection_evidence;
         } finally {
             store.close();
         }
         if (!row) throw new Error(`no workflow item matches ${itemId}`);
-        log("info", "admin.show-reason", { item: itemId, currentState: row.current_state, currentRevision: Number(row.current_revision), reason: reason ?? "(no blocked transition on record for this item)" });
-        return { statePath: state.path, value: { row, reason } };
+        log("info", "admin.show-reason", {
+            item: itemId, currentState: row.current_state, currentRevision: Number(row.current_revision),
+            reason: reason ?? "(no blocked transition on record for this item)",
+            rejectionEvidence: rejectionEvidence ?? "(no rejection evidence recorded -- either this item predates that capture, or it was never blocked)",
+        });
+        return { statePath: state.path, value: { row, reason, rejectionEvidence } };
     });
 }
 

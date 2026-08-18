@@ -162,3 +162,18 @@ path, never the ensemble stages). Confirmed by reading
   discovered again in a future track-1 run). Flagging this as a known gap,
   not solving it tonight -- it is a discovery-side dedup question, a
   different subsystem, and out of scope for closing this specific loop.
+- **The ADO comment on every block, deliberately deferred, not silently
+  dropped.** Investigated live: `ADO_STATE_MAP` maps both `executing` and
+  `blocked` to the same ADO state (`Active`), so `ado-sync.mjs`'s existing
+  state-drift comment mechanism (`transitionComment`) never fires for a
+  block at all -- confirmed by checking a real item's ADO comment history
+  and finding no block-related comment ever posted, for any item, ever.
+  Posting one for real requires wiring ADO client credentials into
+  `run-authoring.mjs`, which does not have them today (only
+  `orchard-production-runtime.mjs`'s separate sync path does) -- new
+  credential wiring into a new file, under real time pressure, is exactly
+  the kind of change that deserves its own careful pass rather than being
+  rushed in alongside everything else here. The evidence itself IS
+  captured durably regardless (the `observation_event` `--admin-show-reason`
+  now reads), so nothing is lost -- it is one click further from the ADO
+  board than the owner asked for, until this is picked up.
