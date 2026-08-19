@@ -34,9 +34,24 @@
 // <evidence root>/publication-inputs/<item_id>.json and cross-checked by the
 // engine against the prepared tree digest Gate 2 approved. No input file, no
 // publication: the item holds at its current state with the reason logged.
+//
+// THE FILE IS SELF-HEALING, NOT HAND-WRITTEN. Found live 2026-08-19: the
+// first 9 real Gate 2 approvals this pipeline ever recorded all held forever
+// on publication.no-input, because nothing deployed ever wrote this file --
+// the step the comment above assumed existed was never built. It did not
+// need to be: prepare-gate2-evidence.mjs's prepareRealCommit already creates
+// the real blob/tree/commit in the target repository BEFORE Gate 2 evidence
+// is even built, and the resulting commit sha is already durably recorded,
+// inside gate_decision_authority.current_item.diff_ref
+// (`github:commit:<sha>:path:<path>`), the moment the approval decision was
+// verified. ensurePublicationInput reads that back and writes the input file
+// itself when it is missing, instead of holding on data that already exists.
+// A hand-placed file (this file's original design, still how
+// publish-approved-item.mjs's standalone CLI use works) always wins if
+// present -- this only fills the gap when nothing supplied one.
 
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { openStateStore } from "./lib/state-store.mjs";
 import { publishApprovedItem, acknowledgePublication } from "./lib/publication.mjs";
@@ -51,6 +66,35 @@ function argOf(argv, name, fallback = null) {
 
 export function publicationInputPathFor(evidenceRoot, itemId) {
     return join(evidenceRoot, "publication-inputs", `${itemId}.json`);
+}
+
+const DIFF_REF_COMMIT = /^github:commit:([a-f0-9]{40}):path:.+$/;
+
+/**
+ * Derive prepared_commit from the item's own Gate 2 approval evidence and
+ * write the input file, when nothing has supplied one already. Returns
+ * false (and writes nothing) when the evidence carries no diff_ref this
+ * pipeline recognizes -- the caller then holds exactly as before, logging
+ * publication.no-input, so a genuinely missing prepared commit still stops
+ * publication rather than guessing at one.
+ */
+export function ensurePublicationInput({ store, evidenceRoot, itemId, itemRevision, log }) {
+    const inputPath = publicationInputPathFor(evidenceRoot, itemId);
+    if (existsSync(inputPath)) return true;
+    const decision = store.db.prepare(
+        `SELECT event_id FROM decision_event
+          WHERE item_id = ? AND item_revision = ? AND gate = 'gate-2' AND decision = 'approve'
+          ORDER BY occurred_at DESC LIMIT 1`,
+    ).get(itemId, Number(itemRevision));
+    if (!decision) return false;
+    const authority = store.getGateDecisionAuthority(decision.event_id);
+    const diffRef = authority?.current_item?.diff_ref;
+    const match = typeof diffRef === "string" ? DIFF_REF_COMMIT.exec(diffRef) : null;
+    if (!match) return false;
+    mkdirSync(dirname(inputPath), { recursive: true });
+    writeFileSync(inputPath, JSON.stringify({ prepared_commit: match[1] }));
+    log("info", "publication.input-derived", { item: itemId, path: inputPath, prepared_commit: match[1] });
+    return true;
 }
 
 /**
@@ -195,6 +239,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         }
         for (const row of rows) {
             const inputPath = publicationInputPathFor(evidenceRoot, row.item_id);
+            ensurePublicationInput({ store, evidenceRoot, itemId: row.item_id, itemRevision: row.current_revision, log });
             if (!existsSync(inputPath)) {
                 summary.held += 1;
                 log("warn", "publication.no-input", {

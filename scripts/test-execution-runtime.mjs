@@ -21,7 +21,7 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { openStateStore } from "./lib/state-store.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
@@ -260,7 +260,7 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
     };
     const gate2ManifestEvidence = {
         displayed_diff_digest: digest("e"), prepared_tree_digest: digest("f"), base_commit: BASE_COMMIT,
-        diff_ref: "evidence/diff", artifact_ref: "evidence/artifact", handoff_chain_digest: digest("9"),
+        diff_ref: `github:commit:${PREPARED_COMMIT}:path:content/example.md`, artifact_ref: "evidence/artifact", handoff_chain_digest: digest("9"),
         tests: [{ name: "unit", status: "passed", evidence_ref: "evidence:test:unit" }],
         factual_review: { status: "passed", evidence_ref: "evidence:factual" },
         accessibility_review: { status: "passed", evidence_ref: "evidence:accessibility" },
@@ -293,9 +293,16 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
     assert.equal(stateOf(), "gate2-approved");
 
     // --- Publication role: pull request first, then merge -------------------
+    // No hand-written publication-inputs file: found live 2026-08-19, the
+    // first 9 real approvals this pipeline ever recorded all held forever
+    // because nothing deployed ever wrote one. run-publication.mjs's
+    // ensurePublicationInput must derive prepared_commit itself from the
+    // diff_ref this same recordVerifiedDecision call already made durable,
+    // exactly as it does in production.
     const adapterPath = writePublicationAdapter(directory);
     const adapterDigest = await protectedAdapterDigest(adapterPath);
-    writeFileSync(join(evidenceRoot, "publication-inputs", `${itemId}.json`), JSON.stringify({ prepared_commit: PREPARED_COMMIT }));
+    const publicationInputPath = join(evidenceRoot, "publication-inputs", `${itemId}.json`);
+    assert.ok(!existsSync(publicationInputPath), "no publication input was written by hand");
     const publicationEnv = {
         ORCHARD_EVIDENCE_ROOT: evidenceRoot,
         ORCHARD_PUBLICATION_ADAPTER_PATH: adapterPath,
@@ -304,6 +311,10 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
     const opened = await runPublication(["--state-db", dbPath], { log: quiet, env: publicationEnv });
     assert.equal(opened.prOpen, 1, "the first publication run opens the pull request and stops");
     assert.equal(stateOf(), "publication-pr-open", "protected main is untouched until merging is enabled");
+    assert.deepEqual(
+        JSON.parse(readFileSync(publicationInputPath, "utf8")), { prepared_commit: PREPARED_COMMIT },
+        "the input file was self-derived from the approval's own diff_ref, not supplied",
+    );
 
     const merged = await runPublication(["--state-db", dbPath], {
         log: quiet, env: { ...publicationEnv, ORCHARD_PUBLICATION_MERGE: "enabled" },
