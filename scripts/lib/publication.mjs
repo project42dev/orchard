@@ -295,8 +295,41 @@ export async function acknowledgePublication({ idempotencyKey, adapter, store, n
     const transaction = current.transaction;
     store.recordPublicationAuthority(transaction.transaction_id, publicationTrust);
     persistEvent(store, transaction, 'acknowledge', 'intent', 'acknowledging', now, { operation: 'observe-protected-main', result_commit: current.result_commit });
-    const acknowledgement = await adapter.reconcileProtectedMain({ repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, expectedCommit: current.result_commit });
-    if (acknowledgement.classification !== 'exact') fail('publication.main-not-acknowledged', 'protected main has not acknowledged the exact merge result commit');
+    // Acknowledgement used to require protected main to sit EXACTLY at this
+    // item's merge commit, and that stranded real published work. Found live
+    // 2026-08-19: nine approved items merged in one run, and every one of them
+    // except the last was left at publication-merging forever, because each
+    // later merge advanced main past the earlier item's result commit before
+    // its acknowledgement was ever read. Item 01a00674-0dcc... sat at
+    // publication-merging with its pull request (#153) genuinely merged into
+    // main. Tip equality is simply the wrong question: main advancing is proof
+    // the repository is alive, not proof our merge was lost.
+    //
+    // The right question is whether the provider still reports THIS pull
+    // request merged at THIS exact commit, which is a direct fact about our
+    // own work rather than a fact about whoever committed last. It is checked
+    // against the merged pull request object the merge phase already recorded,
+    // so the comparison is against provider-returned evidence, not a hope.
+    // Main sitting exactly at our commit still short-circuits first, so the
+    // single-item case costs nothing extra.
+    let acknowledged = false;
+    try {
+        const atTip = await adapter.reconcileProtectedMain({ repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, expectedCommit: current.result_commit });
+        acknowledged = atTip.classification === 'exact';
+    } catch (error) {
+        if (error?.code !== 'provider.mismatch') throw error;
+    }
+    if (!acknowledged) {
+        const mergedPull = [...current.events].reverse().find((event) => event.pull_request?.state === 'merged')?.pull_request;
+        if (!mergedPull) fail('publication.main-not-acknowledged', 'protected main moved past this merge commit and no merged pull request was recorded to confirm it');
+        const reconciled = await adapter.reconcileMerge({
+            repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey,
+            pullNumber: mergedPull.number, expected: mergedPull,
+        });
+        if (reconciled.classification !== 'exact' || reconciled.object?.mergeCommit !== current.result_commit) {
+            fail('publication.main-not-acknowledged', 'the provider does not report this pull request merged at the exact recorded commit');
+        }
+    }
     const pushAcknowledgement = {
         repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, commit: current.result_commit,
         status: 'succeeded', acknowledged_at: now()

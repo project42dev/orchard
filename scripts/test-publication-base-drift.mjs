@@ -70,3 +70,68 @@ test("a mismatch whose message carries no readable commit is refused rather than
     const adapter = { async reconcileProtectedMain() { throw vague; } };
     await assert.rejects(() => observeProtectedMain(adapter, binding), /did not name/);
 });
+
+// --- acknowledgement, after main has moved past our own merge commit -------
+// Found live 2026-08-19 in the SAME run that merged all nine items: every
+// item except the last was left at publication-merging forever, because each
+// later merge advanced main past the earlier item's result commit before its
+// acknowledgement was read. Tip equality asked about whoever committed last;
+// what matters is whether the provider still reports OUR pull request merged
+// at OUR exact commit.
+
+import { acknowledgePublication } from "./lib/publication.mjs";
+
+const RESULT_COMMIT = "a".repeat(40);
+const LATER_MAIN = "b".repeat(40);
+const MERGED_PULL = { number: 153, state: "merged", mergeCommit: RESULT_COMMIT };
+
+function ackStore({ state = "acknowledging", events = [] } = {}) {
+    let publishedEvent = null;
+    return {
+        requirePublicationAdapter: () => ({ adapter_digest: "sha256:" + "0".repeat(64), adapter_identity: "test" }),
+        recordPublicationAuthority: () => {},
+        findPublicationEvent: () => null,
+        recordPublicationEvent: (record) => { if (record.state === "published") publishedEvent = record; return record; },
+        getPublicationState: () => publishedEvent
+            ? { state: "published", transaction: { transaction_id: "t1" }, events, result_commit: RESULT_COMMIT, push_acknowledgement: publishedEvent.push_acknowledgement }
+            : { state, transaction: { transaction_id: "t1" }, events, result_commit: RESULT_COMMIT, push_acknowledgement: null },
+    };
+}
+
+test("a publication whose merge commit main has already moved past is still acknowledged, on the provider's own report of the merge", async () => {
+    const adapter = {
+        async reconcileProtectedMain() { throw mismatchError(RESULT_COMMIT, LATER_MAIN); },
+        async reconcileMerge({ pullNumber }) {
+            assert.equal(pullNumber, 153, "the recorded merged pull request is the one re-checked");
+            return { classification: "exact", object: MERGED_PULL };
+        },
+    };
+    const result = await acknowledgePublication({
+        idempotencyKey: "publication:track-1:item:r1:sha256:x", adapter,
+        store: ackStore({ events: [{ intent_or_result: "result", pull_request: MERGED_PULL }] }),
+        now: () => "2026-08-19T00:00:00.000Z",
+    });
+    assert.equal(result.state, "published", "the item reaches published rather than stranding at publication-merging");
+});
+
+test("main moving past a merge commit with no recorded merged pull request is refused, never assumed published", async () => {
+    const adapter = {
+        async reconcileProtectedMain() { throw mismatchError(RESULT_COMMIT, LATER_MAIN); },
+        async reconcileMerge() { throw new Error("must not be reached"); },
+    };
+    await assert.rejects(() => acknowledgePublication({
+        idempotencyKey: "k", adapter, store: ackStore({ events: [] }), now: () => "2026-08-19T00:00:00.000Z",
+    }), /no merged pull request was recorded/);
+});
+
+test("a provider that reports a different merge commit than the one recorded is refused", async () => {
+    const adapter = {
+        async reconcileProtectedMain() { throw mismatchError(RESULT_COMMIT, LATER_MAIN); },
+        async reconcileMerge() { return { classification: "exact", object: { ...MERGED_PULL, mergeCommit: "c".repeat(40) } }; },
+    };
+    await assert.rejects(() => acknowledgePublication({
+        idempotencyKey: "k", adapter,
+        store: ackStore({ events: [{ intent_or_result: "result", pull_request: MERGED_PULL }] }),
+        now: () => "2026-08-19T00:00:00.000Z",
+    }), /merged at the exact recorded commit/);
+});
