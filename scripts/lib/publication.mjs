@@ -129,10 +129,55 @@ function publicationRequests(transaction, binding, preparedCommit) {
     return { branchExpected, pullExpected };
 }
 
-async function ensureBaseUnchanged(adapter, binding) {
-    const result = await adapter.reconcileProtectedMain({ repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
-    if (result.classification !== 'exact') fail('publication.base-missing', 'protected main could not be reconciled to the approved base commit');
-    return result.object;
+/**
+ * Observe protected main, tolerating the fact that it moves.
+ *
+ * THIS USED TO DEMAND EQUALITY and that was a structural defect, found live
+ * 2026-08-19 on the first run that ever merged anything. All nine approved
+ * items captured the same base_commit (main's tip when their Gate 2 evidence
+ * was built). The instant the FIRST item merged, main advanced, and the other
+ * eight were refused with
+ *   protected-main:<old> does not exactly match: commit: expected <old>,
+ *   observed <new>
+ * -- not transiently, but permanently: after any merge, NO pending item can
+ * ever match again. The pipeline could publish exactly one item per run and
+ * then hard-block at held:N, which is precisely what nine real owner
+ * approvals hit.
+ *
+ * Main advancing is not a safety problem and never was. What the approval
+ * binds is CONTENT, and that is still pinned everywhere it matters, by
+ * machinery this function is not part of: the prepared commit's
+ * Orchard-Prepared-Tree-Digest trailer (checked by the adapter before any
+ * branch is created), the immutable artifact binding, the proposal digest,
+ * and the merge itself, which GitHub performs with the exact approved head
+ * sha and refuses outright on conflict. An unrelated commit landing on main
+ * invalidates none of that.
+ *
+ * What this still refuses: main not existing at all. That is the one
+ * condition under which there is genuinely nothing to publish onto, and it
+ * stays fatal. Drift is returned to the caller rather than thrown, so the
+ * caller can record what it actually observed instead of what it hoped for.
+ *
+ * WHY THE EQUALITY CHECK IS CAUGHT RATHER THAN AVOIDED: reconcileProtectedMain
+ * lives in the digest-pinned publication adapter, whose trust anchor is
+ * immutable once provisioned. Changing that file changes its digest and the
+ * store then refuses to load it at all. Catching its refusal here is the only
+ * way to relax this rule without re-provisioning a trust anchor in production.
+ */
+export async function observeProtectedMain(adapter, binding) {
+    try {
+        const result = await adapter.reconcileProtectedMain({ repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
+        if (result.classification !== 'exact') fail('publication.base-missing', 'protected main does not exist to publish onto');
+        return { object: result.object, drifted: false, observedCommit: binding.base_commit };
+    } catch (error) {
+        // The adapter reports a moved main as provider.mismatch, naming both
+        // commits. Anything else -- main absent, a transport failure, a
+        // repository refusal -- is a real failure and propagates untouched.
+        if (error?.code !== 'provider.mismatch') throw error;
+        const observed = /observed "([a-f0-9]{40})"/.exec(error.message ?? '')?.[1];
+        if (!observed) throw error;
+        return { object: { repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, commit: observed }, drifted: true, observedCommit: observed };
+    }
 }
 
 export async function publishApprovedItem({ authorityReference, preparedCommit, adapter, store, apply = false, merge = false,
@@ -180,7 +225,7 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     store.recordPublicationAuthority(transaction.transaction_id, publicationTrust);
 
     const requests = publicationRequests(transaction, binding, preparedCommit);
-    await ensureBaseUnchanged(adapter, binding);
+    await observeProtectedMain(adapter, binding);
     persistEvent(store, transaction, 'prepare', 'intent', 'preparing', now, { operation: 'create-branch', request_digest: sha256Digest(requests.branchExpected) });
     const branchResult = await adapter.reconcileBeforeCreateBranch({
         repository: PUBLICATION_REPOSITORY, branch,
@@ -196,7 +241,7 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     persistEvent(store, transaction, 'pr-open', 'result', 'merge-pending', now, { operation: pullResult.operation, pull_request: pullResult.object });
     if (!merge) return { operation: 'merge-pending', binding, transaction, branch: branchResult.object, pull_request: pullResult.object };
 
-    await ensureBaseUnchanged(adapter, binding);
+    const mainBeforeMerge = await observeProtectedMain(adapter, binding);
     const reconciledPull = await adapter.reconcilePullRequest({ repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey, expected: requests.pullExpected });
     if (reconciledPull.classification !== 'exact') fail('publication.pr-missing', 'the exact approved pull request no longer exists');
     persistEvent(store, transaction, 'merge', 'intent', 'merging', now, {
@@ -204,11 +249,34 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
         approved_bindings_digest: sha256Digest(requests.pullExpected)
     });
     const mergeExpected = { ...requests.pullExpected, number: pullResult.object.number, state: 'merged' };
-    const mergeResult = await adapter.reconcileBeforeMerge({
-        repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey,
-        pullNumber: pullResult.object.number, expected: mergeExpected,
-        merge: { baseBranch: PROTECTED_BRANCH, headBranch: branch, expectedHeadCommit: preparedCommit, expectedBaseCommit: binding.base_commit }
-    });
+    // The adapter cross-checks the pull request's own base.sha against what we
+    // pass here. GitHub's semantics for that field are the one thing this file
+    // cannot settle by reading its own code: base.sha may stay frozen at the
+    // commit the pull request was opened against, or track the base branch as
+    // it advances, and both are defensible readings. Rather than guess, try the
+    // approved base first (correct if it is frozen, and the only value that was
+    // ever correct before main could move) and fall back to what main was
+    // actually observed at a moment ago (correct if it tracks). A genuine
+    // drift -- somebody rewriting main out from under an approval -- fails both
+    // ways and still refuses, because neither candidate will match.
+    const mergeAttempts = mainBeforeMerge.drifted && mainBeforeMerge.observedCommit !== binding.base_commit
+        ? [binding.base_commit, mainBeforeMerge.observedCommit]
+        : [binding.base_commit];
+    let mergeResult, lastMergeError;
+    for (const expectedBaseCommit of mergeAttempts) {
+        try {
+            mergeResult = await adapter.reconcileBeforeMerge({
+                repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey,
+                pullNumber: pullResult.object.number, expected: mergeExpected,
+                merge: { baseBranch: PROTECTED_BRANCH, headBranch: branch, expectedHeadCommit: preparedCommit, expectedBaseCommit }
+            });
+            break;
+        } catch (error) {
+            lastMergeError = error;
+            if (error?.code !== 'provider.merge-base-drift') throw error;
+        }
+    }
+    if (!mergeResult) throw lastMergeError;
     requireGitCommit(mergeResult.object.mergeCommit, 'merge result commit');
     persistEvent(store, transaction, 'merge', 'result', 'acknowledging', now, {
         operation: mergeResult.operation,
