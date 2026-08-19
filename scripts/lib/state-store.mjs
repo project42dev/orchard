@@ -717,7 +717,19 @@ export class StateStore {
             if (existingPacket) throw new IdempotencyConflictError("item revision already has a different closure packet");
             const revision = this.db.prepare("SELECT run_id, proposal_digest, target_repository, target_path FROM item_revision WHERE item_id = ? AND item_revision = ?")
                 .get(record.item_id, record.item_revision);
-            if (!revision || revision.run_id !== record.run_id || revision.proposal_digest !== record.proposal_digest
+            // run_id is deliberately NOT compared here, for the same reason it
+            // was removed from recordPublicationTransaction: the run that
+            // authored a revision's content and the run that announced it for
+            // a gate are different identities by design (announce-gates.mjs's
+            // manifestRunId picks "the run that most recently touched this
+            // track"), and run-authoring.mjs already treats them as distinct.
+            // Requiring equality refused every real item once retries or a
+            // second announcement cycle put them out of step, which is exactly
+            // how nine owner-approved items were blocked from publishing on
+            // 2026-08-19. The packet's content is pinned by proposal_digest,
+            // the artifact binding, the canonical target, and both gate
+            // decision events below, none of which need run_id to be exact.
+            if (!revision || revision.proposal_digest !== record.proposal_digest
                 || revision.target_repository !== record.canonical_target.repository
                 || revision.target_path !== record.canonical_target.path) throw new StateConflictError("closure packet does not match the persisted item revision");
             const binding = this.getArtifactBinding(record.item_id, record.item_revision);
@@ -725,7 +737,14 @@ export class StateStore {
             exact(record.artifact_binding, binding, "closure artifact binding");
             for (const [gate, evidence] of [["gate-1", record.gate_1], ["gate-2", record.gate_2]]) {
                 const decision = this.db.prepare("SELECT gate, run_id, item_id, item_revision, digest, decision FROM decision_event WHERE event_id = ?").get(evidence.event_id);
-                if (!decision || decision.gate !== gate || decision.decision !== "approve" || decision.run_id !== record.run_id || decision.item_id !== record.item_id
+                // Same reasoning as the revision check above, and doubly so
+                // here: gate-1 and gate-2 are announced in different cycles, so
+                // their decision events legitimately carry different run_ids
+                // from each other AND from the packet. Requiring one run_id to
+                // equal all three could only ever pass by coincidence. What
+                // must match is the item, the revision, the gate, the verdict,
+                // and the exact digest approved, all still checked.
+                if (!decision || decision.gate !== gate || decision.decision !== "approve" || decision.item_id !== record.item_id
                     || Number(decision.item_revision) !== record.item_revision || decision.digest !== evidence.digest) {
                     throw new StateConflictError(`closure packet does not match the persisted ${gate} decision`);
                 }
