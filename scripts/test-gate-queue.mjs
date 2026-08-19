@@ -164,6 +164,51 @@ test('a target path is always one the platform repository can accept', () => {
   assert.equal(targetForCandidate(candidate('x', { surface: 'guide-diagram' })).path, 'content/diagrams/x.mmd');
 });
 
+// A wrong directory here is invisible in every log: the blob is written, the
+// pull request merges, publication reports success, and the file simply is not
+// part of any surface. `guide` pointed at content/reference, which holds one
+// file wired by name into a single training delivery contract and which
+// scripts/load-catalog.mjs never reads. Nothing caught it because no guide item
+// had reached publication yet.
+test('every surface lands in a directory the platform actually indexes', () => {
+  assert.equal(
+    targetForCandidate(candidate('prompt injection', { surface: 'guide' })).path,
+    'content/resources/discovery/prompt-injection.json',
+    'Field Guide resources are discovered under content/resources/<topic>/, never content/reference',
+  );
+  assert.equal(
+    targetForCandidate(candidate('prompt injection', { surface: 'learning' })).path,
+    'content/modules/discovery/prompt-injection.json',
+  );
+  assert.equal(
+    targetForCandidate(candidate('prompt injection', { surface: 'guide-diagram' })).path,
+    'content/diagrams/prompt-injection.mmd',
+  );
+});
+
+// The two surface maps are written in different vocabularies and neither reads
+// the other, so they can disagree silently. config/surface-targets.json tells
+// the author where the work goes; gate-queue decides where it actually lands.
+// They must at least agree on the directory, which is the half that was wrong.
+test('the surface target map and the derived target path agree on the directory', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const configured = JSON.parse(readFileSync(
+    fileURLToPath(new URL('../config/surface-targets.json', import.meta.url)), 'utf8',
+  )).surfaces;
+  for (const [probeKind, expected] of [['learn', 'content/modules'], ['field-guide', 'content/resources'], ['visual-guide', 'content/diagrams']]) {
+    const declared = configured[probeKind].pathTemplates[0];
+    assert.ok(declared.startsWith(expected), `${probeKind} declares ${declared}`);
+    const derived = targetForCandidate(candidate('x', { surface: surfaceForProbe({ kinds: [probeKind] }) })).path;
+    assert.ok(derived.startsWith(expected), `${probeKind} lands at ${derived}, which is not under ${expected}`);
+  }
+  assert.equal(
+    configured['visual-guide'].repository,
+    undefined,
+    'a visual guide is published to the content platform like everything else; naming another repository here published two diagrams nobody could reach',
+  );
+});
+
 test('the score orders reading and cannot gate, and breadth outweighs repetition', () => {
   const broad = scoreCandidate({ demandSourceCount: 10, demandOccurrences: 10 });
   const deep = scoreCandidate({ demandSourceCount: 1, demandOccurrences: 100 });

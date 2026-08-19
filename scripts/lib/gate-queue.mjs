@@ -60,9 +60,19 @@ const SURFACE_BY_PROBE_KIND = Object.freeze({
 // Where a surface's content actually lives in the platform repository, checked
 // against the tree on 2026-08-15. The path is a proposal: Gate 1 is where a
 // human moves it if the placement is wrong.
+//
+// Re-checked against the tree on 2026-08-19, because a wrong directory here is
+// invisible: publication succeeds, the file lands, and nothing indexes it.
+// `guide` pointed at content/reference, which is not the Field Guide surface.
+// That directory holds exactly one file, wired by name into a single training
+// delivery contract, and scripts/load-catalog.mjs does not read it at all.
+// Field Guide resources live under content/resources/<topic>/, where the loader
+// discovers all 91 of them, and config/surface-targets.json has said so all
+// along. No guide item had reached publication yet, so the defect had not
+// fired.
 const DIRECTORY_BY_SURFACE = Object.freeze({
     learning: "content/modules/discovery",
-    guide: "content/reference",
+    guide: "content/resources/discovery",
     "guide-diagram": "content/diagrams",
 });
 

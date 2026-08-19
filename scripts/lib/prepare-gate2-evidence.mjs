@@ -200,7 +200,7 @@ export async function buildHandoffsFromProposal({ proposal, binding, runStartedA
  * and the one caller that passes a different one (the rejection-gate
  * escalation path) names its opt-out SKIP_ARTIFACT_FORMAT_CHECK and says why.
  */
-export async function prepareRealCommit({ repository, path, content, baseBranch = "main", token, fetchImpl = fetch, validateFormat = assertArtifactFormat }) {
+export async function prepareRealCommit({ repository, path, content, registration = null, baseBranch = "main", token, fetchImpl = fetch, validateFormat = assertArtifactFormat }) {
     validateFormat({ path, content });
 
     async function call(apiPath, { method = "GET", body } = {}) {
@@ -226,21 +226,52 @@ export async function prepareRealCommit({ repository, path, content, baseBranch 
     const commit = await call(`/repos/${repository}/git/commits/${baseCommit}`);
     const baseTree = commit.tree.sha;
 
+    // REGISTRATION IS PART OF THE SAME COMMIT. A module the learning catalog
+    // does not list, or a diagram the diagram catalogue does not list, is a
+    // file nobody can open: publication succeeds and the content is invisible,
+    // which is exactly what happened to all nine items merged on 2026-08-19.
+    // Writing the registry entry afterwards would put it outside the tree Gate
+    // 2 approved and outside the digest the publication adapter verifies, so
+    // both halves go in one tree, under one approval, and merge together or
+    // not at all. See lib/registration.mjs.
+    //
+    // The registry is read and rewritten BEFORE the artifact blob is written,
+    // so an entry that cannot be built costs no API object at all: the caller
+    // gets the RegistrationError and holds the item.
+    const registrationEntry = await (async () => {
+        if (!registration) return null;
+        const file = await call(`/repos/${repository}/contents/${registration.path}?ref=${baseCommit}`);
+        const currentText = Buffer.from(file.content ?? "", file.encoding ?? "base64").toString("utf8");
+        const nextText = registration.apply(currentText);
+        if (nextText === currentText) return null;
+        const registryBlob = await call(`/repos/${repository}/git/blobs`, { method: "POST", body: { content: nextText, encoding: "utf-8" } });
+        return { path: registration.path, mode: "100644", type: "blob", sha: registryBlob.sha };
+    })();
+
     const blob = await call(`/repos/${repository}/git/blobs`, { method: "POST", body: { content, encoding: "utf-8" } });
+    const entries = [{ path, mode: "100644", type: "blob", sha: blob.sha }];
+    if (registrationEntry) entries.push(registrationEntry);
     const tree = await call(`/repos/${repository}/git/trees`, {
         method: "POST",
-        body: { base_tree: baseTree, tree: [{ path, mode: "100644", type: "blob", sha: blob.sha }] },
+        body: { base_tree: baseTree, tree: entries },
     });
     const preparedTreeDigest = `sha256:${sha256(tree.sha)}`;
+    const summary = registrationEntry ? `${path} and ${registrationEntry.path}` : path;
     const preparedCommit = await call(`/repos/${repository}/git/commits`, {
         method: "POST",
         body: {
-            message: `[Orchard] Prepare ${path}\n\n${TRAILER}: ${preparedTreeDigest}`,
+            message: `[Orchard] Prepare ${summary}\n\n${TRAILER}: ${preparedTreeDigest}`,
             tree: tree.sha,
             parents: [baseCommit],
         },
     });
-    return { baseCommit, treeSha: tree.sha, preparedTreeDigest, preparedCommit: preparedCommit.sha };
+    return {
+        baseCommit,
+        treeSha: tree.sha,
+        preparedTreeDigest,
+        preparedCommit: preparedCommit.sha,
+        registeredIn: registrationEntry?.path ?? null,
+    };
 }
 
 /**

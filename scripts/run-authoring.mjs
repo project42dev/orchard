@@ -54,6 +54,7 @@ import { generateBriefs } from "./generate-briefs.mjs";
 import { ingest, readProposals } from "./ingest-proposals.mjs";
 import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage, buildRejectionEvidence, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
 import { inspectArtifactFormat, SKIP_ARTIFACT_FORMAT_CHECK } from "./lib/artifact-format.mjs";
+import { registrationFor, surfaceForTargetPath, RegistrationError } from "./lib/registration.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
 import { readGateToken } from "./announce-gates.mjs";
@@ -318,7 +319,39 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 continue;
             }
 
-            const commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: reconstructed.content, token, fetchImpl });
+            // REACHABILITY. The artifact is well-formed by here; whether any
+            // reader can get to it is a separate question, and until 2026-08-19
+            // nothing asked it. Every one of the nine items merged that day was
+            // published and unreachable: modules no learning path listed, so
+            // they had no /learn/<pathId>/<moduleId> URL, and diagrams absent
+            // from the diagram catalogue, which is the only index the sites
+            // read. The registry entry now goes in the same tree, under the
+            // same Gate 2 approval, and an item whose entry cannot be built
+            // holds here with the reason rather than publishing half of itself.
+            let registration;
+            try {
+                registration = registrationFor({
+                    surface: surfaceForTargetPath(target.path),
+                    targetPath: target.path,
+                    artifact: reconstructed.content,
+                });
+            } catch (error) {
+                if (!(error instanceof RegistrationError)) throw error;
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: error.message, code: error.code, target: target.path });
+                continue;
+            }
+
+            let commit;
+            try {
+                commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: reconstructed.content, registration, token, fetchImpl });
+            } catch (error) {
+                if (!(error instanceof RegistrationError)) throw error;
+                summary.held += 1;
+                log("warn", "gate2evidence.held", { item: itemId, reason: error.message, code: error.code, target: target.path });
+                continue;
+            }
+            log("info", "gate2evidence.prepared", { item: itemId, target: target.path, registeredIn: commit.registeredIn });
 
             const rawProposalDigest = revision.proposal_digest ?? proposalMatch?.doc?.proposalDigest ?? null;
             if (!rawProposalDigest) {
