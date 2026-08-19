@@ -622,7 +622,23 @@ export class StateStore {
             // authored after its revision was minted, which is every item
             // discovery produces. If the cached column IS populated on the
             // revision, it must still match, so a bound revision cannot drift.
-            if (!revision || revision.run_id !== record.run_id || revision.proposal_digest !== record.proposal_digest
+            //
+            // record.run_id IS NOT revision.run_id, and never was: found live
+            // 2026-08-19, all 9 of the first real Gate 2 approvals refused
+            // here. record.run_id traces to manifest.run_id, which
+            // announce-gates.mjs's manifestRunId() sets to "the run that most
+            // recently touched this track" (its own doc comment) -- an
+            // announcement-cycle identity. revision.run_id is which run
+            // actually authored THIS revision's content -- run-authoring.mjs:294
+            // already treats the two as distinct (`revision.run_id ?? row.origin_run_id`).
+            // They coincide only when an item is authored and announced in the
+            // same execution, which stopped being every item the moment the
+            // rejection-gate retry path (docs/design/rejection-gate.md) could
+            // put a later revision's authoring run behind an earlier
+            // announcement cycle. Nothing here needs it to match: the exact
+            // content is already pinned by proposal_digest, the artifact
+            // binding, and target below, with no help from run_id.
+            if (!revision || revision.proposal_digest !== record.proposal_digest
                 || (revision.artifact_digest !== null && revision.artifact_digest !== record.artifact_digest)
                 || revision.target_repository !== record.target.repository
                 || revision.target_path !== record.target.path) {
