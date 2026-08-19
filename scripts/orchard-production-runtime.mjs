@@ -450,13 +450,49 @@ async function runShowReasonAzure(itemId, log) {
             store.close();
         }
         if (!row) throw new Error(`no workflow item matches ${itemId}`);
+        // Found live 2026-08-19: after ensurePublicationInput fixed the
+        // no-input hold, every one of the 9 real approvals refused instead
+        // with state-store.state-conflict "publication does not match the
+        // persisted item revision" -- recordPublicationTransaction's own
+        // compare-and-refuse (lib/state-store.mjs:625) checks item_revision
+        // against the Gate 2-approved current_item field by field. Surface
+        // both sides here so a real mismatch is named, not just reported.
+        let publicationDiagnostic = null;
+        {
+            const reopen = openStateStore(state.path);
+            try {
+                const decision = reopen.db.prepare(
+                    `SELECT event_id FROM decision_event
+                      WHERE item_id = ? AND item_revision = ? AND gate = 'gate-2' AND decision = 'approve'
+                      ORDER BY occurred_at DESC LIMIT 1`,
+                ).get(itemId, Number(row.current_revision));
+                if (decision) {
+                    const authority = reopen.getGateDecisionAuthority(decision.event_id);
+                    const revision = reopen.db.prepare(
+                        `SELECT run_id, proposal_digest, artifact_digest, target_repository, target_path
+                           FROM item_revision WHERE item_id = ? AND item_revision = ?`,
+                    ).get(itemId, Number(row.current_revision));
+                    publicationDiagnostic = {
+                        item_revision: revision ?? "(no item_revision row)",
+                        gate2_current_item: authority?.current_item ? {
+                            run_id: authority.manifest?.run_id, proposal_digest: authority.current_item.proposal_digest,
+                            artifact_digest: authority.current_item.artifact_digest,
+                            target_repository: authority.current_item.target?.repository, target_path: authority.current_item.target?.path,
+                        } : "(no gate decision authority found)",
+                    };
+                }
+            } finally {
+                reopen.close();
+            }
+        }
         log("info", "admin.show-reason", {
             item: itemId, currentState: row.current_state, currentRevision: Number(row.current_revision),
             reason: reason ?? "(no blocked transition on record for this item)",
             rejectionEvidence: rejectionEvidence ?? "(no rejection evidence recorded -- either this item predates that capture, or it was never blocked)",
             failedReviewFindings: failedReviewFindings.length ? failedReviewFindings : "(no failed review handoff found for this item)",
+            publicationDiagnostic: publicationDiagnostic ?? "(item has no recorded gate-2 approval)",
         });
-        return { statePath: state.path, value: { row, reason, rejectionEvidence, failedReviewFindings } };
+        return { statePath: state.path, value: { row, reason, rejectionEvidence, failedReviewFindings, publicationDiagnostic } };
     });
 }
 
