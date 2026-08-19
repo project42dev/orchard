@@ -47,11 +47,21 @@ const TRACK_ENTRY_POINTS = Object.freeze({
 // run in the lean two-track image. The ONLY handoff between the runtimes is
 // the shared workflow_item state store, exactly as discovery, currency, and
 // seeding already share it.
+//
+// THE RELEASE ROLE IS THE LAST MILE. publication ends at "merged into the
+// content repository", and nothing on any live site changes at that moment:
+// each site consumes the platform as a git-tagged dependency, so merged and
+// untagged content is invisible to every consumer. run-release.mjs cuts the
+// governance-compliant release pull request, pushes the tag that the
+// platform's own release.yml triggers on, and moves each site's pin onto that
+// tag, which is what triggers each site's own deploy workflow. It runs under
+// the same fence and the same credential path as the other roles.
 const ROLE_ENTRY_POINTS = Object.freeze({
     "authoring": "./run-authoring.mjs",
     "gate2-prep": "./run-gate2-prep.mjs",
     "publication": "./run-publication.mjs",
     "verification": "./run-verification.mjs",
+    "release": "./run-release.mjs",
 });
 
 export function parseRuntimeArgs(argv) {
@@ -88,7 +98,7 @@ export function parseRuntimeArgs(argv) {
     const roleIndex = runtime.indexOf("--role");
     if (trackIndex !== -1 && roleIndex !== -1) throw new TypeError("runtime accepts --track or --role, never both");
     if (roleIndex !== -1) {
-        if (!ROLE_ENTRY_POINTS[runtime[roleIndex + 1]]) throw new TypeError("runtime requires --role authoring, gate2-prep, publication, or verification");
+        if (!ROLE_ENTRY_POINTS[runtime[roleIndex + 1]]) throw new TypeError("runtime requires --role authoring, gate2-prep, publication, verification, or release");
         if (runtime.length !== 2 || roleIndex !== 0) throw new TypeError("runtime accepts only --role before the -- separator");
         return { role: runtime[roleIndex + 1], controller };
     }
