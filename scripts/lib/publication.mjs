@@ -249,6 +249,45 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
         };
     }
 
+    // A PULL REQUEST CAN BE MERGED BY SOMEONE OTHER THAN ORCHARD. Found live
+    // 2026-08-19: nine pull requests this engine opened were all merged into
+    // protected main without Orchard performing the merge, so no merge result
+    // was ever recorded, and every later run refused the items with
+    //   state: expected "open", observed "merged"
+    // -- work that is genuinely published, permanently stuck, because the only
+    // path forward assumed Orchard itself would be the one to merge.
+    //
+    // Reconciling an outcome the provider already reports is this engine's own
+    // governing rule (it is what every reconcileBefore* method in the adapter
+    // exists to do); redoing it is not an option, since a merged pull request
+    // cannot be re-opened. So: if a pull request was recorded and the provider
+    // now reports it merged, record THAT as the merge result, from the
+    // provider's own numbers, and let acknowledgement carry the item to
+    // published. The commit is never invented -- it is read back from the
+    // merged pull request, and refused below if the provider does not supply
+    // an exact one.
+    // Only asked of an adapter that can actually report a merge. reconcileMerge
+    // is read-only in the real provider adapter (it queries the pull request and
+    // reports absent unless the provider itself says merged), so this never
+    // performs a merge as a side effect of looking; an adapter that does not
+    // implement it simply takes the ordinary path below.
+    const openedPull = [...(recorded?.events ?? [])].reverse().find((event) => event.pull_request?.number)?.pull_request;
+    if (openedPull && typeof adapter.reconcileMerge === 'function') {
+        const externallyMerged = await adapter.reconcileMerge({
+            repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey, pullNumber: openedPull.number,
+            expected: { number: openedPull.number, repository: PUBLICATION_REPOSITORY, state: 'merged' },
+        });
+        if (externallyMerged.classification === 'exact') {
+            const mergeCommit = externallyMerged.object?.mergeCommit;
+            requireGitCommit(mergeCommit, 'externally merged result commit');
+            persistEvent(store, transaction, 'merge', 'result', 'acknowledging', now, {
+                operation: 'reconciled-external-merge',
+                pull_request: externallyMerged.object, result_commit: mergeCommit,
+            });
+            return { operation: 'acknowledging', binding, transaction, pull_request: externallyMerged.object, result_commit: mergeCommit };
+        }
+    }
+
     const requests = publicationRequests(transaction, binding, preparedCommit);
     await observeProtectedMain(adapter, binding);
     persistEvent(store, transaction, 'prepare', 'intent', 'preparing', now, { operation: 'create-branch', request_digest: sha256Digest(requests.branchExpected) });
