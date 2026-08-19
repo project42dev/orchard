@@ -77,7 +77,23 @@ export async function loadProtectedAdapterModule(store, scope, { validateIdentit
 
 export async function loadProtectedAdapter(store, scope, requiredMethod) {
     const { loaded, trust } = await loadProtectedAdapterModule(store, scope);
-    const adapter = loaded.adapter ?? loaded.default ?? (loaded.createAdapter ? await loaded.createAdapter() : null);
+    // Found live 2026-08-19, on the very first real publication attempt
+    // this pipeline ever made: `github-publication/adapter.mjs` exports no
+    // top-level `adapter`, only `createAdapter` (a factory that reads its
+    // token from process.env at call time, by design -- see
+    // run-publication.mjs's own comment on why) plus a `default` export
+    // that is a NAMESPACE object ({ adapterIdentity, createAdapter,
+    // GitHubPublicationAdapter, PublicationProviderError }), not an adapter
+    // instance. The old order (`adapter ?? default ?? createAdapter()`)
+    // picked that namespace object, which is truthy and therefore short-
+    // circuited before createAdapter() was ever called -- 9 real approved
+    // items sat at gate2-approved, unable to move, while the job itself
+    // reported "Succeeded" (this refusal is deliberately non-fatal). A
+    // factory export is a stronger signal of "call this to get a real
+    // adapter" than an arbitrary default export, so it is tried first;
+    // `default` is now the last resort, only used if it happens to BE a
+    // valid adapter object itself (a test fixture, for instance).
+    const adapter = loaded.adapter ?? (loaded.createAdapter ? await loaded.createAdapter() : null) ?? loaded.default;
     if (!adapter || typeof adapter[requiredMethod] !== 'function') {
         throw new TypeError(`${scope} adapter module does not implement ${requiredMethod}`);
     }
