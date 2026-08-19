@@ -224,6 +224,31 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     }
     store.recordPublicationAuthority(transaction.transaction_id, publicationTrust);
 
+    // WORK THAT IS ALREADY MERGED IS NOT RE-OPENED. Found live 2026-08-19:
+    // all nine items merged for real, and every subsequent run then refused
+    // them with
+    //   state: expected "open", observed "merged"
+    // because this function re-entered the create-branch / create-pull-request
+    // path from the top on every attempt, and a merged pull request can never
+    // satisfy an expectation of "open" again. The branch is gone too (GitHub
+    // deletes it on merge), so the reconcile even recreated a stray branch for
+    // work that was already published.
+    //
+    // A recorded merge result IS the completion evidence: it is written only
+    // after the provider returned a merged pull request with an exact commit,
+    // and it is what acknowledgePublication reads. So once it exists, the
+    // remaining work is acknowledgement alone. Returning here leaves the
+    // caller's normal acknowledge step to run and reach `published`, rather
+    // than failing an item whose content is already on protected main.
+    const recorded = store.getPublicationState(idempotencyKey);
+    if (recorded?.result_commit) {
+        return {
+            operation: recorded.state === 'published' ? 'published' : 'acknowledging',
+            binding, transaction, result_commit: recorded.result_commit,
+            pull_request: [...recorded.events].reverse().find((event) => event.pull_request)?.pull_request ?? null,
+        };
+    }
+
     const requests = publicationRequests(transaction, binding, preparedCommit);
     await observeProtectedMain(adapter, binding);
     persistEvent(store, transaction, 'prepare', 'intent', 'preparing', now, { operation: 'create-branch', request_digest: sha256Digest(requests.branchExpected) });
