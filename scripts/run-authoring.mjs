@@ -529,10 +529,45 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                     declaredFormat: draftFormat.format, reason: draftFormat.reason,
                 });
             }
-            const commit = await prepareRealCommit({
-                repository: target.repository, path: target.path, content: rejection.draft,
-                token, fetchImpl, validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
-            });
+            // REGISTRATION IS ATTEMPTED HERE, AND REPORTED RATHER THAN
+            // ENFORCED, for the same reason the format check is: refusing a
+            // twice-blocked item strands it with no route to a human, which is
+            // the dead end this gate was built to remove. What it must not do
+            // is hide the problem. A draft that cannot be registered cannot be
+            // reached if it is approved, so the reviewer is told that in the
+            // same reason text that carries the ensemble's findings and the
+            // format mismatch. An escalated item whose draft IS registrable
+            // still gets its registry entry in the prepared commit, exactly
+            // like every other item.
+            let escalationRegistration = null;
+            let registrationProblem = null;
+            try {
+                escalationRegistration = registrationFor({
+                    surface: surfaceForTargetPath(target.path),
+                    targetPath: target.path,
+                    artifact: rejection.draft,
+                });
+            } catch (error) {
+                if (!(error instanceof RegistrationError)) throw error;
+                registrationProblem = error;
+                log("warn", "rejection.escalate.registration-failed", { item: itemId, code: error.code, reason: error.message, target: target.path });
+            }
+
+            let commit;
+            try {
+                commit = await prepareRealCommit({
+                    repository: target.repository, path: target.path, content: rejection.draft,
+                    registration: escalationRegistration, token, fetchImpl, validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
+                });
+            } catch (error) {
+                if (!(error instanceof RegistrationError)) throw error;
+                registrationProblem = error;
+                log("warn", "rejection.escalate.registration-failed", { item: itemId, code: error.code, reason: error.message, target: target.path });
+                commit = await prepareRealCommit({
+                    repository: target.repository, path: target.path, content: rejection.draft,
+                    token, fetchImpl, validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
+                });
+            }
 
             const rawProposalDigest = revisionRecord.proposal_digest ?? proposalMatch?.doc?.proposalDigest ?? null;
             if (!rawProposalDigest) {
@@ -571,6 +606,7 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                 rejection.verifierVerdict ? `Verifier (${rejection.verifierVerdict}): ${rejection.verifierFinding ?? "(no finding text reconstructed)"}` : null,
                 rejection.adversaryVerdict ? `Adversary (${rejection.adversaryVerdict}): ${rejection.adversaryFinding ?? "(no finding text reconstructed)"}` : null,
                 draftFormat.ok ? null : `Artifact format (${draftFormat.code}): ${draftFormat.reason}`,
+                registrationProblem ? `Reachability (${registrationProblem.code}): ${registrationProblem.message}. If this is approved as it stands, the file will be committed and no reader will be able to open it.` : null,
             ].filter(Boolean).join("\n\n") || "(the ensemble blocked this item twice; no finding text could be reconstructed)";
 
             await prepareGate2Item({

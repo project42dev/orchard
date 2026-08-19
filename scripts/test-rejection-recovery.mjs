@@ -53,6 +53,13 @@ function commitFetchMock() {
       calls.push(url);
       const respond = (status, body) => ({ ok: status < 300, status, text: async () => JSON.stringify(body) });
       if (url.endsWith("/git/ref/heads/main")) return respond(200, { object: { sha: BASE_COMMIT } });
+      // Publishing a module now also registers it in the learning catalog, in
+      // the same tree, so preparing a commit reads the catalog off the base
+      // commit first. See lib/registration.mjs.
+      if (url.includes("/contents/content/catalog.json")) {
+        const catalog = JSON.stringify({ paths: [{ id: "discovery", moduleIds: [] }], modules: [] }, null, 2);
+        return respond(200, { content: Buffer.from(catalog, "utf8").toString("base64"), encoding: "base64" });
+      }
       if (url.includes(`/git/commits/${BASE_COMMIT}`)) return respond(200, { tree: { sha: "2".repeat(40) } });
       if (url.endsWith("/git/blobs")) return respond(201, { sha: "b".repeat(40) });
       if (url.endsWith("/git/trees")) return respond(201, { sha: "t".repeat(40) });
