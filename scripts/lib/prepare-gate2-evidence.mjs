@@ -42,6 +42,7 @@
 
 import { generateUuidV7, sha256Digest } from "./identity.mjs";
 import { createAgentHandoff } from "./handoffs.mjs";
+import { assertArtifactFormat } from "./artifact-format.mjs";
 
 const API = "https://api.github.com";
 const TRAILER = "Orchard-Prepared-Tree-Digest";
@@ -188,8 +189,20 @@ export async function buildHandoffsFromProposal({ proposal, binding, runStartedA
  * adapter will later verify before it ever creates a branch. No ref is
  * created here -- the commit is reachable only by SHA until Gate 2 approves
  * and publication runs.
+ *
+ * THE FORMAT GATE IS HERE BECAUSE THIS IS THE CHOKE POINT. Publication never
+ * sees the content again: run-publication.mjs takes the 40-character commit
+ * this function produced and merges it, so by then there is nothing left to
+ * inspect. This is the last function in the pipeline that holds both the
+ * target path and the bytes, and it runs before the first fetch, so a
+ * mismatch costs no API call and leaves no blob, tree, or commit object
+ * behind. `validateFormat` is injectable for the same reason `fetchImpl` is,
+ * and the one caller that passes a different one (the rejection-gate
+ * escalation path) names its opt-out SKIP_ARTIFACT_FORMAT_CHECK and says why.
  */
-export async function prepareRealCommit({ repository, path, content, baseBranch = "main", token, fetchImpl = fetch }) {
+export async function prepareRealCommit({ repository, path, content, baseBranch = "main", token, fetchImpl = fetch, validateFormat = assertArtifactFormat }) {
+    validateFormat({ path, content });
+
     async function call(apiPath, { method = "GET", body } = {}) {
         const response = await fetchImpl(`${API}${apiPath}`, {
             method,

@@ -16,7 +16,8 @@
         "content/modules/{topic}/"
       ],
       "suffix": "-learn",
-      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there."
+      "form": "learning-module-json",
+      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there. The deliverable is ONE JSON object conforming to the platform LearningModule schema (project42-platform src/schema.ts), not prose: scripts/load-catalog.mjs JSON.parse's every .json under content/modules, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form."
     },
     "field-guide": {
       "pathTemplates": [

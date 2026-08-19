@@ -339,6 +339,16 @@ const STANDING_CONSTRAINTS = [
 // A visual guide is not an article. Its deliverable is a Mermaid source file
 // plus a catalogue entry, and a drafter handed the generic prose instruction
 // will write prose, which cannot be published on that surface at all.
+//
+// NEITHER IS A LEARN MODULE. Found live 2026-08-19: the seven learning items
+// this pipeline has ever published all landed at content/modules/discovery/
+// *.json as raw Markdown, because `learn` declared no form at all and the
+// generic instruction above says "Write the learning content", which is an
+// instruction to write prose. project42-platform's scripts/load-catalog.mjs
+// JSON.parse's every .json under content/modules, so those seven files stop
+// the catalog building and the whole learn surface renders nothing. The
+// refusal that now holds such an artifact is lib/artifact-format.mjs; this is
+// the instruction that means there is nothing to hold.
 const FORM_INSTRUCTIONS = {
   mermaid: [
     '',
@@ -349,7 +359,55 @@ const FORM_INSTRUCTIONS = {
     'The altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.',
     'Do not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.',
   ],
+  // Every field below is taken from the LearningModule interface in
+  // project42-platform src/schema.ts and its validateCatalog rules, and
+  // cross-checked against a real published module
+  // (content/modules/ai-foundations/what-ai-does.json). Nothing here is
+  // invented: a field this file names is a field that file has.
+  'learning-module-json': [
+    '',
+    'FORM. The deliverable is not prose and it is not Markdown. Return exactly ONE JSON object and nothing else: no code fence, no heading, no preamble, no commentary before or after it. The first character of your output must be { and the last must be }.',
+    'The file is committed verbatim to a .json path and the publishing platform runs JSON.parse over every module file it finds. A single character outside the object does not damage one module, it stops the entire catalogue from building and takes every other module down with it.',
+    '',
+    'The object must conform to the platform LearningModule schema. Every one of these fields is REQUIRED:',
+    '  id                 kebab-case slug, matching the file name of the target path without its .json extension. It must be unique across the whole catalogue.',
+    '  title              one line of plain text.',
+    '  summary            one or two sentences saying what the module makes a learner able to do.',
+    '  level              exactly one of "beginner", "intermediate", "advanced".',
+    '  providers          array of one or more of "provider-neutral", "anthropic", "openai", "google". Use ["provider-neutral"] unless the subject is one named provider.',
+    '  estimatedMinutes   integer, the realistic working time for the module.',
+    '  objectives         array of at least one string, each stating something the learner can do afterwards.',
+    '  prerequisites      array of module ids, and [] unless you are certain the module you name already exists. The platform refuses a prerequisite that does not resolve to a real module, and refuses a module that requires itself.',
+    '  sections           array of at least one object: { "id": kebab-case and unique within this module, "title": string, "paragraphs": array of at least one non-empty string }. A section may also carry "callout" (one string) and "code" ({ "language", "label", "code" }, all three non-empty), both optional.',
+    '  knowledgeCheck     { "passPercent": integer from 0 to 100, "questions": array of at least one { "id", "prompt", "choices" (at least two), "answerIndex" (0-based index into choices), "explanation" (non-empty) } }. Question ids are registered across the WHOLE catalogue, so prefix every one of them with this module id or they will collide with another module.',
+    '  sources            array of at least one { "title", "url", "publisher", "lastVerified" }. Every url must resolve over https, and lastVerified is a plain YYYY-MM-DD date.',
+    '',
+    'Include these two as well. The schema treats them as optional; this estate needs them, because they are what tells the currency pass when the module is next due for review:',
+    '  reviewCadenceDays  integer from 1 to 365.',
+    '  lastVerified       plain YYYY-MM-DD date, the day the sources were checked.',
+    '',
+    'Omit "activity", "comparisonMatrix", "instructorScript" and "capstone" entirely. Each is optional, and the platform validates every one of them in full whenever it is present, so a partial one fails the whole module where an absent one costs nothing.',
+    'Do not nest the module under a wrapper key, do not return an array, and do not write Markdown inside the strings either: a paragraph is prose, not a heading, a bullet list, or a fenced block.',
+  ],
 };
+
+// The form a surface's deliverable takes when the operator's own surface
+// config does not declare one.
+//
+// surface-targets.json declares form: "mermaid" on the visual-guide surface
+// and declared nothing on any other, so a learning item reached the drafter
+// with no form instruction at all and was asked, in prose, to "write the
+// learning content" for a path ending .json. This default is the safety net
+// for an adopter whose config predates the fix; this operator's own config
+// now declares the form explicitly as well.
+export const SURFACE_DEFAULT_FORM = Object.freeze({
+  learning: 'learning-module-json',
+  learn: 'learning-module-json',
+});
+
+export function formFor(surface, surfaceConfig) {
+  return surfaceConfig?.form ?? SURFACE_DEFAULT_FORM[surface] ?? null;
+}
 
 export function buildPrompt(item, evidence, citations, surfaceConfig) {
   const lines = [];
@@ -414,7 +472,7 @@ export function buildPrompt(item, evidence, citations, surfaceConfig) {
     );
   }
 
-  const form = FORM_INSTRUCTIONS[surfaceConfig?.form];
+  const form = FORM_INSTRUCTIONS[formFor(item.surface, surfaceConfig)];
   if (form) lines.push(...form);
 
   lines.push('', 'Constraints:');
@@ -479,6 +537,8 @@ export function parseBlockedRetryNote(note) {
 
 const SURFACE_CRITERIA = {
   learn: [
+    'The deliverable is a single JSON object that JSON.parse accepts on the first attempt, with no Markdown, code fence, heading, or commentary anywhere outside it.',
+    'Every required LearningModule field is present: id, title, summary, level, providers, estimatedMinutes, objectives, prerequisites, sections, knowledgeCheck, sources. A module missing one of them is refused by the platform catalogue.',
     'The module states what a learner can do after it that they could not do before.',
     'Every knowledge check is answerable from the material in the module itself, with one unambiguously correct answer.',
     'The module declares its level and does not assume knowledge above that level without saying so.',
@@ -496,6 +556,18 @@ const SURFACE_CRITERIA = {
   ],
 };
 
+// SURFACE_CRITERIA is keyed by the operator-config surface names, and the
+// lifecycle records the CONTRACT surface names, so `learning` never matched
+// the `learn` block and every learning brief ever generated carried the four
+// generic criteria and none of its own. Resolved through the same alias table
+// surfaceConfigFor already uses, so both spellings reach the same criteria.
+export function surfaceCriteriaFor(surface) {
+  for (const key of SURFACE_CONFIG_ALIASES[surface] ?? [surface]) {
+    if (SURFACE_CRITERIA[key]) return SURFACE_CRITERIA[key];
+  }
+  return [];
+}
+
 export function buildAcceptanceCriteria(item, evidence) {
   const criteria = [
     'Every source is listed at the end of the piece, with a URL that resolves over https.',
@@ -503,7 +575,7 @@ export function buildAcceptanceCriteria(item, evidence) {
     'Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.',
     `The piece is written for ${evidence?.level ?? item.level ?? 'intermediate'} level and says so.`,
   ];
-  criteria.push(...(SURFACE_CRITERIA[item.surface] ?? []));
+  criteria.push(...surfaceCriteriaFor(item.surface));
   if (item.kind === 'needs-updating') {
     criteria.push(
       'The update states which cited source changed and what that change affected.',

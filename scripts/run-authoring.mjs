@@ -53,6 +53,7 @@ import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { generateBriefs } from "./generate-briefs.mjs";
 import { ingest, readProposals } from "./ingest-proposals.mjs";
 import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage, buildRejectionEvidence, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
+import { inspectArtifactFormat, SKIP_ARTIFACT_FORMAT_CHECK } from "./lib/artifact-format.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
 import { readGateToken } from "./announce-gates.mjs";
@@ -269,6 +270,42 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 continue;
             }
 
+            // FORMAT. The content is known here, nothing has touched GitHub
+            // yet, and the target path is the only thing that says what the
+            // consumer will do with those bytes -- which makes this the last
+            // place a malformed artifact can be stopped for free.
+            //
+            // Found live 2026-08-19: all nine items this pipeline has ever
+            // published carried the wrong format for their own target path.
+            // Seven Markdown files sit at content/modules/discovery/*.json,
+            // where project42-platform's scripts/load-catalog.mjs JSON.parse's
+            // every .json it finds, so the catalog cannot build and the entire
+            // learn surface renders nothing. Two more sit at .mmd diagram
+            // paths wrapped in Markdown fences. See lib/artifact-format.mjs
+            // for the full evidence.
+            //
+            // A mismatch HOLDS the item at gate2-ready, exactly like every
+            // other missing precondition above: the draft is not destroyed,
+            // the run is not stopped, the other items in this batch still
+            // proceed, and a re-authored revision can carry the work forward.
+            // prepareRealCommit re-asserts the same rule as a throwing choke
+            // point, so no future caller can reach GitHub around this.
+            const target = { repository: revision.target_repository, path: revision.target_path };
+            const format = inspectArtifactFormat({ path: target.path, content: reconstructed.content });
+            if (!format.ok) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", {
+                    item: itemId,
+                    reason: format.reason,
+                    code: format.code,
+                    target: target.path,
+                    declaredFormat: format.format,
+                    contentLength: reconstructed.content.length,
+                    contentHead: format.contentHead,
+                });
+                continue;
+            }
+
             token ??= await readGateToken({
                 log, env, prefix: "commitprep",
                 vaultUrlVar: "ORCHARD_PUBLICATION_VAULT_URL", repoVar: "ORCHARD_PUBLICATION_GITHUB_REPO",
@@ -281,7 +318,6 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 continue;
             }
 
-            const target = { repository: revision.target_repository, path: revision.target_path };
             const commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: reconstructed.content, token, fetchImpl });
 
             const rawProposalDigest = revision.proposal_digest ?? proposalMatch?.doc?.proposalDigest ?? null;
@@ -445,7 +481,25 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                 log("warn", "rejection.escalate.held", { item: itemId, reason: "rejected draft could not be reconstructed intact from its findings" });
                 continue;
             }
-            const commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: rejection.draft, token, fetchImpl });
+            // FORMAT, ON THE ESCALATION PATH, IS REPORTED AND NOT REFUSED.
+            // This draft was already rejected by the ensemble's own review;
+            // the commit exists so a human can SEE what was rejected, not so
+            // it can be published. Refusing to prepare it would strand a
+            // twice-blocked item with no route to a human at all, which is
+            // the dead end the rejection gate was built to remove. So the
+            // check still runs, the opt-out is named rather than implied, and
+            // the mismatch goes into the reason the reviewer reads.
+            const draftFormat = inspectArtifactFormat({ path: target.path, content: rejection.draft });
+            if (!draftFormat.ok) {
+                log("warn", "rejection.escalate.format-mismatch", {
+                    item: itemId, code: draftFormat.code, target: target.path,
+                    declaredFormat: draftFormat.format, reason: draftFormat.reason,
+                });
+            }
+            const commit = await prepareRealCommit({
+                repository: target.repository, path: target.path, content: rejection.draft,
+                token, fetchImpl, validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
+            });
 
             const rawProposalDigest = revisionRecord.proposal_digest ?? proposalMatch?.doc?.proposalDigest ?? null;
             if (!rawProposalDigest) {
@@ -483,6 +537,7 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
             const rejectionReason = [
                 rejection.verifierVerdict ? `Verifier (${rejection.verifierVerdict}): ${rejection.verifierFinding ?? "(no finding text reconstructed)"}` : null,
                 rejection.adversaryVerdict ? `Adversary (${rejection.adversaryVerdict}): ${rejection.adversaryFinding ?? "(no finding text reconstructed)"}` : null,
+                draftFormat.ok ? null : `Artifact format (${draftFormat.code}): ${draftFormat.reason}`,
             ].filter(Boolean).join("\n\n") || "(the ensemble blocked this item twice; no finding text could be reconstructed)";
 
             await prepareGate2Item({
