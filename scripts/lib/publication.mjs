@@ -112,9 +112,10 @@ function persistEvent(store, transaction, phase, kind, state, now, details = {})
 }
 
 function publicationRequests(transaction, binding, preparedCommit) {
+    const targetRepo = PUBLICATION_REPOSITORY;
     const branch = transaction.target.branch;
     const externalKey = transaction.idempotency_key;
-    const targetRepo = process.env.ORCHARD_PUBLICATION_GITHUB_REPO || 'project42dev/project42-platform';
+    const targetRepo = PUBLICATION_REPOSITORY;
     const branchExpected = { repository: targetRepo, name: branch, commit: preparedCommit, preparedTreeDigest: binding.prepared_tree_digest };
     const title = `[Orchard] Publish ${binding.item_id} revision ${binding.item_revision}`;
     const body = canonicalJson({
@@ -124,7 +125,7 @@ function publicationRequests(transaction, binding, preparedCommit) {
         target: binding.target, ado_external_key: binding.ado_external_key, handoff_chain_digest: binding.handoff_chain_digest
     });
     const pullExpected = {
-        repository: PUBLICATION_REPOSITORY, externalKey, title, body,
+        repository: targetRepo, externalKey, title, body,
         headBranch: branch, headCommit: preparedCommit, baseBranch: PROTECTED_BRANCH, baseCommit: binding.base_commit,
         preparedTreeDigest: binding.prepared_tree_digest, displayedDiffDigest: binding.displayed_diff_digest, state: 'open'
     };
@@ -167,8 +168,9 @@ function publicationRequests(transaction, binding, preparedCommit) {
  * way to relax this rule without re-provisioning a trust anchor in production.
  */
 export async function observeProtectedMain(adapter, binding) {
+    const targetRepo = PUBLICATION_REPOSITORY;
     try {
-        const targetRepo = process.env.ORCHARD_PUBLICATION_GITHUB_REPO || 'project42dev/project42-platform';
+        const targetRepo = PUBLICATION_REPOSITORY;
         const result = await adapter.reconcileProtectedMain({ repository: targetRepo, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
         if (result.classification !== 'exact') fail('publication.base-missing', 'protected main does not exist to publish onto');
         return { object: result.object, drifted: false, observedCommit: binding.base_commit };
@@ -195,6 +197,7 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     const authority = store.getGateDecisionAuthority(authorityReference.gate2_decision_event_id);
     if (!authority) fail('publication.authority-reference', 'protected Gate 2 authority evidence was not found');
     const binding = await validateGate2PublicationAuthority(authority);
+    const targetRepo = PUBLICATION_REPOSITORY;
     requireGitCommit(preparedCommit, 'prepared head commit');
     const idempotencyKey = publicationIdempotencyKey(binding);
     const branch = publicationBranchName(binding);
@@ -353,6 +356,7 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
 }
 
 export async function acknowledgePublication({ idempotencyKey, adapter, store, now = () => new Date().toISOString() }) {
+    const targetRepo = PUBLICATION_REPOSITORY;
     if (!adapter || !store) throw new TypeError('acknowledgement requires an explicit adapter and StateStore');
     const publicationTrust = store.requirePublicationAdapter(adapter);
     const current = store.getPublicationState(idempotencyKey);
