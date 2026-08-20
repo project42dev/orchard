@@ -1,0 +1,53 @@
+{
+  "id": "brief-req-ai-foundry-custom-models",
+  "subjectId": "req-ai-foundry-custom-models",
+  "title": "Microsoft AI Foundry & Bringing Your Own Models and Agents",
+  "pathId": "discovery",
+  "surface": "learn",
+  "targetPath": "content/modules/discovery/ai-foundry-custom-models.json",
+  "level": "intermediate",
+  "audience": "Developers, AI Practitioners, and Solutions Architects",
+  "estimatedMinutes": 25,
+  "summary": "Deploying, hosting, and connecting custom models and agent backbones in Microsoft AI Foundry, and linking private endpoints to local IDEs.",
+  "learningObjectives": [
+    "Provision and deploy frontier and open-weight models in Microsoft AI Foundry",
+    "Connect private Foundry endpoints to local tools and IDEs (VS Code, Cursor, Cline)",
+    "Configure agent system prompts, tool interfaces, and security boundaries",
+    "Manage token quotas, spend ceilings, and context window limits"
+  ],
+  "requiredSections": [
+    {
+      "id": "foundry-model-catalog-and-deployments",
+      "title": "1. Navigating the Model Catalog & Deployment Types",
+      "guidance": "Explain serverless Pay-As-You-Go API endpoints vs. provisioned managed compute for open weights (Llama, DeepSeek, Mistral, Phi-4). Contrast latency, throughput, and SLAs with concrete numbers."
+    },
+    {
+      "id": "connect-tools-and-endpoints",
+      "title": "2. Connecting Developer Tools to Private Endpoints",
+      "guidance": "Provide complete TypeScript and cURL examples demonstrating wire-compatible OpenAI authentication against a private Microsoft Foundry endpoint. Show how to configure VS Code / Cursor / Cline base URLs."
+    },
+    {
+      "id": "custom-agent-architecture",
+      "title": "3. Constructing Custom Agents & Tool Boundaries",
+      "guidance": "Detail how to attach tools (code interpreter, web search, custom REST APIs) to Foundry agent backbones while enforcing least privilege and data classification."
+    },
+    {
+      "id": "cost-quotas-and-guardrails",
+      "title": "4. Token Quotas, Spend Ceilings & Content Safety",
+      "guidance": "Explain how to configure TPM limits, token rate limit backoff, and Azure AI Content Safety filters to prevent prompt injection and data exfiltration."
+    }
+  ],
+  "handsOnLab": {
+    "title": "Hands-On Lab: Deploy and Connect a Private Foundry Model Endpoint",
+    "steps": [
+      "Step 1: Obtain your Microsoft Foundry endpoint URL and API key.",
+      "Step 2: Configure your local environment (.env) with PROJECT42_FOUNDRY_BASE_URL.",
+      "Step 3: Run the reference validation script (node scripts/test-foundry-connection.mjs) to verify latency and model identity.",
+      "Step 4: Configure an IDE agent (Cursor / VS Code extension) to route requests to the private endpoint."
+    ]
+  },
+  "assessmentRequirements": {
+    "minQuestions": 3,
+    "requireDistractorExplanations": true
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "id": "brief-req-advanced-multi-agent-orchestration",
+  "subjectId": "req-advanced-multi-agent-orchestration",
+  "title": "Advanced Multi-Agent Orchestration & Topologies",
+  "pathId": "discovery",
+  "surface": "learn",
+  "targetPath": "content/modules/discovery/advanced-multi-agent-orchestration.json",
+  "level": "advanced",
+  "audience": "AI Engineers, Systems Architects, and Technical Leads",
+  "estimatedMinutes": 30,
+  "summary": "Architecting robust multi-agent systems with hierarchical delegation, immutable memory boundaries, consensus ensembles, and framework mappings.",
+  "learningObjectives": [
+    "Implement supervisor, router, and peer-to-peer multi-agent topologies",
+    "Enforce strict memory boundaries and immutable context handoffs between agents",
+    "Construct debate, critique, and verification ensembles for high-stakes tasks",
+    "Map agentic architectural patterns to LangGraph, AutoGen, CrewAI, and Semantic Kernel",
+    "Implement circuit breakers and bounded execution limits to prevent runaway loops"
+  ],
+  "requiredSections": [
+    {
+      "id": "multi-agent-topologies-and-patterns",
+      "title": "1. Multi-Agent Topologies & Orchestration Patterns",
+      "guidance": "Compare Supervisor/Workers, Router, and Peer-to-Peer agent swarms. Explain message passing, latency trade-offs, and state synchronization."
+    },
+    {
+      "id": "context-isolation-and-memory-boundaries",
+      "title": "2. Context Isolation & Immutable State Handoffs",
+      "guidance": "Explain why shared mutable memory leads to context drift and hallucination cascades. Provide working TypeScript code showing immutable state passing."
+    },
+    {
+      "id": "debate-critique-and-consensus-ensembles",
+      "title": "3. Debate, Critique & Consensus Ensembles",
+      "guidance": "Detail how multi-model verification ensembles (drafter, verifier, adversary, arbiter) operate. Explain how to resolve conflicting agent conclusions without infinite loops."
+    },
+    {
+      "id": "framework-mapping-and-portability",
+      "title": "4. Framework Mapping: LangGraph, AutoGen, CrewAI",
+      "guidance": "Provide side-by-side architectural mappings of the bounded supervisor pattern across LangGraph, AutoGen, and CrewAI."
+    }
+  ],
+  "handsOnLab": {
+    "title": "Hands-On Lab: Build and Defend a Multi-Agent Supervisor Swarm",
+    "steps": [
+      "Step 1: Set up the supervisor and two specialized subagents (researcher and validator).",
+      "Step 2: Implement strict state passing using an immutable task context object.",
+      "Step 3: Add a step counter circuit breaker capped at 5 total agent turns.",
+      "Step 4: Execute the test suite and verify that tasks complete with verified artifacts."
+    ]
+  },
+  "assessmentRequirements": {
+    "minQuestions": 4,
+    "requireDistractorExplanations": true
+  }
+}
