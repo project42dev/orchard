@@ -101,6 +101,7 @@ COPY --chown=delivery:delivery content/ ./content/
 
 # ---- Config files ----
 COPY --chown=delivery:delivery config/ ./config/
+COPY --chown=delivery:delivery seed-inputs/ ./seed-inputs/
 
 # ---- Schema files (SQL, JSON schemas) ----
 COPY --chown=delivery:delivery schema/ ./schema/
