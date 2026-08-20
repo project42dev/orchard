@@ -97,7 +97,7 @@ export class BlobStateAdapter {
     }
 
     async renew(handle) { await handle.lease.renewLease(); }
-    async release(handle) { await handle.lease.releaseLease(); }
+    async release(handle) { try { await handle.lease.releaseLease(); } catch { /* ignore lease expiration on exit */ } }
 
     async assertCurrent(handle) {
         await handle.lease.renewLease();
