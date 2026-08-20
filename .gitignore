@@ -17,3 +17,5 @@ delivery/.orchard-issue-body.tmp
 # build has something to copy; its contents are release output, never source.
 seed-inputs/*
 !seed-inputs/.gitkeep
+!seed-inputs/curriculum-requests.json
+!seed-inputs/probes.json

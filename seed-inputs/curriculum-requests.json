@@ -1,0 +1,39 @@
+[
+  {
+    "id": "ai-foundry-custom-models",
+    "title": "Microsoft AI Foundry & Bringing Your Own Models and Agents",
+    "pathId": "discovery",
+    "level": "intermediate",
+    "audience": "Developers, AI Practitioners, and Solutions Architects",
+    "estimatedMinutes": 25,
+    "summary": "Deploying, hosting, and connecting custom models and agent backbones in Microsoft AI Foundry, and linking private endpoints to local IDEs.",
+    "objectives": [
+      "Provision and deploy frontier and open-weight models in Microsoft AI Foundry",
+      "Connect private Foundry endpoints to local tools and IDEs (VS Code, Cursor, Cline)",
+      "Configure agent system prompts, tool interfaces, and security boundaries",
+      "Manage token quotas, spend ceilings, and context window limits"
+    ],
+    "requestedBy": "operator",
+    "priority": "high",
+    "createdAt": "2026-08-20T16:36:00.000Z"
+  },
+  {
+    "id": "advanced-multi-agent-orchestration",
+    "title": "Advanced Multi-Agent Orchestration & Topologies",
+    "pathId": "discovery",
+    "level": "advanced",
+    "audience": "AI Engineers, Systems Architects, and Technical Leads",
+    "estimatedMinutes": 30,
+    "summary": "Architecting robust multi-agent systems with hierarchical delegation, immutable memory boundaries, consensus ensembles, and framework mappings.",
+    "objectives": [
+      "Implement supervisor, router, and peer-to-peer multi-agent topologies",
+      "Enforce strict memory boundaries and immutable context handoffs between agents",
+      "Construct debate, critique, and verification ensembles for high-stakes tasks",
+      "Map agentic architectural patterns to LangGraph, AutoGen, CrewAI, and Semantic Kernel",
+      "Implement circuit breakers and bounded execution limits to prevent runaway loops"
+    ],
+    "requestedBy": "operator",
+    "priority": "high",
+    "createdAt": "2026-08-20T16:36:00.000Z"
+  }
+]
