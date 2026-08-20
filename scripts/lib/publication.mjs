@@ -114,7 +114,8 @@ function persistEvent(store, transaction, phase, kind, state, now, details = {})
 function publicationRequests(transaction, binding, preparedCommit) {
     const branch = transaction.target.branch;
     const externalKey = transaction.idempotency_key;
-    const branchExpected = { repository: PUBLICATION_REPOSITORY, name: branch, commit: preparedCommit, preparedTreeDigest: binding.prepared_tree_digest };
+    const targetRepo = binding.target?.repository ?? PUBLICATION_REPOSITORY;
+    const branchExpected = { repository: targetRepo, name: branch, commit: preparedCommit, preparedTreeDigest: binding.prepared_tree_digest };
     const title = `[Orchard] Publish ${binding.item_id} revision ${binding.item_revision}`;
     const body = canonicalJson({
         publication_idempotency_key: externalKey, artifact_digest: binding.artifact_digest,
@@ -167,7 +168,8 @@ function publicationRequests(transaction, binding, preparedCommit) {
  */
 export async function observeProtectedMain(adapter, binding) {
     try {
-        const result = await adapter.reconcileProtectedMain({ repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
+        const targetRepo = binding.target?.repository ?? PUBLICATION_REPOSITORY;
+        const result = await adapter.reconcileProtectedMain({ repository: targetRepo, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
         if (result.classification !== 'exact') fail('publication.base-missing', 'protected main does not exist to publish onto');
         return { object: result.object, drifted: false, observedCommit: binding.base_commit };
     } catch (error) {
@@ -177,7 +179,7 @@ export async function observeProtectedMain(adapter, binding) {
         if (error?.code !== 'provider.mismatch') throw error;
         const observed = /observed "([a-f0-9]{40})"/.exec(error.message ?? '')?.[1];
         if (!observed) throw error;
-        return { object: { repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, commit: observed }, drifted: true, observedCommit: observed };
+        return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: observed }, drifted: true, observedCommit: observed };
     }
 }
 
@@ -307,7 +309,7 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     if (!merge) return { operation: 'merge-pending', binding, transaction, branch: branchResult.object, pull_request: pullResult.object };
 
     const mainBeforeMerge = await observeProtectedMain(adapter, binding);
-    const reconciledPull = await adapter.reconcilePullRequest({ repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey, expected: requests.pullExpected });
+    const reconciledPull = await adapter.reconcilePullRequest({ repository: targetRepo, externalKey: idempotencyKey, expected: requests.pullExpected });
     if (reconciledPull.classification !== 'exact') fail('publication.pr-missing', 'the exact approved pull request no longer exists');
     persistEvent(store, transaction, 'merge', 'intent', 'merging', now, {
         operation: 'merge-pull-request', pull_number: pullResult.object.number,
