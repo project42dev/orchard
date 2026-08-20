@@ -17,14 +17,18 @@
       ],
       "suffix": "-learn",
       "form": "learning-module-json",
-      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there. The deliverable is ONE JSON object conforming to the platform LearningModule schema (project42-platform src/schema.ts), not prose: scripts/load-catalog.mjs JSON.parse's every .json under content/modules, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form."
+      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there. The deliverable is ONE JSON object conforming to the platform LearningModule schema (project42-platform src/schema.ts), not prose: scripts/load-catalog.mjs JSON.parse's every .json under content/modules, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form.",
+      "publicBaseUrl": "https://learn.project-42.dev",
+      "publicPathTemplate": "/learn/{topic}"
     },
     "field-guide": {
       "pathTemplates": [
         "content/resources/{topic}/"
       ],
       "suffix": "-field-guide",
-      "why": "Every indexed Field Guide resource lives under content/resources/<topic>/."
+      "why": "Every indexed Field Guide resource lives under content/resources/<topic>/.",
+      "publicBaseUrl": "https://guide.project-42.dev",
+      "publicPathTemplate": "/resource/{topic}"
     },
     "visual-guide": {
       "pathTemplates": [
@@ -33,7 +37,19 @@
       ],
       "suffix": "-visual-guide",
       "form": "mermaid",
-      "why": "Visual guides are the diagrams published on the Field Guide subdomain at /diagrams and /diagrams/<id>, where the UI calls them visual guides. The Mermaid source is content/diagrams/<id>.mmd and the catalogue entry is in content/diagrams/catalogue.json; the SVG is GENERATED and is never authored by hand. Both paths are named because a .mmd file with no catalogue entry renders nothing and reaches no reader. Corrected 2026-08-19: this block used to name a repository and paths that do not exist (guide.project-42.dev, diagrams/, config/diagrams.json). The runtime never read it, so the error was invisible until two diagrams published to content/diagrams/ and reached nobody, exactly as the last sentence predicted."
+      "why": "Visual guides are the diagrams published on the Field Guide subdomain at /diagrams and /diagrams/<id>, where the UI calls them visual guides. The Mermaid source is content/diagrams/<id>.mmd and the catalogue entry is in content/diagrams/catalogue.json; the SVG is GENERATED and is never authored by hand. Both paths are named because a .mmd file with no catalogue entry renders nothing and reaches no reader. Corrected 2026-08-19: this block used to name a repository and paths that do not exist (guide.project-42.dev, diagrams/, config/diagrams.json). The runtime never read it, so the error was invisible until two diagrams published to content/diagrams/ and reached nobody, exactly as the last sentence predicted.",
+      "publicBaseUrl": "https://guide.project-42.dev",
+      "publicPathTemplate": "/diagrams/{topic}"
+    },
+    "learning": {
+      "pathTemplates": [
+        "content/modules/{topic}/"
+      ],
+      "suffix": "-learn",
+      "form": "learning-module-json",
+      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there. The deliverable is ONE JSON object conforming to the platform LearningModule schema (project42-platform src/schema.ts), not prose: scripts/load-catalog.mjs JSON.parse's every .json under content/modules, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form.",
+      "publicBaseUrl": "https://learn.project-42.dev",
+      "publicPathTemplate": "/learn/{topic}"
     }
   }
 }
