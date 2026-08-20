@@ -2,7 +2,7 @@ import { assertValidRecord, ContractValidationError } from './contracts.mjs';
 import { canonicalJson, generateUuidV7, sha256Digest } from './identity.mjs';
 import { verifyGateManifestDigests } from './gates.mjs';
 
-export const PUBLICATION_REPOSITORY = 'project42dev/project42-platform';
+export const PUBLICATION_REPOSITORY = process.env.ORCHARD_CONTENT_REPO || 'project42dev/project42-content';
 export const PROTECTED_BRANCH = 'main';
 
 export class PublicationAuthorityError extends Error {
