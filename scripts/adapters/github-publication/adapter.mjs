@@ -167,7 +167,7 @@ function githubClient({ token, fetchImpl }) {
                     headBranch: pull.head?.ref, headCommit: pull.head?.sha,
                     baseBranch: pull.base?.ref, baseCommit: manifest.base_commit,
                     preparedTreeDigest: manifest.prepared_tree_digest, displayedDiffDigest: manifest.displayed_diff_digest,
-                    state: pull.merged_at ? "merged" : pull.state, mergeCommit: pull.merge_commit_sha ?? undefined,
+                    state: pull.merged_at ? "merged" : pull.state, mergeCommit: pull.merge_commit_sha ?? null,
                 });
             }
             return matches;

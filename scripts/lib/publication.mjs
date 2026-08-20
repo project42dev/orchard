@@ -97,7 +97,7 @@ function persistEvent(store, transaction, phase, kind, state, now, details = {})
             || existing.intent_or_result !== kind || existing.state !== state) {
             fail('publication.event-idempotency-conflict', 'publication event idempotency key was reused for a different phase or state');
         }
-        const comparableDetails = Object.fromEntries(Object.entries(details).filter(([field]) => field !== 'operation' && field !== 'request_digest'));
+        const comparableDetails = Object.fromEntries(Object.entries(details).filter(([field]) => field !== 'operation' && field !== 'request_digest' && field !== 'pull_request' && field !== 'branch' && field !== 'approved_bindings_digest'));
         for (const [field, value] of Object.entries(comparableDetails)) {
             exact(existing[field], value, 'publication.event-idempotency-conflict', `replayed publication event ${field}`);
         }
