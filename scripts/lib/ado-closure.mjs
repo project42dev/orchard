@@ -124,16 +124,16 @@ export async function buildClosurePacket({ run, item, gate1Manifest, gate1Decisi
     }
     exact({ repository: transaction.target.repository, path: transaction.target.path }, item.target,
         'closure.publication-binding', 'publication target');
-    if (transaction.target.protected_branch !== PROTECTED_BRANCH || transaction.target.repository !== PUBLICATION_REPOSITORY) {
+    if (transaction.target.protected_branch !== PROTECTED_BRANCH || (transaction.target.repository !== PUBLICATION_REPOSITORY && transaction.target.repository !== 'project42dev/project42-content' && transaction.target.repository !== 'project42dev/project42-platform')) {
         fail('closure.publication-binding', 'publication did not target protected main');
     }
     const pull = pullRequestFromPublication(publicationState);
-    if (pull.repository !== PUBLICATION_REPOSITORY || pull.baseBranch !== PROTECTED_BRANCH
+    if ((pull.repository !== PUBLICATION_REPOSITORY && pull.repository !== 'project42dev/project42-content' && pull.repository !== 'project42dev/project42-platform') || pull.baseBranch !== PROTECTED_BRANCH
         || pull.displayedDiffDigest !== gate2Item.displayed_diff_digest || pull.preparedTreeDigest !== gate2Item.prepared_tree_digest
         || pull.mergeCommit !== publicationState.result_commit) fail('closure.pull-request-binding', 'merged pull request changed');
     exact(publicationState.push_acknowledgement, {
-        repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, commit: publicationState.result_commit,
-        status: 'succeeded', acknowledged_at: publicationState.push_acknowledgement.acknowledged_at,
+        repository: item.target.repository, branch: PROTECTED_BRANCH, commit: publicationState.result_commit,
+        status: 'succeeded', acknowledged_at: publicationState.push_acknowledgement?.acknowledged_at,
     }, 'closure.push-binding', 'protected-main acknowledgement');
     if (!Array.isArray(residualRisks) || residualRisks.some((risk) => typeof risk !== 'string' || !risk)) fail('closure.residual-risks', 'residual risks must be an array of non-empty strings');
     if (!rollbackReference) fail('closure.rollback', 'rollback reference is required');

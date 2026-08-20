@@ -666,6 +666,17 @@ export async function bumpSite({ call, repo, log, version, commit }) {
             files.push({ path: "public/release-facts.json", content: JSON.stringify(parsedFacts, null, 2) + "\n" });
         }
     } catch {}
+
+    try {
+        const compatFile = await readRepoFile({ call, repo, path: "self-host/compatibility.json", ref: mainSha });
+        if (compatFile?.text) {
+            const parsedCompat = JSON.parse(compatFile.text);
+            if (parsedCompat.platform) {
+                parsedCompat.platform.requiredVersion = version;
+                files.push({ path: "self-host/compatibility.json", content: JSON.stringify(parsedCompat, null, 2) + "\n" });
+            }
+        }
+    } catch {}
     const branch = bumpBranchFor(version);
     const branchResult = await reconcileBranch({
         call, repo, branch, baseCommit: mainSha, files, log,

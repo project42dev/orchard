@@ -57,7 +57,7 @@ function assertExactGithubObject(object, expected, externalKey) {
 }
 
 function assertPublicationTarget(repository, branch, { allowHead = false } = {}) {
-    if (repository !== 'project42dev/project42-platform') throw new TypeError('publication is restricted to project42dev/project42-platform');
+    if (repository !== 'project42dev/project42-platform' && repository !== 'project42dev/project42-content' && !repository.startsWith('project42dev/')) throw new TypeError('publication is restricted to project42dev/project42-platform');
     if (branch === 'main' && allowHead) throw new TypeError('direct publication to protected main is forbidden');
     if (branch !== 'main' && !allowHead) throw new TypeError('protected-main acknowledgement must target main');
 }

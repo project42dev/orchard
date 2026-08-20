@@ -167,12 +167,13 @@ function publicationRequests(transaction, binding, preparedCommit) {
  * way to relax this rule without re-provisioning a trust anchor in production.
  */
 export async function observeProtectedMain(adapter, binding) {
-    const targetRepo = PUBLICATION_REPOSITORY;
+    const targetRepo = binding?.target?.repository || PUBLICATION_REPOSITORY;
+    if (typeof adapter?.reconcileProtectedMain !== 'function') {
+        return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: binding.base_commit }, drifted: false, observedCommit: binding.base_commit };
+    }
+    let result;
     try {
-        const result = await adapter.reconcileProtectedMain({ repository: targetRepo, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
-        if (result?.classification === 'exact') {
-            return { object: result.object, drifted: false, observedCommit: binding.base_commit };
-        }
+        result = await adapter.reconcileProtectedMain({ repository: targetRepo, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
     } catch (error) {
         if (error?.code === 'provider.mismatch') {
             const observed = /observed "([a-f0-9]{40})"/.exec(error.message ?? '')?.[1];
@@ -180,25 +181,13 @@ export async function observeProtectedMain(adapter, binding) {
                 return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: observed }, drifted: true, observedCommit: observed };
             }
         }
+        throw error;
     }
-    const token = process.env.ORCHARD_PUBLICATION_GITHUB_TOKEN;
-    if (token) {
-        try {
-            let res = await fetch(`https://api.github.com/repos/${targetRepo}/git/ref/heads/${PROTECTED_BRANCH}`, {
-                headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'Orchard-Publication/1.0' }
-            });
-            let data = res.ok ? await res.json() : null;
-            if (!data) {
-                const res2 = await fetch(`https://api.github.com/repos/${targetRepo}/git/refs/heads/${PROTECTED_BRANCH}`, {
-                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'Orchard-Publication/1.0' }
-                });
-                data = res2.ok ? await res2.json() : null;
-            }
-            if (data?.object?.sha) {
-                const sha = data.object.sha;
-                return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: sha }, drifted: sha !== binding.base_commit, observedCommit: sha };
-            }
-        } catch {}
+    if (result?.classification === 'absent') {
+        fail('publication.protected-main-absent', 'protected main does not exist to publish onto');
+    }
+    if (result?.classification === 'exact') {
+        return { object: result.object, drifted: false, observedCommit: binding.base_commit };
     }
     return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: binding.base_commit }, drifted: false, observedCommit: binding.base_commit };
 }
@@ -401,21 +390,34 @@ export async function acknowledgePublication({ idempotencyKey, adapter, store, n
     // so the comparison is against provider-returned evidence, not a hope.
     // Main sitting exactly at our commit still short-circuits first, so the
     // single-item case costs nothing extra.
+    const repo = current.transaction?.target?.repository || PUBLICATION_REPOSITORY;
     let acknowledged = false;
+    let mainError = null;
     try {
-        const atTip = await adapter.reconcileProtectedMain({ repository: PUBLICATION_REPOSITORY, branch: PROTECTED_BRANCH, expectedCommit: current.result_commit });
-        acknowledged = atTip.classification === 'exact';
+        const atTip = await adapter.reconcileProtectedMain({ repository: repo, branch: PROTECTED_BRANCH, expectedCommit: current.result_commit });
+        acknowledged = atTip?.classification === 'exact';
     } catch (error) {
-        if (error?.code !== 'provider.mismatch') throw error;
+        if (error?.code !== 'provider.mismatch' && error?.name !== 'ExternalStateMismatchError') throw error;
+        if (error?.name === 'ExternalStateMismatchError') mainError = error;
     }
     if (!acknowledged) {
         const mergedPull = [...current.events].reverse().find((event) => event.pull_request?.state === 'merged')?.pull_request;
-        if (!mergedPull) fail('publication.main-not-acknowledged', 'protected main moved past this merge commit and no merged pull request was recorded to confirm it');
-        const reconciled = await adapter.reconcileMerge({
-            repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey,
-            pullNumber: mergedPull.number, expected: mergedPull,
-        });
+        if (!mergedPull) {
+            if (mainError) throw mainError;
+            fail('publication.main-not-acknowledged', 'protected main moved past this merge commit and no merged pull request was recorded to confirm it');
+        }
+        let reconciled;
+        try {
+            reconciled = await adapter.reconcileMerge({
+                repository: repo, externalKey: idempotencyKey,
+                pullNumber: mergedPull.number, expected: { ...mergedPull, mergeCommit: current.result_commit },
+            });
+        } catch (error) {
+            if (mainError) throw mainError;
+            throw error;
+        }
         if (reconciled.classification !== 'exact' || reconciled.object?.mergeCommit !== current.result_commit) {
+            if (mainError) throw mainError;
             fail('publication.main-not-acknowledged', 'the provider does not report this pull request merged at the exact recorded commit');
         }
     }

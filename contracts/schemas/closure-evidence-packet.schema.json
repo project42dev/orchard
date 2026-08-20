@@ -209,7 +209,10 @@
       ],
       "properties": {
         "repository": {
-          "const": "project42dev/project42-platform"
+          "enum": [
+            "project42dev/project42-platform",
+            "project42dev/project42-content"
+          ]
         },
         "path": {
           "type": "string",
@@ -234,7 +237,7 @@
         },
         "url": {
           "type": "string",
-          "pattern": "^https://github\\.com/project42dev/project42-platform/pull/[1-9][0-9]*$"
+          "pattern": "^https://github\\.com/project42dev/(project42-platform|project42-content)/pull/[1-9][0-9]*$"
         }
       }
     },
