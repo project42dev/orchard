@@ -42,7 +42,15 @@
 // MAX_SPEND_USD_PER_RUN preflight then enforces it again per request inside
 // the run. Two independent brakes, matching Track 2's pattern.
 
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+
+function runProcessAsync(executable, args, options) {
+    return new Promise((resolve) => {
+        const child = spawn(executable, args, options);
+        child.on("error", (err) => resolve({ error: err, status: null }));
+        child.on("close", (code) => resolve({ error: null, status: code }));
+    });
+}
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -625,7 +633,7 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
     return summary;
 }
 
-export async function main(argv = process.argv.slice(2), { log = (level, event, detail) => console.log(JSON.stringify({ level, event, ...detail })), env = process.env, spawn = spawnSync } = {}) {
+export async function main(argv = process.argv.slice(2), { log = (level, event, detail) => console.log(JSON.stringify({ level, event, ...detail })), env = process.env, spawn = runProcessAsync } = {}) {
     const dbPath = argOf(argv, "state-db");
     if (!dbPath) fail("ERR_ORCHARD_CONFIGURATION", "run-authoring requires --state-db");
     const now = new Date().toISOString();
@@ -662,7 +670,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         writeFileSync(briefPath, `${JSON.stringify(briefs.briefs, null, 2)}\n`);
         const command = deliveryCommand(env);
         log("info", "authoring.delivery.starting", { briefs: briefs.briefs.length, executable: command[0] });
-        const result = spawn(command[0], command.slice(1), {
+        const result = await spawn(command[0], command.slice(1), {
             stdio: "inherit",
             env: {
                 ...env,
