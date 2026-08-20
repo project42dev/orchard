@@ -115,7 +115,6 @@ function publicationRequests(transaction, binding, preparedCommit) {
     const targetRepo = PUBLICATION_REPOSITORY;
     const branch = transaction.target.branch;
     const externalKey = transaction.idempotency_key;
-    const targetRepo = PUBLICATION_REPOSITORY;
     const branchExpected = { repository: targetRepo, name: branch, commit: preparedCommit, preparedTreeDigest: binding.prepared_tree_digest };
     const title = `[Orchard] Publish ${binding.item_id} revision ${binding.item_revision}`;
     const body = canonicalJson({
