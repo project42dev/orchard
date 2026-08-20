@@ -647,6 +647,25 @@ export async function bumpSite({ call, repo, log, version, commit }) {
         { path: "package.json", content: packageRewrite.text },
         { path: "package-lock.json", content: lockEntry.text },
     ];
+
+    try {
+        const readmeFile = await readRepoFile({ call, repo, path: "README.md", ref: mainSha });
+        if (readmeFile?.text) {
+            const updatedReadme = readmeFile.text.replace(/- Platform package `[^`]+`/g, - Platform package ````);
+            if (updatedReadme !== readmeFile.text) {
+                files.push({ path: "README.md", content: updatedReadme });
+            }
+        }
+    } catch {}
+
+    try {
+        const factsFile = await readRepoFile({ call, repo, path: "public/release-facts.json", ref: mainSha });
+        if (factsFile?.text) {
+            const parsedFacts = JSON.parse(factsFile.text);
+            parsedFacts.platformVersion = version;
+            files.push({ path: "public/release-facts.json", content: ${JSON.stringify(parsedFacts, null, 2)}\n });
+        }
+    } catch {}
     const branch = bumpBranchFor(version);
     const branchResult = await reconcileBranch({
         call, repo, branch, baseCommit: mainSha, files, log,

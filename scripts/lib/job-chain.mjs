@@ -58,6 +58,7 @@ const CHAIN_HOPS = [
     { state: "ado-linked", envVar: "ORCHARD_CHAIN_AUTHORING_JOB_ID", role: "authoring" },
     { state: "gate2-ready", envVar: "ORCHARD_CHAIN_GATE2PREP_JOB_ID", role: "gate2-prep" },
     { state: "gate2-approved", envVar: "ORCHARD_CHAIN_PUBLICATION_JOB_ID", role: "publication" },
+    { state: "published", envVar: "ORCHARD_CHAIN_RELEASE_JOB_ID", role: "release" },
 ];
 
 /**
