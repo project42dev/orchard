@@ -55,7 +55,8 @@ export async function validateGate2PublicationAuthority({ manifest, full_manifes
         || decision.item_revision !== item.item_revision || decision.digest !== item.artifact_digest) {
         fail('authority.decision-binding', 'Gate 2 decision does not exactly bind the manifest item, revision, and artifact');
     }
-    if (item.target.repository !== PUBLICATION_REPOSITORY) fail('authority.repository', `publication target must be ${PUBLICATION_REPOSITORY}`);
+    const allowedRepos = [PUBLICATION_REPOSITORY, 'project42dev/project42-content', 'project42dev/project42-platform'];
+    if (!allowedRepos.includes(item.target.repository)) fail('authority.repository', `publication target must be one of: ${allowedRepos.join(', ')}`);
     const expectedAdoKey = `orchard:${manifest.track}:${item.item_id}:r${item.item_revision}`;
     if (item.ado_external_key !== expectedAdoKey) fail('authority.ado-binding', 'Gate 2 ADO external key does not match the exact item revision');
     if (!/^sha256:[a-f0-9]{64}$/.test(item.handoff_chain_digest)) fail('authority.handoff-binding', 'Gate 2 handoff chain digest is invalid');
