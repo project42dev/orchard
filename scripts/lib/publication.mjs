@@ -295,14 +295,14 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     await observeProtectedMain(adapter, binding);
     persistEvent(store, transaction, 'prepare', 'intent', 'preparing', now, { operation: 'create-branch', request_digest: sha256Digest(requests.branchExpected) });
     const branchResult = await adapter.reconcileBeforeCreateBranch({
-        repository: PUBLICATION_REPOSITORY, branch,
+        repository: targetRepo, branch,
         expected: requests.branchExpected, create: { commit: preparedCommit, preparedTreeDigest: binding.prepared_tree_digest }
     });
     persistEvent(store, transaction, 'prepare', 'result', 'validating', now, { operation: branchResult.operation, branch: branchResult.object });
 
     persistEvent(store, transaction, 'pr-open', 'intent', 'pr-open', now, { operation: 'create-pull-request', request_digest: sha256Digest(requests.pullExpected) });
     const pullResult = await adapter.reconcileBeforeCreatePullRequest({
-        repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey,
+        repository: targetRepo, externalKey: idempotencyKey,
         expected: requests.pullExpected, create: requests.pullExpected
     });
     persistEvent(store, transaction, 'pr-open', 'result', 'merge-pending', now, { operation: pullResult.operation, pull_request: pullResult.object });
@@ -333,7 +333,7 @@ export async function publishApprovedItem({ authorityReference, preparedCommit, 
     for (const expectedBaseCommit of mergeAttempts) {
         try {
             mergeResult = await adapter.reconcileBeforeMerge({
-                repository: PUBLICATION_REPOSITORY, externalKey: idempotencyKey,
+                repository: targetRepo, externalKey: idempotencyKey,
                 pullNumber: pullResult.object.number, expected: mergeExpected,
                 merge: { baseBranch: PROTECTED_BRANCH, headBranch: branch, expectedHeadCommit: preparedCommit, expectedBaseCommit }
             });
