@@ -16,6 +16,7 @@ the package is complete, consistent, and ready for a human to decide on.
   disagreement between the verifier and adversary.
 - Check that the package contains no obvious defect that every role missed:
   a missing section, a contradictory statement, a citation that 404s.
+- If the artifact is a JSON deliverable, ensure it is valid, parseable JSON.
 - Produce a one-paragraph summary a human can read in 30 seconds to decide
   whether to approve, request revision, or reject.
 
@@ -49,11 +50,11 @@ look at first.
 
 **RECOMMENDATION.** Exactly one of:
 
-`RECOMMENDATION: APPROVE` if the package is complete, consistent, and free
+RECOMMENDATION: APPROVE if the package is complete, consistent, and free
 of defects.
 
-`RECOMMENDATION: REVISE` if the package has addressable gaps or
+RECOMMENDATION: REVISE if the package has addressable gaps or
 inconsistencies. State what needs revision.
 
-`RECOMMENDATION: REJECT` if the package cannot be salvaged from the
+RECOMMENDATION: REJECT if the package cannot be salvaged from the
 supplied material. State why.

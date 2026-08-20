@@ -12,9 +12,19 @@ export async function withFencedState(adapter, options, operation) {
     const handle = await adapter.acquire(options.scope, options.owner);
     if (!handle) throw new Error(`state lease is unavailable: ${options.scope}`);
     let renewalFailure = null;
+    let consecutiveFailures = 0;
     const renewEveryMs = options.renewEveryMs ?? 20_000;
     const timer = setInterval(async () => {
-        try { await adapter.renew(handle); } catch (error) { renewalFailure = error; }
+        try {
+            await adapter.renew(handle);
+            consecutiveFailures = 0;
+            renewalFailure = null;
+        } catch (error) {
+            consecutiveFailures += 1;
+            if (consecutiveFailures >= 3) {
+                renewalFailure = error;
+            }
+        }
     }, renewEveryMs);
     timer.unref?.();
     try {
@@ -36,3 +46,4 @@ export async function withFencedState(adapter, options, operation) {
         await adapter.release(handle).catch(() => { });
     }
 }
+

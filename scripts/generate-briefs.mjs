@@ -751,7 +751,7 @@ export async function generateBriefs({
         roles,
         targets,
         evidence: evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity),
-        citations: item.kind === 'needs-updating' ? evidenceCitations(item.record) : [],
+        citations: item.kind === 'needs-updating' ? evidenceCitations(item.record) : (evidenceCitations(item.record).length > 0 ? evidenceCitations(item.record) : ((evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity))?.evidenceRefs?.map(r => ({ url: r.reference, publisher: 'surveyed source' })) ?? [])),
       });
       if (built.error) {
         skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: built.error });
@@ -891,3 +891,4 @@ async function main() {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+

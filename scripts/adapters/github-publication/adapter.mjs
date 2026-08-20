@@ -180,7 +180,7 @@ function githubClient({ token, fetchImpl }) {
             }
             const manifest = JSON.parse(created.body ?? "{}");
             return {
-                number: created.number, repository, title: created.title, body: created.body,
+                number: created.number, repository, externalKey: manifest.publication_idempotency_key, title: created.title, body: created.body,
                 headBranch: created.head?.ref, headCommit: created.head?.sha,
                 baseBranch: created.base?.ref, baseCommit: manifest.base_commit,
                 preparedTreeDigest: manifest.prepared_tree_digest, displayedDiffDigest: manifest.displayed_diff_digest,
@@ -195,7 +195,7 @@ function githubClient({ token, fetchImpl }) {
             let manifest = {};
             try { manifest = JSON.parse(pull.body ?? "{}"); } catch { /* an unparsable body cannot supply the fields the caller expects; they simply mismatch */ }
             return {
-                number: pull.number, repository,
+                number: pull.number, repository, externalKey: manifest.publication_idempotency_key,
                 title: pull.title, body: pull.body,
                 headBranch: pull.head?.ref, headCommit: pull.head?.sha,
                 baseBranch: pull.base?.ref, baseCommit: manifest.base_commit,
@@ -209,7 +209,7 @@ function githubClient({ token, fetchImpl }) {
             let manifest = {};
             try { manifest = JSON.parse(current.body ?? "{}"); } catch { /* an unparsable body cannot supply the fields the caller expects; they simply mismatch */ }
             const asMerged = (mergeCommit) => ({
-                number: current.number, repository, title: current.title, body: current.body,
+                number: current.number, repository, externalKey: manifest.publication_idempotency_key, title: current.title, body: current.body,
                 headBranch: current.head?.ref, headCommit: current.head?.sha,
                 baseBranch: current.base?.ref, baseCommit: manifest.base_commit,
                 preparedTreeDigest: manifest.prepared_tree_digest, displayedDiffDigest: manifest.displayed_diff_digest,

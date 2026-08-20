@@ -222,7 +222,7 @@ export async function announceGates({ db, track, runId, repo, token, log, fetchI
 }
 
 async function readVaultSecret({ vaultUrl, secretName, clientId, fetchImpl = fetch }) {
-    const credential = new ManagedIdentityCredential(clientId);
+    const credential = new ManagedIdentityCredential(clientId, { retryOptions: { maxRetries: 5, retryDelayInMs: 2000, maxRetryDelayInMs: 10000 } });
     const { token } = await credential.getToken("https://vault.azure.net/.default");
     const url = `${vaultUrl.replace(/\/$/, "")}/secrets/${encodeURIComponent(secretName)}?api-version=7.4`;
     const response = await fetchImpl(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -380,3 +380,4 @@ export async function announceGatesForRun({ stateDbPath, track, runId, log, env 
         db?.close();
     }
 }
+

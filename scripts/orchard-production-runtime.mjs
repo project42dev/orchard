@@ -136,7 +136,7 @@ export function verifyInspectionPolicy(policy, expectedDigest) {
 }
 
 function blobClients() {
-    const credential = new ManagedIdentityCredential(required("AZURE_CLIENT_ID"));
+    const credential = new ManagedIdentityCredential(required("AZURE_CLIENT_ID"), { retryOptions: { maxRetries: 5, retryDelayInMs: 2000, maxRetryDelayInMs: 10000 } });
     const primary = new BlobServiceClient(required("ORCHARD_STATE_ACCOUNT_URL"), credential);
     const backup = new BlobServiceClient(required("ORCHARD_BACKUP_ACCOUNT_URL"), credential);
     return {
@@ -177,6 +177,7 @@ export async function runController(track, args, log) {
 }
 
 async function runAzure(track, log) {
+    await new Promise((resolve) => setTimeout(resolve, 2500));
     const clients = blobClients();
     const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
     mkdirSync(root, { recursive: true });
@@ -555,3 +556,4 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+

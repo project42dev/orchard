@@ -724,3 +724,4 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+

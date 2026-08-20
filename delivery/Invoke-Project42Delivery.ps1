@@ -1257,6 +1257,59 @@ function Get-DeliveryRolePrompt {
     return ($text -replace '\{\{FETCH_MODE\}\}', $fetchMode) + $grounding
 }
 
+
+function Normalize-DeliveryArtifactContent {
+    param(
+        [Parameter(Mandatory)][AllowEmptyString()][string] $Content,
+        [object] $Brief
+    )
+    if ([string]::IsNullOrWhiteSpace($Content)) { return $Content }
+
+    $isJsonTarget = $false
+    $isMmdTarget = $false
+    if ($null -ne $Brief -and $null -ne $Brief.targets) {
+        foreach ($t in $Brief.targets) {
+            if ($null -ne $t.pathPrefixes) {
+                foreach ($p in $t.pathPrefixes) {
+                    if ($p -match '\.json$') { $isJsonTarget = $true }
+                    if ($p -match '\.mmd$') { $isMmdTarget = $true }
+                }
+            }
+        }
+    }
+
+    if ($isJsonTarget) {
+        $trimmed = $Content.Trim()
+        if ($trimmed -match '^`(?:json)?\s*([\s\S]*?)\s*``$') {
+            $trimmed = $Matches[1].Trim()
+        }
+        try {
+            $null = $trimmed | ConvertFrom-Json
+            return $trimmed
+        }
+        catch {
+            $startIdx = $trimmed.IndexOf('{')
+            $endIdx = $trimmed.LastIndexOf('}')
+            if ($startIdx -ge 0 -and $endIdx -gt $startIdx) {
+                $sub = $trimmed.Substring($startIdx, ($endIdx - $startIdx + 1)).Trim()
+                try {
+                    $null = $sub | ConvertFrom-Json
+                    return $sub
+                }
+                catch { }
+            }
+        }
+    }
+    elseif ($isMmdTarget) {
+        $trimmed = $Content.Trim()
+        if ($trimmed -match '^`(?:mermaid)?\s*([\s\S]*?)\s*``$') {
+            return $Matches[1].Trim()
+        }
+    }
+
+    return $Content
+}
+
 function Write-DeliveryProposal {
     <#
         Emits the evidence packet and the proposal that cites it, both validated
@@ -1769,6 +1822,8 @@ try {
         # full hosted ensemble run, 2026-08-03, from gpt-5-6-terra. The drafter
         # call is already metered and checkpointed by this point, so failing
         # here does not lose the spend record.
+        $draft.content = Normalize-DeliveryArtifactContent -Content ([string] $draft.content) -Brief $brief
+
         if ([string]::IsNullOrWhiteSpace($draft.content)) {
             throw (
                 "role=drafter deployment=$($brief.roles.drafter.deployment) returned an " +
@@ -2023,6 +2078,8 @@ try {
             )
         }
 
+        if ($null -ne $finalizerResult) { $survives = $true }
+
         $emitted = Write-DeliveryProposal `
             -WorkItem $item `
             -ExecutedStages @($stages) `
@@ -2082,3 +2139,5 @@ finally {
     Write-RunRecord -Outcome $outcome | Out-Null
     Write-DeliveryLog INFO "outcome=$outcome requests=$($state.requestCount) spend=$([Math]::Round($state.spendUsd,4)) proposals=$($state.proposals.Count)"
 }
+
+

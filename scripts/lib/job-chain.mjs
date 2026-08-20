@@ -29,7 +29,7 @@ export function defaultArmTokenProvider(env = process.env) {
     let credential = null;
     return async () => {
         credential ??= env.AZURE_CLIENT_ID
-            ? new ManagedIdentityCredential(env.AZURE_CLIENT_ID)
+            ? new ManagedIdentityCredential(env.AZURE_CLIENT_ID, { retryOptions: { maxRetries: 5, retryDelayInMs: 2000, maxRetryDelayInMs: 10000 } })
             : new AzureCliCredential();
         const { token } = await credential.getToken(ARM_SCOPE);
         return token;
@@ -93,3 +93,4 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
     }
     return triggered;
 }
+

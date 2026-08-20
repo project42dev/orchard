@@ -67,7 +67,7 @@ export function defaultAdoTokenProvider(env = process.env) {
     let credential = null;
     return async () => {
         credential ??= env.AZURE_CLIENT_ID
-            ? new ManagedIdentityCredential(env.AZURE_CLIENT_ID)
+            ? new ManagedIdentityCredential(env.AZURE_CLIENT_ID, { retryOptions: { maxRetries: 5, retryDelayInMs: 2000, maxRetryDelayInMs: 10000 } })
             : new AzureCliCredential();
         const { token } = await credential.getToken(`${ADO_RESOURCE_ID}/.default`);
         return token;
@@ -192,3 +192,4 @@ export class AdoClient {
 export function createAdoRestClient(options = {}) {
     return new AdoClient({ tokenProvider: defaultAdoTokenProvider(options.env ?? process.env), ...options });
 }
+
