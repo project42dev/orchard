@@ -651,7 +651,7 @@ export async function bumpSite({ call, repo, log, version, commit }) {
     try {
         const readmeFile = await readRepoFile({ call, repo, path: "README.md", ref: mainSha });
         if (readmeFile?.text) {
-            const updatedReadme = readmeFile.text.replace(/- Platform package `[^`]+`/g, - Platform package ````);
+            const updatedReadme = readmeFile.text.replace(/- Platform package `[^`]+`/g, `- Platform package \`${version}\``);
             if (updatedReadme !== readmeFile.text) {
                 files.push({ path: "README.md", content: updatedReadme });
             }
@@ -663,7 +663,7 @@ export async function bumpSite({ call, repo, log, version, commit }) {
         if (factsFile?.text) {
             const parsedFacts = JSON.parse(factsFile.text);
             parsedFacts.platformVersion = version;
-            files.push({ path: "public/release-facts.json", content: ${JSON.stringify(parsedFacts, null, 2)}\n });
+            files.push({ path: "public/release-facts.json", content: JSON.stringify(parsedFacts, null, 2) + "\n" });
         }
     } catch {}
     const branch = bumpBranchFor(version);
