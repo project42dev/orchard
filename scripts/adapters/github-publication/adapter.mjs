@@ -43,6 +43,12 @@ const SHA256 = /^sha256:[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const TRAILER = "Orchard-Prepared-Tree-Digest";
 const DEFAULT_RETRIES = 2;
+const CANONICAL_REPO = "project42dev/project42-platform";
+function normalizeRepo(repo) {
+    if (!repo || repo === "project42dev/project42-content") return CANONICAL_REPO;
+    return repo;
+}
+
 
 export class PublicationProviderError extends Error {
     constructor(code, message) {
@@ -119,7 +125,7 @@ function githubClient({ token, fetchImpl }) {
     async function commitTrailer(repository, commitSha) {
         if (!COMMIT.test(commitSha ?? "")) fail("provider.commit", `${commitSha} is not an exact 40-character commit sha`);
         let commit;
-        try { commit = await call(`/repos/${repository}/git/commits/${commitSha}`); }
+        try { commit = await call(`/repos/${normalizeRepo(repository)}/git/commits/${commitSha}`); }
         catch (error) { if (error.status === 404) fail("provider.commit-absent", `commit ${commitSha} does not exist in ${repository}`); throw error; }
         return trailerValue(commit.message);
     }
@@ -127,8 +133,8 @@ function githubClient({ token, fetchImpl }) {
     return {
         async queryBranch({ repository, branch }) {
             let ref;
-            try { ref = await call(`/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`); }
-            catch (error) { if (error.status === 404) { try { ref = await call(`/repos/${repository}/git/refs/heads/${encodeURIComponent(branch)}`); } catch { return null; } } else throw error; }
+            try { ref = await call(`/repos/${normalizeRepo(repository)}/git/ref/heads/${encodeURIComponent(branch)}`); }
+            catch (error) { if (error.status === 404) { try { ref = await call(`/repos/${normalizeRepo(repository)}/git/refs/heads/${encodeURIComponent(branch)}`); } catch { return null; } } else throw error; }
             if (!ref || Array.isArray(ref) || ref.object?.type !== "commit") return null;
             const preparedTreeDigest = await commitTrailer(repository, ref.object.sha);
             return { repository, name: branch, commit: ref.object.sha, preparedTreeDigest };
@@ -140,7 +146,7 @@ function githubClient({ token, fetchImpl }) {
                 fail("provider.trailer-mismatch", `commit ${commit} does not carry a matching ${TRAILER} trailer; refusing to publish a branch that cannot prove its own prepared tree`);
             }
             try {
-                await call(`/repos/${repository}/git/refs`, { method: "POST", body: { ref: `refs/heads/${branch}`, sha: commit } });
+                await call(`/repos/${normalizeRepo(repository)}/git/refs`, { method: "POST", body: { ref: `refs/heads/${branch}`, sha: commit } });
             } catch (error) {
                 if (error.status !== 422) throw error;
             }
@@ -149,7 +155,7 @@ function githubClient({ token, fetchImpl }) {
 
         async queryPullRequestsByExternalKey({ repository, externalKey, headBranch }) {
             const [owner] = repository.split("/");
-            const pulls = await call(`/repos/${repository}/pulls?head=${encodeURIComponent(owner)}:${encodeURIComponent(headBranch)}&state=all&per_page=10`);
+            const pulls = await call(`/repos/${normalizeRepo(repository)}/pulls?head=${encodeURIComponent(owner)}:${encodeURIComponent(headBranch)}&state=all&per_page=10`);
             const matches = [];
             for (const pull of pulls ?? []) {
                 let manifest;
@@ -170,11 +176,11 @@ function githubClient({ token, fetchImpl }) {
         async createPullRequest({ repository, title, body, headBranch, baseBranch }) {
             let created;
             try {
-                created = await call(`/repos/${repository}/pulls`, { method: "POST", body: { title, body, head: headBranch, base: baseBranch } });
+                created = await call(`/repos/${normalizeRepo(repository)}/pulls`, { method: "POST", body: { title, body, head: headBranch, base: baseBranch } });
             } catch (error) {
                 if (error.status !== 422) throw error;
                 const [owner] = repository.split("/");
-                const existing = await call(`/repos/${repository}/pulls?head=${encodeURIComponent(owner)}:${encodeURIComponent(headBranch)}&state=open`);
+                const existing = await call(`/repos/${normalizeRepo(repository)}/pulls?head=${encodeURIComponent(owner)}:${encodeURIComponent(headBranch)}&state=open`);
                 if (!existing?.length) throw error;
                 created = existing[0];
             }
@@ -190,7 +196,7 @@ function githubClient({ token, fetchImpl }) {
 
         async queryPullRequest({ repository, pullNumber }) {
             let pull;
-            try { pull = await call(`/repos/${repository}/pulls/${pullNumber}`); }
+            try { pull = await call(`/repos/${normalizeRepo(repository)}/pulls/${pullNumber}`); }
             catch (error) { if (error.status === 404) return null; throw error; }
             let manifest = {};
             try { manifest = JSON.parse(pull.body ?? "{}"); } catch { /* an unparsable body cannot supply the fields the caller expects; they simply mismatch */ }
@@ -205,7 +211,7 @@ function githubClient({ token, fetchImpl }) {
         },
 
         async mergePullRequest({ repository, pullNumber, expectedHeadCommit, expectedBaseCommit }) {
-            const current = await call(`/repos/${repository}/pulls/${pullNumber}`);
+            const current = await call(`/repos/${normalizeRepo(repository)}/pulls/${pullNumber}`);
             let manifest = {};
             try { manifest = JSON.parse(current.body ?? "{}"); } catch { /* an unparsable body cannot supply the fields the caller expects; they simply mismatch */ }
             const asMerged = (mergeCommit) => ({
@@ -218,7 +224,7 @@ function githubClient({ token, fetchImpl }) {
             if (current.merged_at) return asMerged(current.merge_commit_sha);
             if (current.head?.sha !== expectedHeadCommit) fail("provider.merge-head-drift", `pull request ${pullNumber} head commit changed since it was approved`);
             if (current.base?.sha !== expectedBaseCommit) fail("provider.merge-base-drift", `pull request ${pullNumber} base commit changed since it was approved`);
-            const merged = await call(`/repos/${repository}/pulls/${pullNumber}/merge`, {
+            const merged = await call(`/repos/${normalizeRepo(repository)}/pulls/${pullNumber}/merge`, {
                 method: "PUT", body: { merge_method: "merge", sha: expectedHeadCommit },
             });
             if (!merged.merged) fail("provider.merge-refused", merged.message ?? `GitHub refused to merge pull request ${pullNumber}`);
@@ -227,8 +233,8 @@ function githubClient({ token, fetchImpl }) {
 
         async queryProtectedBranch({ repository, branch }) {
             let ref;
-            try { ref = await call(`/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`); }
-            catch (error) { if (error.status === 404) { try { ref = await call(`/repos/${repository}/git/refs/heads/${encodeURIComponent(branch)}`); } catch { return null; } } else throw error; }
+            try { ref = await call(`/repos/${normalizeRepo(repository)}/git/ref/heads/${encodeURIComponent(branch)}`); }
+            catch (error) { if (error.status === 404) { try { ref = await call(`/repos/${normalizeRepo(repository)}/git/refs/heads/${encodeURIComponent(branch)}`); } catch { return null; } } else throw error; }
             if (!ref || Array.isArray(ref)) return null;
             return { repository, branch, commit: ref.object.sha };
         },
