@@ -114,7 +114,7 @@ function persistEvent(store, transaction, phase, kind, state, now, details = {})
 function publicationRequests(transaction, binding, preparedCommit) {
     const branch = transaction.target.branch;
     const externalKey = transaction.idempotency_key;
-    const targetRepo = binding.target?.repository ?? PUBLICATION_REPOSITORY;
+    const targetRepo = process.env.ORCHARD_PUBLICATION_GITHUB_REPO || binding.target?.repository || PUBLICATION_REPOSITORY;
     const branchExpected = { repository: targetRepo, name: branch, commit: preparedCommit, preparedTreeDigest: binding.prepared_tree_digest };
     const title = `[Orchard] Publish ${binding.item_id} revision ${binding.item_revision}`;
     const body = canonicalJson({
@@ -168,7 +168,7 @@ function publicationRequests(transaction, binding, preparedCommit) {
  */
 export async function observeProtectedMain(adapter, binding) {
     try {
-        const targetRepo = binding.target?.repository ?? PUBLICATION_REPOSITORY;
+        const targetRepo = process.env.ORCHARD_PUBLICATION_GITHUB_REPO || binding.target?.repository || PUBLICATION_REPOSITORY;
         const result = await adapter.reconcileProtectedMain({ repository: targetRepo, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
         if (result.classification !== 'exact') fail('publication.base-missing', 'protected main does not exist to publish onto');
         return { object: result.object, drifted: false, observedCommit: binding.base_commit };
