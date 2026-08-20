@@ -128,7 +128,7 @@ function githubClient({ token, fetchImpl }) {
         async queryBranch({ repository, branch }) {
             let ref;
             try { ref = await call(`/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`); }
-            catch (error) { if (error.status === 404) return null; throw error; }
+            catch (error) { if (error.status === 404) { try { ref = await call(`/repos/${repository}/git/refs/heads/${encodeURIComponent(branch)}`); } catch { return null; } } else throw error; }
             if (!ref || Array.isArray(ref) || ref.object?.type !== "commit") return null;
             const preparedTreeDigest = await commitTrailer(repository, ref.object.sha);
             return { repository, name: branch, commit: ref.object.sha, preparedTreeDigest };
@@ -228,7 +228,7 @@ function githubClient({ token, fetchImpl }) {
         async queryProtectedBranch({ repository, branch }) {
             let ref;
             try { ref = await call(`/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`); }
-            catch (error) { if (error.status === 404) return null; throw error; }
+            catch (error) { if (error.status === 404) { try { ref = await call(`/repos/${repository}/git/refs/heads/${encodeURIComponent(branch)}`); } catch { return null; } } else throw error; }
             if (!ref || Array.isArray(ref)) return null;
             return { repository, branch, commit: ref.object.sha };
         },

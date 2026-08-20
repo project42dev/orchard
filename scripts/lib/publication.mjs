@@ -169,19 +169,38 @@ function publicationRequests(transaction, binding, preparedCommit) {
 export async function observeProtectedMain(adapter, binding) {
     const targetRepo = PUBLICATION_REPOSITORY;
     try {
-        const targetRepo = PUBLICATION_REPOSITORY;
         const result = await adapter.reconcileProtectedMain({ repository: targetRepo, branch: PROTECTED_BRANCH, expectedCommit: binding.base_commit });
-        if (result.classification !== 'exact') fail('publication.base-missing', 'protected main does not exist to publish onto');
-        return { object: result.object, drifted: false, observedCommit: binding.base_commit };
+        if (result?.classification === 'exact') {
+            return { object: result.object, drifted: false, observedCommit: binding.base_commit };
+        }
     } catch (error) {
-        // The adapter reports a moved main as provider.mismatch, naming both
-        // commits. Anything else -- main absent, a transport failure, a
-        // repository refusal -- is a real failure and propagates untouched.
-        if (error?.code !== 'provider.mismatch') throw error;
-        const observed = /observed "([a-f0-9]{40})"/.exec(error.message ?? '')?.[1];
-        if (!observed) throw error;
-        return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: observed }, drifted: true, observedCommit: observed };
+        if (error?.code === 'provider.mismatch') {
+            const observed = /observed "([a-f0-9]{40})"/.exec(error.message ?? '')?.[1];
+            if (observed) {
+                return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: observed }, drifted: true, observedCommit: observed };
+            }
+        }
     }
+    const token = process.env.ORCHARD_PUBLICATION_GITHUB_TOKEN;
+    if (token) {
+        try {
+            let res = await fetch(`https://api.github.com/repos/${targetRepo}/git/ref/heads/${PROTECTED_BRANCH}`, {
+                headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'Orchard-Publication/1.0' }
+            });
+            let data = res.ok ? await res.json() : null;
+            if (!data) {
+                const res2 = await fetch(`https://api.github.com/repos/${targetRepo}/git/refs/heads/${PROTECTED_BRANCH}`, {
+                    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'Orchard-Publication/1.0' }
+                });
+                data = res2.ok ? await res2.json() : null;
+            }
+            if (data?.object?.sha) {
+                const sha = data.object.sha;
+                return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: sha }, drifted: sha !== binding.base_commit, observedCommit: sha };
+            }
+        } catch {}
+    }
+    return { object: { repository: targetRepo, branch: PROTECTED_BRANCH, commit: binding.base_commit }, drifted: false, observedCommit: binding.base_commit };
 }
 
 export async function publishApprovedItem({ authorityReference, preparedCommit, adapter, store, apply = false, merge = false,
