@@ -293,13 +293,25 @@ async function runAzure(track, log) {
         // failed by a GitHub outage.
         const announced = await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
         if (!announced || announced.length === 0 || announced.every((a) => a.items === 0 || a.action === "none")) {
+            let sourcesSurveyed = null;
+            let probesChecked = null;
+            try {
+                const outPath = join(root, `${track}-controller-output.json`);
+                if (existsSync(outPath)) {
+                    const outData = JSON.parse(readFileSync(outPath, "utf8"));
+                    sourcesSurveyed = outData.sources?.length ?? outData.outcomes?.length ?? null;
+                    probesChecked = outData.probes ?? outData.candidates?.length ?? null;
+                }
+            } catch { /* non-fatal */ }
+
             const assignees = (process.env.ORCHARD_GATE_ACTORS ?? "13710532").split(",").map((s) => s.trim()).filter(Boolean);
             await announceZeroDeltaSummary({
                 repo: process.env.ORCHARD_GITHUB_REPO ?? "project42dev/orchard",
                 track,
                 runId: execution,
                 executionName: execution,
-                sourcesSurveyed: track === "track-1" ? (process.env.ORCHARD_MAX_SOURCES ?? "100") : null,
+                sourcesSurveyed,
+                probesChecked,
                 token: gateToken,
                 assigneeIds: assignees,
                 log,
