@@ -52,6 +52,7 @@
 
 import { pathToFileURL } from "node:url";
 import { readGateToken } from "./announce-gates.mjs";
+import { announceReleaseSummary } from "./lib/run-summary.mjs";
 
 const API = "https://api.github.com";
 const USER_AGENT = "Orchard-Release/1.0";
@@ -819,6 +820,19 @@ export async function main(argv = process.argv.slice(2), {
         }
     }
 
+    if (summary.released) {
+        const assignees = (env.ORCHARD_GATE_ACTORS ?? "13710532").split(",").map((s) => s.trim()).filter(Boolean);
+        await announceReleaseSummary({
+            repo: env.ORCHARD_GITHUB_REPO ?? "project42dev/orchard",
+            version: summary.version,
+            sitesBumped: summary.sitesBumped,
+            newestTag: summary.newestTag,
+            token,
+            assigneeIds: assignees,
+            fetchImpl,
+            log,
+        });
+    }
     log("info", "release.finished", summary);
     return summary;
 }
