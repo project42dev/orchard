@@ -1,58 +1,90 @@
-%% ACA delivery platform architecture - 2026-08-11
-%% Shows the Azure Container Apps hosting for the Orchard 7-phase pipeline.
-%% This supersedes the GitHub Actions workflows (disabled 2026-08-11).
+%% Orchard Two-Track Autonomous Production Architecture
+%% Azure Container Apps Jobs (12-role pipeline) + Azure AI Foundry + GitHub Gates + Azure DevOps
 
-flowchart LR
-    subgraph AZURE["Azure - rg-p42-delivery-prod-eus-01"]
-        subgraph ENV["Container Apps Environment - cae-p42-delivery-prod-eus-01"]
-            ENGINE["🔧 Engine Job<br/>caj-p42-engine-prod-eus-01<br/>0.5 vCPU / 1 GiB<br/>Schedule: Sun 06:00 UTC<br/>━━━━━━━━━━━━━━━<br/>7-phase pipeline:<br/>1. Discover<br/>2. Score<br/>3. Build DB<br/>4. Briefs<br/>5. Delivery<br/>6. Ingest<br/>7. Notify"]
-            HARNESS["🔨 Harness Job<br/>caj-p42-harness-prod-eus-01<br/>1.0 vCPU / 2 GiB<br/>Trigger: Manual only<br/>━━━━━━━━━━━━━━━<br/>Single-item delivery<br/>via Invoke-Project42Delivery.ps1"]
+flowchart TB
+    subgraph AZURE_RG["Azure Resource Group: rg-p42-orchard-prod-eus-01"]
+        subgraph ACA_ENV["Container Apps Environment: cae-p42-orchard-prod-eus-01"]
+            subgraph TRACK1["Track 1: Discovery Pipeline"]
+                T1_SCH["⏱️ caj-p42orch-t1-sch-prod-eus-01<br/>Schedule: 1st of month 06:00 UTC<br/>Surveys 78+ approved sources"]
+                T1_MAN["▶️ caj-p42orch-t1-man-prod-eus-01<br/>Manual on-demand discovery"]
+            end
+
+            subgraph TRACK2["Track 2: Currency Pipeline"]
+                T2_SCH["⏱️ caj-p42orch-t2-sch-prod-eus-01<br/>Schedule: 15th of month 06:00 UTC<br/>Inspects 183 canonical corpus items"]
+                T2_MAN["▶️ caj-p42orch-t2-man-prod-eus-01<br/>Manual on-demand currency inspection"]
+            end
+
+            subgraph EXECUTION_ROLES["Autonomous Execution & Delivery Roles"]
+                AUTH["✍️ caj-p42orch-t2-auth-prod-eus-01<br/>Multi-Model Authoring Ensemble<br/>$34/run budget cap • Batching"]
+                G2P["📋 caj-p42orch-t2-g2p-prod-eus-01<br/>Gate 2 Evidence & Manifest Generator"]
+                PUB["🚀 caj-p42orch-t2-pub-prod-eus-01<br/>Platform Publisher & PR Sync"]
+                VER["🔍 caj-p42orch-t2-ver-prod-eus-01<br/>Live Verification & Probes"]
+                REL["📦 caj-p42orch-rel-prod-eus-01<br/>Release Bumper & Deployment Engine"]
+                SEED["🌱 caj-p42orch-seed-prod-eus-01<br/>Seed Ingestion & Registry Sync"]
+            end
         end
 
-        MI["🔑 Managed Identity<br/>mi-p42-delivery-prod-eus-01<br/>Role: Cognitive Services User<br/>on aif-studioai-prod-eus-01"]
+        subgraph STORAGE["Azure Storage: stp42orchstateprodeus01"]
+            BLOB_STATE["🗄️ Private Blob State Container<br/>orchard.db (SQLite with lease lock)<br/>• workflow_item<br/>• gate_decision<br/>• handoff_record<br/>• publication_record"]
+        end
 
-        ACR["📦 Container Registry<br/>crp42deliveryprodeus01.azurecr.io<br/>Image: p42-delivery:engine-7phase"]
-
-        STORAGE_CONFIG["📁 Storage - platformconfig<br/>stp42configprodeus01<br/>Mount: /mnt/config (RO)<br/>━━━━━━━━━━━━━━━<br/>deployed-models.json<br/>pricing.private.json<br/>briefs/engine-template.json<br/>schemas/"]
-        STORAGE_RUN["📁 Storage - runrecords<br/>stp42deliveryprodeus01<br/>Mount: /mnt/run-records (RW)<br/>━━━━━━━━━━━━━━━<br/>opportunity-registry.json<br/>orchard.db<br/>proposals/<br/>briefs/<br/>deliveries/<br/>ingest/<br/>state/"]
-        LOG["📊 Log Analytics<br/>log-p42-delivery-prod-eus-01<br/>Table: ContainerAppConsoleLogs_CL"]
-
-        AG["🚨 Action Group<br/>ag-p42-delivery-prod-eus-01<br/>Email: kris@hybridsolutions.cloud"]
+        subgraph SECURITY["Security & Telemetry"]
+            MI["🔑 Managed Identity<br/>mi-p42-orchard-prod-eus-01<br/>Cognitive Services User<br/>Storage Blob Data Contributor"]
+            ACR["📦 Container Registry<br/>crp42orchprodeus01.azurecr.io<br/>Image: orchard:latest"]
+            LOG["📊 Log Analytics<br/>log-p42-orchard-prod-eus-01<br/>ContainerAppConsoleLogs_CL"]
+        end
     end
 
-    subgraph EXTERNAL["External Services"]
-        FOUNDRY["🧠 Azure AI Foundry<br/>aif-studioai-prod-eus-01<br/>Models: GPT-5.6-Sol, Grok-4-20,<br/>DeepSeek-V4-Pro, Mistral-Large-3"]
-        GH["🐙 GitHub<br/>project42dev/orchard<br/>Issues created by Phase 7<br/>Auth: GITHUB_TOKEN from KV"]
-        KV["🔐 Key Vault<br/>kv-hcs-vault-01<br/>Secret: hcs-platform-github-org-pat"]
+    subgraph FOUNDRY["Azure AI Foundry: aif-studioai-prod-eus-01"]
+        M_DRAFT["✍️ Drafter: gpt-5-6-sol"]
+        M_VERIFY["🔍 Verifier: grok-4-20-reasoning"]
+        M_ADV["⚔️ Adversary: deepseek-v4-pro"]
+        M_ARB["⚖️ Arbiter: mistral-large-3"]
+        M_FINAL["🏁 Finalizer: gpt-5-6-luna"]
     end
 
-    ENGINE -->|"reads (RO)"| STORAGE_CONFIG
-    ENGINE -->|"reads/writes (RW)"| STORAGE_RUN
-    ENGINE -->|"pulls image"| ACR
-    ENGINE -->|"authenticates via"| MI
-    ENGINE -->|"logs to"| LOG
-    ENGINE -->|"alerts via"| AG
-    ENGINE -->|"Phase 5: model inference"| FOUNDRY
-    ENGINE -->|"Phase 7: gh issue create"| GH
+    subgraph EXTERNAL["Human Governance & Lifecycle Systems"]
+        GH["🐙 GitHub: project42dev/orchard<br/>• Gate 1 Issue Batches<br/>• Gate 2 Manifest Batches<br/>• Zero-Delta Run Summaries<br/>• Release Summaries"]
+        OPERATOR["👤 Operator (@kristopherjturner)<br/>Authorized Gate Approver"]
+        ADO["📋 Azure DevOps: Project 42<br/>• Epics / Features / Stories<br/>• AB# Work Item Sync"]
+        SITES["🌐 Public Learning Platforms<br/>• Cloudflare Pages (learn.project42.dev)<br/>• Azure App Service"]
+    end
 
-    HARNESS -->|"reads (RO)"| STORAGE_CONFIG
-    HARNESS -->|"reads/writes (RW)"| STORAGE_RUN
-    HARNESS -->|"pulls image"| ACR
-    HARNESS -->|"authenticates via"| MI
-    HARNESS -->|"logs to"| LOG
-    HARNESS -->|"alerts via"| AG
-    HARNESS -->|"model inference"| FOUNDRY
+    %% Flow Connections
+    TRACK1 -->|"Acquires Lease & Updates State"| BLOB_STATE
+    TRACK2 -->|"Acquires Lease & Updates State"| BLOB_STATE
+    TRACK1 -->|"Announces Gate 1 / Summary"| GH
+    TRACK2 -->|"Announces Gate 1 / Summary"| GH
+    
+    OPERATOR -->|"Approves (Issue Comment)"| GH
+    GH -->|"Webhook Trigger"| AUTH
+    
+    AUTH -->|"Creates / Updates AB# Work Items"| ADO
+    AUTH -->|"Executes 5-Model Ensemble"| FOUNDRY
+    AUTH -->|"Saves Authored Artifacts"| BLOB_STATE
+    AUTH -->|"Chains Next Step"| G2P
+    
+    G2P -->|"Creates Gate 2 Manifests"| GH
+    OPERATOR -->|"Approves Gate 2"| GH
+    GH -->|"Webhook Trigger"| PUB
+    
+    PUB -->|"Merges Changes"| SITES
+    PUB -->|"Chains Next Step"| REL
+    REL -->|"Tags & Deploys"| SITES
+    REL -->|"Chains Next Step"| VER
+    VER -->|"Validates Live Platform"| SITES
 
-    MI -->|"Cognitive Services User"| FOUNDRY
-    GH -->|"reads token from"| KV
+    %% Infrastructure Links
+    ACA_ENV -.->|"Pulls Container Images"| ACR
+    ACA_ENV -.->|"Logs Real-Time Events"| LOG
+    ACA_ENV -.->|"Managed Identity Auth"| MI
 
     %% Styling
-    style ENGINE fill:#e1f5fe,stroke:#0288d1,stroke-width:2px
-    style HARNESS fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style MI fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-    style ACR fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style FOUNDRY fill:#fce4ec,stroke:#c62828,stroke-width:2px
-    style GH fill:#f5f5f5,stroke:#616161,stroke-width:2px
-    style KV fill:#fff8e1,stroke:#f9a825,stroke-width:2px
-    style LOG fill:#e0f2f1,stroke:#00695c,stroke-width:2px
-    style AG fill:#fbe9e7,stroke:#d84315,stroke-width:2px
+    style TRACK1 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    style TRACK2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style EXECUTION_ROLES fill:#fff8e1,stroke:#f57f17,stroke-width:2px
+    style STORAGE fill:#f3e5f5,stroke:#6a1b9a,stroke-width:2px
+    style FOUNDRY fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style GH fill:#fafafa,stroke:#424242,stroke-width:2px
+    style ADO fill:#e0f7fa,stroke:#00838f,stroke-width:2px
+    style SITES fill:#efebe9,stroke:#4e342e,stroke-width:2px
