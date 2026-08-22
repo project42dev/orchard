@@ -12,7 +12,7 @@ test('ingests operator and user curriculum requests into valid opportunity propo
   const foundryItem = proposals.find((p) => p.id === 'req-ai-foundry-custom-models');
   assert.ok(foundryItem, 'Expected ai-foundry-custom-models proposal');
   assert.equal(foundryItem.title, 'Microsoft AI Foundry & Bringing Your Own Models and Agents');
-  assert.equal(foundryItem.targetPath, 'content/modules/discovery/ai-foundry-custom-models.json');
+  assert.equal(foundryItem.targetPath, 'content/modules/developer-and-practitioner-ai/ai-foundry-custom-models.json');
   assert.ok(foundryItem.objectives.length >= 3);
 
   const orchestrationItem = proposals.find((p) => p.id === 'req-advanced-multi-agent-orchestration');

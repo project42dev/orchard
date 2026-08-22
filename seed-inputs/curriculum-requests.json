@@ -2,7 +2,7 @@
   {
     "id": "ai-foundry-custom-models",
     "title": "Microsoft AI Foundry & Bringing Your Own Models and Agents",
-    "pathId": "discovery",
+    "pathId": "developer-and-practitioner-ai",
     "level": "intermediate",
     "audience": "Developers, AI Practitioners, and Solutions Architects",
     "estimatedMinutes": 25,
@@ -20,7 +20,7 @@
   {
     "id": "advanced-multi-agent-orchestration",
     "title": "Advanced Multi-Agent Orchestration & Topologies",
-    "pathId": "discovery",
+    "pathId": "agentic-systems-and-mcp",
     "level": "advanced",
     "audience": "AI Engineers, Systems Architects, and Technical Leads",
     "estimatedMinutes": 30,
