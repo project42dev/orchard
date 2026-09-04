@@ -5,7 +5,34 @@ import {
     releaseSummaryMarker,
     announceZeroDeltaSummary,
     announceReleaseSummary,
+    isZeroDeltaRun,
 } from "../scripts/lib/run-summary.mjs";
+
+// Regression coverage for the shape announceGates() actually returns
+// ({ gate, action, count }, with an empty gate as action: "empty"). The
+// trigger this feeds previously checked a.items and a.action === "none" --
+// fields announceGates() never produces -- so it silently never fired in
+// production even after this feature was deployed and even though these
+// isolated announceZeroDeltaSummary tests all passed.
+test("isZeroDeltaRun is true when every gate is empty", () => {
+    assert.equal(isZeroDeltaRun([
+        { gate: "gate-1", action: "empty", count: 0 },
+        { gate: "gate-2", action: "empty", count: 0 },
+    ]), true);
+});
+
+test("isZeroDeltaRun is true for no announcements at all", () => {
+    assert.equal(isZeroDeltaRun([]), true);
+    assert.equal(isZeroDeltaRun(null), true);
+    assert.equal(isZeroDeltaRun(undefined), true);
+});
+
+test("isZeroDeltaRun is false when any gate actually announced work", () => {
+    assert.equal(isZeroDeltaRun([
+        { gate: "gate-1", action: "empty", count: 0 },
+        { gate: "gate-2", action: "created", count: 3, number: 42 },
+    ]), false);
+});
 
 test("zeroDeltaMarker creates deterministic marker", () => {
     const marker = zeroDeltaMarker({ track: "track-1", runId: "01912345-6789-7abc-def0-123456789abc" });

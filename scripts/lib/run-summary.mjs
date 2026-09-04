@@ -11,6 +11,24 @@ export function releaseSummaryMarker({ version }) {
     return `<!-- orchard:summary release=v${version} -->`;
 }
 
+/**
+ * True when a run's gate announcements produced nothing for the owner to
+ * see -- announceGates() returns [] when there is no repo/token configured,
+ * or a list of { gate, action, count } entries where an empty gate is
+ * { action: "empty", count: 0 }. A zero-delta run is one where every gate
+ * entry is empty (or there were no entries at all).
+ *
+ * Exported and unit-tested on its own: this predicate previously lived
+ * inline in orchard-production-runtime.mjs checking a.items and
+ * a.action === "none", neither of which announceGates() ever produces, so
+ * the zero-delta summary silently never fired. Keeping the real field names
+ * (action / count) as an explicit, testable contract is what prevents that
+ * regressing again.
+ */
+export function isZeroDeltaRun(announced) {
+    return !announced || announced.length === 0 || announced.every((a) => a.count === 0 || a.action === "empty");
+}
+
 export async function announceZeroDeltaSummary({
     repo = "project42dev/orchard",
     track,

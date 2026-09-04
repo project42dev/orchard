@@ -15,7 +15,7 @@ import { openStateStore } from "./lib/state-store.mjs";
 import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
-import { announceZeroDeltaSummary } from "./lib/run-summary.mjs";
+import { announceZeroDeltaSummary, isZeroDeltaRun } from "./lib/run-summary.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles } from "./lib/job-chain.mjs";
@@ -292,7 +292,7 @@ async function runAzure(track, log) {
         // this run wrote. It cannot throw: a run that did its work must not be
         // failed by a GitHub outage.
         const announced = await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
-        if (!announced || announced.length === 0 || announced.every((a) => a.items === 0 || a.action === "none")) {
+        if (isZeroDeltaRun(announced)) {
             let sourcesSurveyed = null;
             let probesChecked = null;
             try {
