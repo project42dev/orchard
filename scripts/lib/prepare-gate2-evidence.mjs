@@ -27,7 +27,7 @@
 //     needs a person," not a fabricated pass.
 //   - the prepared tree digest and base/prepared commit are real: computed
 //     by actually creating a blob, tree, and commit object in
-//     project42dev/project42-platform via the GitHub Git Data API, using the
+//     project42dev/project42-content via the GitHub Git Data API, using the
 //     SAME publication GitHub App credential the (not yet run) publication
 //     step will later use to open the branch. Creating a commit OBJECT
 //     creates nothing visible: no ref, no branch, no PR. Nothing is
@@ -182,7 +182,7 @@ export async function buildHandoffsFromProposal({ proposal, binding, runStartedA
 }
 
 /**
- * Real GitHub Git Data API calls against project42-platform: read the
+ * Real GitHub Git Data API calls against project42-content: read the
  * current tip of main, write a blob for the proposed content, write a tree
  * that replaces exactly target.path against that base tree, and write a
  * commit carrying the Orchard-Prepared-Tree-Digest trailer the publication

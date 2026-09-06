@@ -22,7 +22,7 @@ async function fixture() {
             item_id: itemId, item_revision: 1, proposal_digest: `sha256:${'1'.repeat(64)}`,
             category: 'new-module', title: 'A proposal', rationale: 'Because the sources say so',
             evidence_refs: ['source-a:4'], score: { formula_version: '1.0.0', value: 30 },
-            target: { repository: 'project42dev/project42-platform', path: 'content/modules/discovery/a.json' },
+            target: { repository: 'project42dev/project42-content', path: 'modules/discovery/a.json' },
             risks: [], estimated_cost: { currency: 'USD', amount: 0.75 }, decision_state: 'pending',
         }],
     });

@@ -3,52 +3,52 @@
   "description": "Where content for each surface lands, so a generated brief can name a repository and a path. The delivery platform refuses to emit a proposal that cannot say which repository and paths it applies to, because a proposal a reviewer cannot locate cannot be reviewed. This file is the operator's, not Orchard's: an adopter replaces the repository and the templates with their own.",
   "rules": [
     "A SURFACE WITH NO TARGET IS NOT A SURFACE ORCHARD CAN AUTHOR FOR. The generator refuses rather than guessing a directory, and names the surface and the count of queued items stranded by it.",
-    "A SURFACE IS NOT NECESSARILY IN THE SAME REPOSITORY AS THE OTHERS. Each surface may override the default repository. Visual guides live in the Field Guide site repository, not the content platform, and assuming one repository is what made them look homeless.",
+    "A SURFACE IS NOT NECESSARILY IN THE SAME REPOSITORY AS THE OTHERS. Each surface may override the default repository. All four surfaces currently share project42dev/project42-content, but the override exists so a surface can move without rewriting the others.",
     "{topic} is the work item's subject id with its surface suffix removed. {subject} is the subject id unchanged. Nothing else is substituted.",
     "The template describes where the work GOES, not where it is. A needs-creating item has no path yet, which is the point of the template.",
     "A SURFACE THAT NEEDS A CATALOGUE ENTRY AS WELL AS A FILE DECLARES BOTH PATHS. A proposal that writes the artifact and never registers it produces something no reader can reach.",
-    "VISUAL-GUIDE ITEMS ARE NOW INDEXED. As of 2026-08-04, the content DB build loads 8 diagram items from @project42/platform v0.72.0. The 0→8 transition proves the loader works."
+    "THE CURRICULUM IS NOT IN THE PRODUCT REPOSITORY. As of 2026-09-05 the canonical curriculum lives in project42dev/project42-content and project42dev/project42-platform consumes it. Orchard publishes to the content repository only; a proposal naming the platform repository fails contract validation on purpose."
   ],
-  "repository": "project42dev/project42-platform",
+  "repository": "project42dev/project42-content",
   "surfaces": {
     "learn": {
       "pathTemplates": [
-        "content/modules/{topic}/"
+        "modules/{topic}/"
       ],
       "suffix": "-learn",
       "form": "learning-module-json",
-      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there. The deliverable is ONE JSON object conforming to the platform LearningModule schema (project42-platform src/schema.ts), not prose: scripts/load-catalog.mjs JSON.parse's every .json under content/modules, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form.",
-      "publicBaseUrl": "https://learn.project-42.dev",
+      "why": "Every indexed Learn module lives under modules/<topic>/ in project42dev/project42-content, one directory per learning path, one JSON file per module. Proven by the 88 module files across 14 paths already there. The deliverable is ONE JSON object conforming to the LearningModule schema the platform validates against (project42-platform src/schema.ts is the schema of record; the content repository is where the instances live), not prose: the catalogue loader JSON.parse's every .json under modules/, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form.",
+      "publicBaseUrl": "https://project-42.dev",
       "publicPathTemplate": "/learn/{topic}"
     },
     "field-guide": {
       "pathTemplates": [
-        "content/resources/{topic}/"
+        "resources/{topic}/"
       ],
       "suffix": "-field-guide",
-      "why": "Every indexed Field Guide resource lives under content/resources/<topic>/.",
-      "publicBaseUrl": "https://guide.project-42.dev",
-      "publicPathTemplate": "/resource/{topic}"
+      "why": "Every indexed Field Guide resource lives under resources/<topic>/ in project42dev/project42-content, one directory per resource pack, one JSON file per resource. The reader reaches an individual resource at /guide/resources/<resource-id> on the single portal.",
+      "publicBaseUrl": "https://project-42.dev",
+      "publicPathTemplate": "/guide/resources/{topic}"
     },
     "visual-guide": {
       "pathTemplates": [
-        "content/diagrams/{topic}.mmd",
-        "content/diagrams/catalogue.json"
+        "diagrams/{topic}.mmd",
+        "diagrams/catalogue.json"
       ],
       "suffix": "-visual-guide",
       "form": "mermaid",
-      "why": "Visual guides are the diagrams published on the Field Guide subdomain at /diagrams and /diagrams/<id>, where the UI calls them visual guides. The Mermaid source is content/diagrams/<id>.mmd and the catalogue entry is in content/diagrams/catalogue.json; the SVG is GENERATED and is never authored by hand. Both paths are named because a .mmd file with no catalogue entry renders nothing and reaches no reader. Corrected 2026-08-19: this block used to name a repository and paths that do not exist (guide.project-42.dev, diagrams/, config/diagrams.json). The runtime never read it, so the error was invisible until two diagrams published to content/diagrams/ and reached nobody, exactly as the last sentence predicted.",
-      "publicBaseUrl": "https://guide.project-42.dev",
-      "publicPathTemplate": "/diagrams/{topic}"
+      "why": "Visual guides are the diagrams the portal publishes at /guide/diagrams and /guide/diagrams/<id>, where the UI calls them visual guides. The Mermaid source is diagrams/<id>.mmd in project42dev/project42-content and the catalogue entry is in diagrams/catalogue.json; the SVG is GENERATED and is never authored by hand. Both paths are named because a .mmd file with no catalogue entry renders nothing and reaches no reader. Corrected 2026-09-05: the repository is the content repository, not the platform product repository, and the paths have no content/ prefix.",
+      "publicBaseUrl": "https://project-42.dev",
+      "publicPathTemplate": "/guide/diagrams/{topic}"
     },
     "learning": {
       "pathTemplates": [
-        "content/modules/{topic}/"
+        "modules/{topic}/"
       ],
       "suffix": "-learn",
       "form": "learning-module-json",
-      "why": "Every indexed Learn module lives under content/modules/<topic>/. Proven by the 66 modules already there. The deliverable is ONE JSON object conforming to the platform LearningModule schema (project42-platform src/schema.ts), not prose: scripts/load-catalog.mjs JSON.parse's every .json under content/modules, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form.",
-      "publicBaseUrl": "https://learn.project-42.dev",
+      "why": "Alias of the learn surface, kept because the contract vocabulary says learning where the probe vocabulary says learn. Every indexed Learn module lives under modules/<topic>/ in project42dev/project42-content. The deliverable is ONE JSON object conforming to the LearningModule schema, not prose.",
+      "publicBaseUrl": "https://project-42.dev",
       "publicPathTemplate": "/learn/{topic}"
     }
   }

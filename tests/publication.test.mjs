@@ -20,7 +20,7 @@ const transactionId = '018f0d20-7b9d-7cc3-8a5d-112233445566';
 const digest = (character) => `sha256:${character.repeat(64)}`;
 const baseCommit = 'a'.repeat(40);
 const preparedCommit = 'b'.repeat(40);
-const target = { repository: 'project42dev/project42-platform', path: 'content/item.md' };
+const target = { repository: 'project42dev/project42-content', path: 'content/item.md' };
 const gatePolicy = { provider: 'github', repository: 'project42dev/orchard', authorized_actor_ids: ['123'] };
 const gateTrust = {
   authorization_policy_digest: sha256Digest(gatePolicy), adapter_digest: digest('8'),
@@ -248,13 +248,30 @@ test('timeout after merge reconciles once but merge response alone never marks p
   assert.equal(state.push_acknowledgement, null);
 });
 
-test('wrong main commit is refused; exact protected-main acknowledgement is replay-safe', async (t) => {
+test('wrong main commit is refused only when the merge is unconfirmed too; exact protected-main acknowledgement is replay-safe', async (t) => {
   const applied = await applyFixture(t, { merge: true });
+  // Main NOT sitting at our commit is not on its own a refusal. Since
+  // 2026-08-19 acknowledgePublication falls back to asking whether the provider
+  // still reports THIS pull request merged at THIS commit, because main
+  // advancing is proof the repository is alive, not proof our merge was lost.
+  // So the provider has to disagree about both before acknowledgement fails.
+  //
+  // This assertion used to pass without disturbing the pull request at all, but
+  // only by accident: this fixture named project42-platform as the target while
+  // the transaction was built against PUBLICATION_REPOSITORY, so the fake's
+  // protected-main and pull-request objects were filed under a repository the
+  // acknowledgement never asked about and NOTHING could be reconciled. Pointing
+  // publication at project42dev/project42-content (2026-09-05) made the two
+  // agree, which exposed the fallback this test had never actually reached.
+  const merged = applied.github.fakeClient.pullRequests[0];
+  const confirmedMergeCommit = merged.mergeCommit;
+  merged.mergeCommit = '7'.repeat(40);
   await assert.rejects(acknowledgePublication({
     idempotencyKey: applied.result.transaction.idempotency_key,
     adapter: applied.github, store: applied.store
   }), ExternalStateMismatchError);
   assert.notEqual(applied.store.getPublicationState(applied.result.transaction.idempotency_key).state, 'published');
+  merged.mergeCommit = confirmedMergeCommit;
   applied.github.fakeClient.protectedMain.commit = applied.result.result_commit;
   const published = await acknowledgePublication({
     idempotencyKey: applied.result.transaction.idempotency_key,

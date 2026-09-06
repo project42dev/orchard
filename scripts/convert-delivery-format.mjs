@@ -6,8 +6,8 @@
 // This script bridges that gap.
 //
 // Surface types:
-//   learn        → content/modules/{topic}/<module>.json
-//   field-guide  → content/resources/{topic}/<resource>.json
+//   learn        → modules/{topic}/<module>.json
+//   field-guide  → resources/{topic}/<resource>.json
 //   visual-guide → diagrams/{topic}.mmd (raw mermaid, extracted from markdown)
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';

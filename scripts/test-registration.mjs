@@ -22,8 +22,8 @@ import {
 } from "./lib/registration.mjs";
 import { prepareRealCommit } from "./lib/prepare-gate2-evidence.mjs";
 
-const MODULE_PATH = "content/modules/discovery/rag.json";
-const DIAGRAM_PATH = "content/diagrams/retrieval-pipeline.mmd";
+const MODULE_PATH = "modules/discovery/rag.json";
+const DIAGRAM_PATH = "diagrams/retrieval-pipeline.mmd";
 
 const CATALOG = JSON.stringify({
     schemaVersion: 1,
@@ -56,20 +56,20 @@ const learningModule = (id = "rag") => JSON.stringify({ id, title: "Retrieval-au
 
 test("the surface is read from the target path, so it cannot disagree with where the file lands", () => {
     assert.equal(surfaceForTargetPath(MODULE_PATH), "learning");
-    assert.equal(surfaceForTargetPath("content/resources/discovery/prompt-injection.json"), "guide");
+    assert.equal(surfaceForTargetPath("resources/discovery/prompt-injection.json"), "guide");
     assert.equal(surfaceForTargetPath(DIAGRAM_PATH), "guide-diagram");
     assert.throws(() => surfaceForTargetPath("docs/notes.md"), (error) => error.code === "registration.unrecognized-target");
 });
 
 test("the learning path is the directory the module is published into, which is the platform's own layout", () => {
     assert.equal(learningPathIdForTarget(MODULE_PATH), "discovery");
-    assert.equal(learningPathIdForTarget("content/modules/ai-foundations/what-ai-does.json"), "ai-foundations");
-    assert.throws(() => learningPathIdForTarget("content/modules/loose.json"), (error) => error.code === "registration.unrecognized-module-path");
+    assert.equal(learningPathIdForTarget("modules/ai-foundations/what-ai-does.json"), "ai-foundations");
+    assert.throws(() => learningPathIdForTarget("modules/loose.json"), (error) => error.code === "registration.unrecognized-module-path");
 });
 
 test("the diagram id and its catalogue source both come from the one target path", () => {
     assert.deepEqual(diagramIdForTarget(DIAGRAM_PATH), { id: "retrieval-pipeline", source: "retrieval-pipeline.mmd" });
-    assert.throws(() => diagramIdForTarget("content/diagrams/nested/x.mmd"), (error) => error.code === "registration.unrecognized-diagram-path");
+    assert.throws(() => diagramIdForTarget("diagrams/nested/x.mmd"), (error) => error.code === "registration.unrecognized-diagram-path");
 });
 
 // --- a module joins the path that gives it a URL ---------------------------
@@ -89,7 +89,7 @@ test("registering the same module twice returns the registry byte-for-byte uncha
 
 test("a module published into a path that does not exist is refused, and the refusal lists the paths that do", () => {
     assert.throws(
-        () => registerLearningModule({ registryText: CATALOG, targetPath: "content/modules/nowhere/rag.json", artifact: learningModule() }),
+        () => registerLearningModule({ registryText: CATALOG, targetPath: "modules/nowhere/rag.json", artifact: learningModule() }),
         (error) => {
             assert.equal(error.code, "registration.no-such-path");
             assert.match(error.message, /ai-foundations, discovery/, "a reviewer should not have to go and look them up");
@@ -181,7 +181,7 @@ test("a category no page lists is refused, and the refusal names the ones that e
 // --- what the caller asks for ---------------------------------------------
 
 test("a Field Guide resource needs no registration, because a resource indexes itself", () => {
-    assert.equal(registrationFor({ surface: "guide", targetPath: "content/resources/discovery/x.json", artifact: "{}" }), null);
+    assert.equal(registrationFor({ surface: "guide", targetPath: "resources/discovery/x.json", artifact: "{}" }), null);
 });
 
 test("an undeclared surface is refused rather than silently skipping registration", () => {
@@ -231,14 +231,14 @@ function commitFetchMock({ registryText = CATALOG } = {}) {
 test("a prepared commit carries the module and the catalog entry in one tree", async () => {
     const mock = commitFetchMock();
     const result = await prepareRealCommit({
-        repository: "project42dev/project42-platform", path: MODULE_PATH, content: learningModule(),
+        repository: "project42dev/project42-content", path: MODULE_PATH, content: learningModule(),
         registration: registrationFor({ surface: "learning", targetPath: MODULE_PATH, artifact: learningModule() }),
         token: "test-token-literal", fetchImpl: mock.impl,
     });
     assert.equal(mock.trees.length, 1, "one tree, so the artifact and its registration can only merge together");
-    assert.deepEqual(mock.trees[0].map((entry) => entry.path), [MODULE_PATH, "content/catalog.json"]);
-    assert.equal(result.registeredIn, "content/catalog.json");
-    assert.match(mock.commits[0], /Prepare content\/modules\/discovery\/rag\.json and content\/catalog\.json/);
+    assert.deepEqual(mock.trees[0].map((entry) => entry.path), [MODULE_PATH, "catalog.json"]);
+    assert.equal(result.registeredIn, "catalog.json");
+    assert.match(mock.commits[0], /Prepare modules\/discovery\/rag\.json and catalog\.json/);
     assert.deepEqual(JSON.parse(mock.blobs[0]).paths.find((p) => p.id === "discovery").moduleIds, ["rag"]);
 });
 
@@ -246,8 +246,8 @@ test("a registration that cannot be built costs no blob, no tree and no commit o
     const mock = commitFetchMock({ registryText: CATALOG });
     await assert.rejects(
         () => prepareRealCommit({
-            repository: "project42dev/project42-platform", path: "content/modules/nowhere/rag.json", content: learningModule(),
-            registration: registrationFor({ surface: "learning", targetPath: "content/modules/nowhere/rag.json", artifact: learningModule() }),
+            repository: "project42dev/project42-content", path: "modules/nowhere/rag.json", content: learningModule(),
+            registration: registrationFor({ surface: "learning", targetPath: "modules/nowhere/rag.json", artifact: learningModule() }),
             token: "test-token-literal", fetchImpl: mock.impl,
         }),
         (error) => error instanceof RegistrationError && error.code === "registration.no-such-path",
@@ -260,10 +260,10 @@ test("a registration that cannot be built costs no blob, no tree and no commit o
 test("a surface that needs no registration still prepares exactly the commit it always did", async () => {
     const mock = commitFetchMock();
     const result = await prepareRealCommit({
-        repository: "project42dev/project42-platform", path: "content/resources/discovery/x.json", content: "{}",
+        repository: "project42dev/project42-content", path: "resources/discovery/x.json", content: "{}",
         registration: null, token: "test-token-literal", fetchImpl: mock.impl,
     });
-    assert.deepEqual(mock.trees[0].map((entry) => entry.path), ["content/resources/discovery/x.json"]);
+    assert.deepEqual(mock.trees[0].map((entry) => entry.path), ["resources/discovery/x.json"]);
     assert.equal(result.registeredIn, null);
     assert.equal(mock.calls.filter((call) => call.url.includes("/contents/")).length, 0, "no registry is read for a surface that has none");
 });
@@ -272,7 +272,7 @@ test("a module already listed adds no second blob, and the commit names only the
     const listed = registerLearningModule({ registryText: CATALOG, targetPath: MODULE_PATH, artifact: learningModule() });
     const mock = commitFetchMock({ registryText: listed });
     const result = await prepareRealCommit({
-        repository: "project42dev/project42-platform", path: MODULE_PATH, content: learningModule(),
+        repository: "project42dev/project42-content", path: MODULE_PATH, content: learningModule(),
         registration: registrationFor({ surface: "learning", targetPath: MODULE_PATH, artifact: learningModule() }),
         token: "test-token-literal", fetchImpl: mock.impl,
     });

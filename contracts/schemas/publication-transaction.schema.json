@@ -90,7 +90,7 @@
             ],
             "properties": {
                 "repository": {
-                    "const": "project42dev/project42-platform"
+                    "const": "project42dev/project42-content"
                 },
                 "path": {
                     "type": "string",
@@ -174,7 +174,7 @@
                     ],
                     "properties": {
                         "repository": {
-                            "const": "project42dev/project42-platform"
+                            "const": "project42dev/project42-content"
                         },
                         "branch": {
                             "const": "main"

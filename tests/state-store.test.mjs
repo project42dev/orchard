@@ -260,7 +260,7 @@ test("leases serialize scopes, permit expiry takeover, and protect renewal and r
 
     assert.deepEqual(trackRunLeaseScope("track-1"), { scopeType: "track-run", scopeKey: "track-1" });
     assert.equal(itemLeaseScope(item.item_id).scopeType, "item");
-    assert.equal(targetPathLeaseScope("project42dev/project42-platform", "content/learning/example.json").scopeType, "target-path");
+    assert.equal(targetPathLeaseScope("project42dev/project42-content", "modules/example-path/example.json").scopeType, "target-path");
 
     const scope = itemLeaseScope(item.item_id);
     const first = acquireLease(store.db, { ...scope, owner: "worker-a", ownerToken: "token-a", ttlMs: 1000, now: 1_000 });

@@ -104,7 +104,7 @@ async function blockedFixture({ term, verifierStatus, adversaryStatus, priorBloc
         schema_version: "1.0.0", item_id: id, run_id: runId, track: "track-1", item_revision: successorRevision,
         semantic_identity: priorItemRow.semantic_identity, canonical_content_id: null, surface: "learning", outcome: "new-module",
         state: "executing", proposal_digest: sha256Digest(`proposal:${id}`), artifact_digest: null,
-        target: { repository: "project42dev/project42-platform", path: `content/modules/discovery/${term}.json` },
+        target: { repository: "project42dev/project42-content", path: `modules/discovery/${term}.json` },
         evidence: priorRevisionRecord.evidence, supersedes_item_id: null, created_at: `2026-08-15T00:0${round}:30.000Z`, updated_at: `2026-08-15T00:0${round}:30.000Z`,
       });
       await store.recordTransition({

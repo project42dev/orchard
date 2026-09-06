@@ -731,7 +731,7 @@ Assert-TestCondition `
 
 $targets = @(
     [pscustomobject]@{
-        repository = 'project42dev/project42-platform'
+        repository = 'project42dev/project42-content'
         pathPrefixes = @('content/learn/')
     }
 )

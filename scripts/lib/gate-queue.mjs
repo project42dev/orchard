@@ -36,7 +36,12 @@ import { generateUuidV7, sha256Digest } from "./identity.mjs";
 // Fixed by contract, not by configuration: gate-1-issue-manifest.schema.json
 // pins target.repository to this exact value, so a deployer setting would only
 // be able to produce manifests that fail validation.
-export const TARGET_REPOSITORY = "project42dev/project42-platform";
+//
+// Changed 2026-09-05 from project42dev/project42-platform. The curriculum is no
+// longer in the product repository; project42dev/project42-content is the
+// canonical home and the platform consumes it. Publishing into the platform is
+// what produced the content drift, so the contract now refuses it.
+export const TARGET_REPOSITORY = "project42dev/project42-content";
 
 // How a recorded gate manifest entry is found again. It is a prefix on the
 // observation's evidence reference rather than a separate table, because the
@@ -57,23 +62,28 @@ const SURFACE_BY_PROBE_KIND = Object.freeze({
     "guide-diagram": "guide-diagram",
 });
 
-// Where a surface's content actually lives in the platform repository, checked
-// against the tree on 2026-08-15. The path is a proposal: Gate 1 is where a
-// human moves it if the placement is wrong.
+// Where a surface's content actually lives in the CONTENT repository, checked
+// against the project42dev/project42-content tree on 2026-09-05. The path is a
+// proposal: Gate 1 is where a human moves it if the placement is wrong.
 //
-// Re-checked against the tree on 2026-08-19, because a wrong directory here is
-// invisible: publication succeeds, the file lands, and nothing indexes it.
-// `guide` pointed at content/reference, which is not the Field Guide surface.
-// That directory holds exactly one file, wired by name into a single training
-// delivery contract, and scripts/load-catalog.mjs does not read it at all.
-// Field Guide resources live under content/resources/<topic>/, where the loader
-// discovers all 91 of them, and config/surface-targets.json has said so all
-// along. No guide item had reached publication yet, so the defect had not
-// fired.
+// A wrong directory here is invisible: publication succeeds, the file lands,
+// and nothing indexes it. The content repository has NO content/ prefix - the
+// trees are modules/, resources/ and diagrams/ at the repository root, unlike
+// the platform repository this pipeline used to write to, which nests them
+// under content/. The prefix was dropped on 2026-09-05 with the repoint; a
+// content/ path in the content repository would create a phantom tree that no
+// loader reads.
+//
+// KNOWN DEFECT (unchanged by the repoint): "discovery" is not a declared
+// learning path in the content repository's catalog.json, so a Track 1 learning
+// item landing here is refused by registerLearningModule with
+// registration.no-such-path. It was equally undeclared in the platform
+// repository's content/catalog.json, so this is pre-existing, not caused by the
+// repoint. Naming a real path is a product decision, not a rename.
 const DIRECTORY_BY_SURFACE = Object.freeze({
-    learning: "content/modules/discovery",
-    guide: "content/resources/discovery",
-    "guide-diagram": "content/diagrams",
+    learning: "modules/discovery",
+    guide: "resources/discovery",
+    "guide-diagram": "diagrams",
 });
 
 const EXTENSION_BY_SURFACE = Object.freeze({

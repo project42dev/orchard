@@ -161,7 +161,7 @@ test('a target path is always one the platform repository can accept', () => {
   const target = targetForCandidate(candidate('RAG & Vectors'));
   assert.equal(target.repository, TARGET_REPOSITORY);
   assert.match(target.path, /^(?!\.{1,2}(?:\/|$))[A-Za-z0-9._-]+(?:\/(?!\.{1,2}(?:\/|$))[A-Za-z0-9._-]+)*$/);
-  assert.equal(targetForCandidate(candidate('x', { surface: 'guide-diagram' })).path, 'content/diagrams/x.mmd');
+  assert.equal(targetForCandidate(candidate('x', { surface: 'guide-diagram' })).path, 'diagrams/x.mmd');
 });
 
 // A wrong directory here is invisible in every log: the blob is written, the
@@ -173,16 +173,16 @@ test('a target path is always one the platform repository can accept', () => {
 test('every surface lands in a directory the platform actually indexes', () => {
   assert.equal(
     targetForCandidate(candidate('prompt injection', { surface: 'guide' })).path,
-    'content/resources/discovery/prompt-injection.json',
-    'Field Guide resources are discovered under content/resources/<topic>/, never content/reference',
+    'resources/discovery/prompt-injection.json',
+    'Field Guide resources are discovered under resources/<topic>/, never content/reference',
   );
   assert.equal(
     targetForCandidate(candidate('prompt injection', { surface: 'learning' })).path,
-    'content/modules/discovery/prompt-injection.json',
+    'modules/discovery/prompt-injection.json',
   );
   assert.equal(
     targetForCandidate(candidate('prompt injection', { surface: 'guide-diagram' })).path,
-    'content/diagrams/prompt-injection.mmd',
+    'diagrams/prompt-injection.mmd',
   );
 });
 
@@ -196,7 +196,7 @@ test('the surface target map and the derived target path agree on the directory'
   const configured = JSON.parse(readFileSync(
     fileURLToPath(new URL('../config/surface-targets.json', import.meta.url)), 'utf8',
   )).surfaces;
-  for (const [probeKind, expected] of [['learn', 'content/modules'], ['field-guide', 'content/resources'], ['visual-guide', 'content/diagrams']]) {
+  for (const [probeKind, expected] of [['learn', 'modules'], ['field-guide', 'resources'], ['visual-guide', 'diagrams']]) {
     const declared = configured[probeKind].pathTemplates[0];
     assert.ok(declared.startsWith(expected), `${probeKind} declares ${declared}`);
     const derived = targetForCandidate(candidate('x', { surface: surfaceForProbe({ kinds: [probeKind] }) })).path;

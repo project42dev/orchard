@@ -34,10 +34,10 @@
     },
     "targets": [
       {
-        "repository": "project42dev/project42-platform",
+        "repository": "project42dev/project42-content",
         "pathPrefixes": [
-          "content/modules/ai-foundations/",
-          "content/resources/setup-quick-reference/"
+          "modules/ai-foundations/",
+          "resources/setup-quick-reference/"
         ]
       }
     ]

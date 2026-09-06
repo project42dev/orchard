@@ -31,10 +31,11 @@ it, and drives the content database.
 
 | Looking for | It lives in |
 |---|---|
-| The content, the content model, the schemas | `project42-platform` |
+| The curriculum itself (modules, resources, diagrams) | `project42-content` |
+| The content model and the schemas | `project42-platform` |
 | The public marketing and entry surface | `project-42.dev` |
-| The Learn delivery surface | `learn.project-42.dev` |
-| The Field Guide delivery surface | `guide.project-42.dev` |
+| The Learn delivery surface | `project-42.dev/learn/**` on the single portal |
+| The Field Guide delivery surface | `project-42.dev/guide/**` on the single portal |
 | Learner account and profile | `account.project-42.dev` |
 | Owner administration | `admin.project-42.dev` |
 | An Azure AI Foundry deployment framework | `homestead-foundry` |

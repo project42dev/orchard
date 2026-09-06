@@ -19,7 +19,7 @@ const digestOf = (label) => `sha256:${createHash('sha256').update(label).digest(
 const COMMIT_A = 'a'.repeat(40);
 const COMMIT_B = 'b'.repeat(40);
 const TREE_DIGEST = digestOf('prepared-tree');
-const REPO = 'project42dev/project42-platform';
+const REPO = 'project42dev/project42-content';
 
 test('the adapter artifact is self-contained: its protected digest resolves and is stable', async () => {
     const digest = await protectedAdapterDigest('scripts/adapters/github-publication/adapter.mjs');

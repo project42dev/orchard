@@ -42,7 +42,7 @@
     },
     "targets": [
       {
-        "repository": "project42dev/guide.project-42.dev",
+        "repository": "project42dev/project42-content",
         "pathPrefixes": [
           "diagrams/agent-orchestration.mmd",
           "config/diagrams.json"
@@ -90,9 +90,9 @@
     },
     "targets": [
       {
-        "repository": "project42dev/project42-platform",
+        "repository": "project42dev/project42-content",
         "pathPrefixes": [
-          "content/resources/cost-and-capacity-management/"
+          "resources/cost-and-capacity-management/"
         ]
       }
     ]
@@ -138,9 +138,9 @@
     },
     "targets": [
       {
-        "repository": "project42dev/project42-platform",
+        "repository": "project42dev/project42-content",
         "pathPrefixes": [
-          "content/modules/cost-and-capacity-management/"
+          "modules/cost-and-capacity-management/"
         ]
       }
     ]
@@ -188,7 +188,7 @@
     },
     "targets": [
       {
-        "repository": "project42dev/guide.project-42.dev",
+        "repository": "project42dev/project42-content",
         "pathPrefixes": [
           "diagrams/cost-and-capacity-management.mmd",
           "config/diagrams.json"

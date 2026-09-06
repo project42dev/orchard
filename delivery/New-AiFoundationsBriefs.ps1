@@ -104,7 +104,7 @@ Constraints:
         }
         targets = @(
             @{
-                repository = "project42dev/project42-platform"
+                repository = "project42dev/project42-content"
                 pathPrefixes = @(
                     "content/training/ai-foundations/$modName/"
                 )

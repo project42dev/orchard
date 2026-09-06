@@ -133,8 +133,8 @@ export async function announceReleaseSummary({
         ...sitesBumped.map((s) => `- ✅ [\`${s}\`](https://github.com/${s}) bumped to \`v${version}\``),
         "",
         "### 🌐 Production Verification",
-        "- **Learn Site:** [https://learn.project-42.dev](https://learn.project-42.dev)",
-        "- **Release Facts:** [https://learn.project-42.dev/release-facts.json](https://learn.project-42.dev/release-facts.json)",
+        "- **Portal:** [https://project-42.dev](https://project-42.dev)",
+        "- **Release Facts:** [https://project-42.dev/release-facts.json](https://project-42.dev/release-facts.json)",
         "",
         `_Automated release summary recorded by Orchard._`,
     ].filter(Boolean).join("\n");

@@ -12,19 +12,19 @@ let assertions = 0, failures = 0;
 const ok = (c, m) => { assertions++; if (!c) { failures++; console.error(`FAIL: ${m}`); } };
 
 const SURFACE = {
-  publicBaseUrl: "https://learn.project-42.dev",
-  publicPathTemplate: "/modules/{id}",
+  publicBaseUrl: "https://project-42.dev",
+  publicPathTemplate: "/learn/{id}",
 };
 const ITEM = { id: "cost-and-capacity", surface: "learn", title: "Cost and capacity management" };
 
-const reply = (body, { status = 200, url = "https://learn.project-42.dev/modules/cost-and-capacity" } = {}) =>
+const reply = (body, { status = 200, url = "https://project-42.dev/learn/cost-and-capacity" } = {}) =>
   async () => ({ ok: status >= 200 && status < 300, status, url, text: async () => body });
 
 // --- the happy path ---
 {
   const r = await verifyOne(ITEM, SURFACE, { fetchImpl: reply("<h1>Cost and capacity management</h1>") });
   ok(r.serving === true, "a page containing the item title counts as serving");
-  ok(r.url === "https://learn.project-42.dev/modules/cost-and-capacity", "the expected URL is built from the template");
+  ok(r.url === "https://project-42.dev/learn/cost-and-capacity", "the expected URL is built from the template");
 }
 
 // --- THE important negative: 200 is not proof ---
@@ -40,7 +40,7 @@ const reply = (body, { status = 200, url = "https://learn.project-42.dev/modules
 // --- a redirect elsewhere is a failure, not a pass ---
 {
   const r = await verifyOne(ITEM, SURFACE, {
-    fetchImpl: reply("<h1>Cost and capacity management</h1>", { url: "https://learn.project-42.dev/" }),
+    fetchImpl: reply("<h1>Cost and capacity management</h1>", { url: "https://project-42.dev/" }),
   });
   ok(r.serving === false, "a redirect to the home page is not the published path");
   ok(r.reasons[0].includes("redirected"), "the failure says it redirected");

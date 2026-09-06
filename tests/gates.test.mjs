@@ -23,7 +23,7 @@ const item = (ordinal = 0) => ({
   item_id: `018f0d20-${(0x7b9b + ordinal).toString(16)}-7cc3-8a5d-112233445566`, item_revision: 1,
   proposal_digest: digest(((ordinal % 6) + 1).toString()), category: 'addition', title: `Item ${ordinal}`,
   rationale: 'Evidence supports review.', evidence_refs: [`evidence/${ordinal}`], score: { formula_version: '1.0.0', value: ordinal },
-  target: { repository: 'project42dev/project42-platform', path: `content/item-${ordinal}.md` }, risks: [],
+  target: { repository: 'project42dev/project42-content', path: `content/item-${ordinal}.md` }, risks: [],
   estimated_cost: { currency: 'USD', amount: 0 }, decision_state: 'pending',
 });
 const gate1Input = (items = [item()]) => ({ gate: 'gate-1', run_id: runId, track: 'track-1', items });
@@ -234,7 +234,7 @@ test('ADO is reconciled only after exact Gate 1 approval and persisted before di
 const lifecycleBinding = {
   run_id: runId, track: 'track-1', item_id: itemId, item_revision: 1, proposal_digest: digest('a'),
   gate1_decision_event_id: eventId, ado_external_key: `orchard:track-1:${itemId}:r1`, ado_work_item_id: 5001,
-  target: { repository: 'project42dev/project42-platform', path: 'content/item.md' }
+  target: { repository: 'project42dev/project42-content', path: 'content/item.md' }
 };
 function handoffInput(overrides = {}) {
   return {

@@ -35,22 +35,28 @@ export class RegistrationError extends Error {
 
 // Where a surface's registry lives, or null for a surface that needs none.
 //
-// `guide` needs none: scripts/load-catalog.mjs discovers every .json under
-// content/resources/ and each resource record carries its own id, category and
-// level, so a resource indexes itself the moment it is committed. Checked
-// against the platform tree on 2026-08-19: 91 resources, none of them listed
-// anywhere else.
+// `guide` needs none: the catalogue loader discovers every .json under
+// resources/ and each resource record carries its own id, category and level,
+// so a resource indexes itself the moment it is committed. Checked on
+// 2026-08-19: 91 resources, none of them listed anywhere else.
+//
+// These paths are read from and written back to the TARGET repository tree via
+// the Git Data API (prepare-gate2-evidence.mjs prepareRealCommit). Since the
+// 2026-09-05 repoint the target is project42dev/project42-content, whose
+// registries sit at the repository ROOT with no content/ prefix, unlike the
+// platform repository this pipeline used to write to. Leaving the prefix here
+// would 404 the registry read and refuse every publication.
 export const REGISTRY_BY_SURFACE = Object.freeze({
-    learning: "content/catalog.json",
+    learning: "catalog.json",
     guide: null,
-    "guide-diagram": "content/diagrams/catalogue.json",
+    "guide-diagram": "diagrams/catalogue.json",
 });
 
 const CATALOGUE_ENTRY_FIELDS = Object.freeze([
     "id", "title", "category", "summary", "description", "altText", "caption", "takeaways", "source",
 ]);
 
-// The categories content/diagrams/catalogue.json actually uses. A new one is a
+// The categories diagrams/catalogue.json actually uses. A new one is a
 // product decision, so an entry that invents one is refused rather than filed
 // under a category no page lists.
 export const DIAGRAM_CATEGORIES = Object.freeze([
@@ -69,24 +75,24 @@ export const DIAGRAM_CATEGORIES = Object.freeze([
  */
 export function surfaceForTargetPath(targetPath) {
     const path = String(targetPath ?? "");
-    if (/^content\/modules\//.test(path)) return "learning";
-    if (/^content\/resources\//.test(path)) return "guide";
-    if (/^content\/diagrams\//.test(path)) return "guide-diagram";
+    if (/^modules\//.test(path)) return "learning";
+    if (/^resources\//.test(path)) return "guide";
+    if (/^diagrams\//.test(path)) return "guide-diagram";
     throw new RegistrationError("registration.unrecognized-target", `no surface publishes to ${targetPath}`);
 }
 
 /**
  * The learning path a module belongs to, read from where the module is being
- * published. content/modules/<pathId>/<moduleId>.json is the platform's own
- * layout: all 72 modules that were reachable on 2026-08-19 sat in a directory
+ * published. modules/<pathId>/<moduleId>.json is the content repository's own
+ * layout: all 88 module files reachable on 2026-09-05 sat in a directory
  * named exactly for the path that lists them.
  */
 export function learningPathIdForTarget(targetPath) {
-    const match = /^content\/modules\/([^/]+)\/[^/]+\.json$/.exec(String(targetPath ?? ""));
+    const match = /^modules\/([^/]+)\/[^/]+\.json$/.exec(String(targetPath ?? ""));
     if (!match) {
         throw new RegistrationError(
             "registration.unrecognized-module-path",
-            `a learning module must be published to content/modules/<pathId>/<moduleId>.json, not ${targetPath}`,
+            `a learning module must be published to modules/<pathId>/<moduleId>.json, not ${targetPath}`,
         );
     }
     return match[1];
@@ -94,11 +100,11 @@ export function learningPathIdForTarget(targetPath) {
 
 /** The diagram id and source filename, from where the diagram is being published. */
 export function diagramIdForTarget(targetPath) {
-    const match = /^content\/diagrams\/([^/]+)\.mmd$/.exec(String(targetPath ?? ""));
+    const match = /^diagrams\/([^/]+)\.mmd$/.exec(String(targetPath ?? ""));
     if (!match) {
         throw new RegistrationError(
             "registration.unrecognized-diagram-path",
-            `a diagram must be published to content/diagrams/<id>.mmd, not ${targetPath}`,
+            `a diagram must be published to diagrams/<id>.mmd, not ${targetPath}`,
         );
     }
     return { id: match[1], source: `${match[1]}.mmd` };
@@ -141,13 +147,13 @@ export function registerLearningModule({ registryText, targetPath, artifact }) {
         throw new RegistrationError("registration.artifact-has-no-id", "the module declares no id, so no learning path can list it");
     }
 
-    const catalog = parseRegistry("content/catalog.json", registryText);
+    const catalog = parseRegistry("catalog.json", registryText);
     const paths = Array.isArray(catalog.paths) ? catalog.paths : [];
     const target = paths.find((entry) => entry?.id === pathId);
     if (!target) {
         throw new RegistrationError(
             "registration.no-such-path",
-            `content/catalog.json declares no learning path "${pathId}", so a module published to content/modules/${pathId}/ would have no URL. Declared paths: ${paths.map((entry) => entry?.id).join(", ") || "none"}`,
+            `catalog.json declares no learning path "${pathId}", so a module published to modules/${pathId}/ would have no URL. Declared paths: ${paths.map((entry) => entry?.id).join(", ") || "none"}`,
         );
     }
     const moduleIds = Array.isArray(target.moduleIds) ? target.moduleIds : [];
@@ -173,7 +179,7 @@ export function registerDiagram({ registryText, targetPath, entry }) {
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
         throw new RegistrationError(
             "registration.no-catalogue-entry",
-            `no catalogue entry was authored for ${source}, and a diagram absent from content/diagrams/catalogue.json is not published to anybody`,
+            `no catalogue entry was authored for ${source}, and a diagram absent from diagrams/catalogue.json is not published to anybody`,
         );
     }
     const candidate = { ...entry, id, source };
@@ -192,7 +198,7 @@ export function registerDiagram({ registryText, targetPath, entry }) {
         );
     }
 
-    const catalogue = parseRegistry("content/diagrams/catalogue.json", registryText);
+    const catalogue = parseRegistry("diagrams/catalogue.json", registryText);
     const diagrams = Array.isArray(catalogue.diagrams) ? catalogue.diagrams : [];
     const ordered = CATALOGUE_ENTRY_FIELDS.reduce((accumulator, field) => ({ ...accumulator, [field]: candidate[field] }), {});
     const existing = diagrams.findIndex((diagram) => diagram?.id === id);

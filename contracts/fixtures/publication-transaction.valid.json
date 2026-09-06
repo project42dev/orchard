@@ -15,8 +15,8 @@
     "full_manifest_digest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     "gate2_batch_digest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
     "target": {
-        "repository": "project42dev/project42-platform",
-        "path": "content/learning/example-module.json",
+        "repository": "project42dev/project42-content",
+        "path": "modules/example-path/example-module.json",
         "protected_branch": "main",
         "branch": "orchard/item-example-r1"
     },
