@@ -56,6 +56,7 @@ import { pathToFileURL } from "node:url";
 import { openStateStore } from "./lib/state-store.mjs";
 import { publishApprovedItem, acknowledgePublication } from "./lib/publication.mjs";
 import { loadProtectedAdapter, protectedAdapterDigest } from "./lib/protected-adapter.mjs";
+import { notifyContentUpdated, DEFAULT_CONTENT_CONSUMER_REPO } from "./lib/content-updated.mjs";
 import { generateUuidV7 } from "./lib/identity.mjs";
 import { readGateToken } from "./announce-gates.mjs";
 
@@ -209,6 +210,9 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     const now = new Date().toISOString();
     const store = openStateStore(resolve(dbPath));
     const summary = { published: 0, prOpen: 0, held: 0 };
+    const publishedItems = [];
+    const publishedCommits = [];
+    let publicationToken = null;
     try {
         const placeholders = PUBLISHABLE_STATES.map(() => "?").join(", ");
         const rows = store.db.prepare(
@@ -245,6 +249,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
                 appKeyVar: "ORCHARD_PUBLICATION_APP_KEY_SECRET", tokenVar: "ORCHARD_PUBLICATION_TOKEN_SECRET",
             });
             if (token) process.env.ORCHARD_PUBLICATION_GITHUB_TOKEN = token;
+            publicationToken = token ?? null;
             adapter = await loadProtectedAdapter(store, "publication", "reconcileBeforeCreateBranch");
         } catch (error) {
             summary.held = rows.length;
@@ -265,8 +270,11 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             try {
                 const input = JSON.parse(readFileSync(inputPath, "utf8"));
                 const result = await publishOne({ store, adapter, row, preparedCommit: input.prepared_commit, merge, now, log });
-                if (result.operation === "published") summary.published += 1;
-                else summary.prOpen += 1;
+                if (result.operation === "published") {
+                    summary.published += 1;
+                    publishedItems.push(row.item_id);
+                    if (result.result_commit) publishedCommits.push(result.result_commit);
+                } else summary.prOpen += 1;
             } catch (error) {
                 summary.held += 1;
                 log("warn", "publication.refused", {
@@ -274,6 +282,21 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
                     effect: "the item stays where it is; nothing partial was recorded as published",
                 });
             }
+        }
+        // The trigger, and the last thing inside Orchard's boundary. A merge
+        // into the content repository changes nothing anybody can see until
+        // the platform pulls it, and the platform's only prompt to pull was a
+        // weekly cron plus a repository_dispatch that nothing had ever sent.
+        // Never fatal: the work is already recorded and the cron is the
+        // fallback, so a failed trigger costs latency, not the correction.
+        if (summary.published > 0) {
+            await notifyContentUpdated({
+                repo: env.ORCHARD_CONTENT_CONSUMER_REPO ?? DEFAULT_CONTENT_CONSUMER_REPO,
+                token: publicationToken ?? env.ORCHARD_PUBLICATION_GITHUB_TOKEN ?? null,
+                items: publishedItems,
+                commits: publishedCommits,
+                log,
+            });
         }
         log("info", "publication.finished", summary);
         return summary;

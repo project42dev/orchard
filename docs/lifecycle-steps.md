@@ -187,10 +187,24 @@ be zero; a non-zero value means the survey did not finish and the run is not
 
 ## Step 2: Inspect the canonical corpus (currency)
 
-**Status: BUILT, UNPROVEN on the current estate.** It ran once, ten hours
-before the estate was renamed. Its state is stranded on an orphaned storage
-account with no network path, and `track-2-state` on the live account has never
-received a single write. Issue I-06.
+**Status: BUILT AND RUNNING on the live estate.** Corrected 2026-09-06; the
+paragraph this replaces was wrong. `stp42orchstateprodeus01` is the only state
+account that has ever existed (created 2026-08-15; a subscription-wide storage
+listing on 2026-09-06 shows no other), and `track-2-state` on it has been
+written and read back repeatedly. The `caj-p42orch-t2-man-prod-eus-01-1u6i46c`
+execution of 2026-08-22T17:47Z read 173 existing workflow items out of that
+container, inspected all 183 canonical items, finalised its run and published a
+new generation, and the chain check then downloaded that generation and counted
+114 items waiting at `gate2-ready`. The orphaned account is
+`stp42orchbkupwiaxgzgxhh7`, a BACKUP account from before the rename; no state
+was lost with it. Issue I-06 is closed by observation.
+
+A cold start -- no manifest, no generation, no database -- is covered by
+`scripts/test-track2-state-roundtrip.mjs`, which runs a whole fenced Track 2
+job through the real `BlobStateAdapter` and `withFencedState` and proves the
+run creates and publishes a verified generation, that a second run downloads it
+and holds nothing new because of it, and that clearing the container reverts
+the third run to cold-start behaviour.
 
 | Field | Value |
 | --- | --- |
@@ -205,11 +219,17 @@ received a single write. Issue I-06.
 **Spend ceiling: USD 34.00 per run**, enforced in-run. The proven run spent
 USD 33.51 across 183 inspections and stopped cleanly.
 
-**Known defect, and it is structural.** Track 2 writes only
-`observation_event` and `run_outcome`, keyed by run, **with no item id, no
-revision and no semantic identity.** So a currency finding **cannot become a
-gated item**, and the currency half of Gate 1 can never have anything to
-announce. The published diagram draws that edge as solid and built. Issue I-12.
+**Issue I-12 is fixed.** A currency finding is now a `workflow_item` held at
+`gate1-pending`, exactly as a discovery candidate is. Its semantic identity is
+its SUBJECT -- the canonical item it is about -- and deliberately not the
+classification, so one published file can have only one currency question in
+front of a human at a time. The consequences of that choice are the dedupe and
+supersession rules: an unchanged assessment is the same question and is skipped;
+a CHANGED assessment supersedes the stale item through the lifecycle's own
+`superseded` cause (migration 010) rather than sitting beside it; an item a
+human denied, deferred or approved still occupies its subject and is never
+re-proposed; and a closed subject is proposable again as a new item that records
+its predecessor. Proven by `scripts/test-track2-gate.mjs`.
 
 ---
 
