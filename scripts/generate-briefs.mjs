@@ -61,12 +61,25 @@ export const ROLE_JOBS = {
 export const KIND_TAG = {
   'needs-creating': 'create',
   'needs-updating': 'update',
+  'needs-removing': 'remove',
 };
 
 // The lifecycle outcome vocabulary (item-record contract) collapsed onto the
-// two brief forms. removal and no-change are deliberately absent: neither is
-// an authorable piece of prose, and an item carrying one is reported as
-// stranded rather than written anyway.
+// brief forms.
+//
+// removal is here now. It used to be deliberately absent, alongside no-change,
+// on the grounds that neither is an authorable piece of prose. That was true
+// and it was not a reason to have no answer: an approved removal finding
+// reached this queue and was reported as stranded at every pass, forever.
+//
+// It has its own form now. needs-removing is composed deterministically by
+// lib/removal.mjs and never reaches the ensemble, because what goes, which
+// catalogue entry goes with it, what still points at it and which URL stops
+// resolving are all computable from the target path and the repository tree.
+// Sending that to six models would spend real money to be told what a regular
+// expression already knows.
+//
+// no-change stays absent, correctly: there is nothing to publish.
 export const OUTCOME_KIND = {
   'new-course': 'needs-creating',
   'new-module': 'needs-creating',
@@ -74,6 +87,7 @@ export const OUTCOME_KIND = {
   update: 'needs-updating',
   correction: 'needs-updating',
   replacement: 'needs-updating',
+  removal: 'needs-removing',
 };
 
 // The contract surface names (item-record schema) and the operator-config
@@ -738,12 +752,59 @@ export async function generateBriefs({
     // visual-guide item when eight were stranded, because it stopped looking. A
     // count that depends on how far a loop happened to get is not a count.
     let notReached = 0;
+    // A removal never reaches the ensemble: nothing is drafted, so nothing is
+    // sent to the delivery engine and nothing is spent. It is claimed like any
+    // other item (so a crash leaves it visibly executing) and handed back
+    // separately, for run-authoring to compose and prepare deterministically.
+    const removals = [];
     for (const item of eligible) {
       if (!item.kind) {
         skipped.push({
           subjectId: item.subject_id, surface: item.surface,
           reason: `outcome "${item.outcome}" is not an authorable brief form; removal and no-change are not written by the ensemble`,
         });
+        continue;
+      }
+      if (item.kind === 'needs-removing') {
+        if (!item.recordedTarget?.repository || !item.recordedTarget?.path) {
+          skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: 'a removal needs the publication target recorded at Gate 1, and this revision carries none' });
+          continue;
+        }
+        if (removals.length >= limit) { notReached += 1; continue; }
+        removals.push({
+          subjectId: item.subject_id,
+          itemId: item.id,
+          track: item.track,
+          surface: item.surface,
+          itemRevision: item.item_revision,
+          originRunId: item.origin_run_id,
+          state: item.state,
+          title: item.title,
+          target: { repository: item.recordedTarget.repository, path: item.recordedTarget.path },
+          // The reason comes off the item's own recorded evidence. A removal
+          // states why the content should stop being published; inventing that
+          // sentence here would be the pipeline arguing its own case.
+          rationale: item.note ?? item.title,
+          evidence: (evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity))?.evidence ?? [],
+        });
+        if (apply) {
+          if (item.state !== 'executing') {
+            await store.recordTransition({
+              schema_version: '1.0.0',
+              transition_id: generateUuidV7(),
+              run_id: item.origin_run_id,
+              item_id: item.id,
+              item_revision: item.item_revision,
+              from_state: 'ado-linked',
+              to_state: 'executing',
+              cause: 'execution-started',
+              actor: claimedBy,
+              occurred_at: now,
+              correlation_id: generateUuidV7(),
+            });
+          }
+          claimed.push(item.subject_id);
+        }
         continue;
       }
       const built = briefFor({
@@ -784,7 +845,7 @@ export async function generateBriefs({
       }
     }
 
-    return { briefs, skipped, claimed, roles, queued: queue.length, eligible: eligible.length, notReached };
+    return { briefs, removals, skipped, claimed, roles, queued: queue.length, eligible: eligible.length, notReached };
   } finally {
     store.close();
   }

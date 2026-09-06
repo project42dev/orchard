@@ -66,6 +66,8 @@ import { registrationFor, surfaceForTargetPath, RegistrationError } from "./lib/
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
 import { recoverStrandedItems } from "./lib/stranded-recovery.mjs";
+import { prepareRemovalCommit } from "./lib/prepare-gate2-evidence.mjs";
+import { buildRemovalEvidence, buildRemovalRecord, deregistrationFor, inboundReferences, redirectFor, removedIdForTarget } from "./lib/removal.mjs";
 import { readGateToken } from "./announce-gates.mjs";
 
 function argOf(argv, name, fallback = null) {
@@ -681,10 +683,24 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         now,
     });
     log("info", "authoring.briefs.generated", {
-        briefs: briefs.briefs.length, claimed: briefs.claimed.length,
+        briefs: briefs.briefs.length, removals: briefs.removals.length, claimed: briefs.claimed.length,
         queued: briefs.queued, skipped: briefs.skipped.length, notReached: briefs.notReached,
     });
     for (const skipped of briefs.skipped) log("warn", "authoring.brief.skipped", skipped);
+
+    // Removals first, and never through the delivery engine. They are
+    // composed deterministically, so they cost nothing and they must not be
+    // written into briefs.json: the ensemble would try to draft a deletion.
+    let removalSummary = { prepared: 0, held: 0 };
+    if (briefs.removals.length > 0) {
+        const removalStore = openStateStore(resolve(dbPath));
+        try {
+            removalSummary = await executeRemovals({ store: removalStore, removals: briefs.removals, now, env, log });
+        } finally {
+            removalStore.close();
+        }
+        log("info", "removal.finished", removalSummary);
+    }
 
     if (briefs.briefs.length > 0) {
         const briefPath = join(workRoot, "briefs.json");
@@ -749,8 +765,225 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             store.close();
         }
     }
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery };
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery, removals: removalSummary };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
 
+
+/**
+ * Execute the removals this run claimed: compose the removal record, prepare
+ * the deletion commit, record the item at gate2-ready and hold it pending for
+ * the owner. No ensemble, no spend, and nothing drafted.
+ *
+ * Best-effort per item, exactly like attemptGate2Evidence: any missing
+ * precondition holds that one removal with the reason logged. A removal is a
+ * deletion from a live site, so every refusal here is a refusal to delete, and
+ * refusing to delete is always the safe way to be wrong.
+ */
+export async function executeRemovals({ store, removals, now, env = process.env, log, fetchImpl = fetch, readGateTokenImpl = readGateToken }) {
+    const summary = { prepared: 0, held: 0 };
+    if (!removals || removals.length === 0) return summary;
+    let token;
+
+    for (const removal of removals) {
+        try {
+            const row = store.db.prepare(
+                "SELECT item_id, track, current_state, current_revision, origin_run_id FROM workflow_item WHERE item_id = ?",
+            ).get(removal.itemId);
+            const revision = store.db.prepare(
+                "SELECT run_id, proposal_digest FROM item_revision WHERE item_id = ? AND item_revision = ?",
+            ).get(removal.itemId, Number(row.current_revision));
+            const link = store.db.prepare(
+                `SELECT external_key, external_id FROM external_link
+                  WHERE provider = 'ado' AND item_id = ? AND item_revision = ? ORDER BY linked_at DESC LIMIT 1`,
+            ).get(removal.itemId, Number(row.current_revision));
+            if (!link) {
+                summary.held += 1;
+                log("warn", "removal.held", { item: removal.itemId, reason: "no persisted ADO link; Gate 2 binds the tracker item" });
+                continue;
+            }
+            const gate1 = store.db.prepare(
+                `SELECT event_id FROM decision_event
+                  WHERE item_id = ? AND gate = 'gate-1' AND decision = 'approve' AND digest = ?
+                  ORDER BY occurred_at DESC LIMIT 1`,
+            ).get(removal.itemId, revision.proposal_digest);
+            if (!gate1) {
+                summary.held += 1;
+                log("warn", "removal.held", { item: removal.itemId, reason: "no recorded Gate 1 approval decision event for this exact proposal digest" });
+                continue;
+            }
+
+            token ??= await readGateTokenImpl({
+                log, env, prefix: "removalprep",
+                vaultUrlVar: "ORCHARD_PUBLICATION_VAULT_URL", repoVar: "ORCHARD_PUBLICATION_GITHUB_REPO",
+                appIdVar: "ORCHARD_PUBLICATION_APP_ID_SECRET", installationIdVar: "ORCHARD_PUBLICATION_INSTALLATION_ID_SECRET",
+                appKeyVar: "ORCHARD_PUBLICATION_APP_KEY_SECRET", tokenVar: "ORCHARD_PUBLICATION_TOKEN_SECRET",
+            });
+            if (!token) {
+                summary.held += 1;
+                log("warn", "removal.held", { item: removal.itemId, reason: "no publication GitHub credential is configured on this job" });
+                continue;
+            }
+
+            const composed = await composeRemoval({ removal, token, fetchImpl, now });
+
+            // A removal with something still pointing at it is a page that
+            // works today about to 404. It holds, and the referrers are named.
+            if (composed.record.record.inbound.found.length > 0) {
+                summary.held += 1;
+                log("warn", "removal.held", {
+                    item: removal.itemId,
+                    reason: "something still references this artifact, so removing it would break a page that works today",
+                    referrers: composed.record.record.inbound.found.map((entry) => entry.reference),
+                });
+                continue;
+            }
+            if (composed.error) {
+                summary.held += 1;
+                log("warn", "removal.held", { item: removal.itemId, reason: composed.error, target: removal.target.path });
+                continue;
+            }
+
+            const binding = {
+                run_id: revision.run_id ?? row.origin_run_id,
+                item_id: removal.itemId,
+                item_revision: Number(row.current_revision),
+                track: row.track,
+                proposal_digest: revision.proposal_digest.startsWith("sha256:") ? revision.proposal_digest : `sha256:${revision.proposal_digest}`,
+                gate1_decision_event_id: gate1.event_id,
+                ado_external_key: link.external_key,
+                ado_work_item_id: Number(link.external_id),
+            };
+            const evidence = await buildRemovalEvidence({
+                binding, target: removal.target, removal: composed.record, commit: composed.commit, now,
+            });
+
+            // executing -> gate2-ready, the same transition the ingest records
+            // for a drafted item, then straight into Gate 2 preparation. There
+            // is no proposal to ingest because there was no ensemble.
+            if (row.current_state === "executing") {
+                await store.recordTransition({
+                    schema_version: "1.0.0",
+                    transition_id: generateUuidV7(),
+                    run_id: row.origin_run_id,
+                    item_id: removal.itemId,
+                    item_revision: Number(row.current_revision),
+                    from_state: "executing",
+                    to_state: "gate2-ready",
+                    cause: "artifact-ready",
+                    actor: "orchard/run-authoring/removal",
+                    occurred_at: now,
+                    correlation_id: generateUuidV7(),
+                });
+            }
+            const refreshed = store.db.prepare(
+                "SELECT item_id, track, current_revision, origin_run_id FROM workflow_item WHERE item_id = ?",
+            ).get(removal.itemId);
+            await prepareGate2Item({
+                store, row: refreshed, evidence, now, actor: "orchard/run-authoring/removal",
+                // The owner reads the removal record itself at Gate 2, not a
+                // wall of digests about a file they cannot see being deleted.
+                extra: { content: composed.record.content },
+            });
+            summary.prepared += 1;
+            log("info", "removal.prepared", {
+                item: removal.itemId, target: removal.target.path, state: "gate2-pending",
+                preparedCommit: composed.commit.preparedCommit,
+                deregisteredIn: composed.commit.registeredIn,
+                redirectNeeded: composed.record.record.redirect.needed,
+            });
+        } catch (error) {
+            summary.held += 1;
+            log("warn", "removal.refused", { item: removal.itemId, code: error.code ?? null, reason: error.message });
+        }
+    }
+    return summary;
+}
+
+/**
+ * Read what the removal needs to know from the target repository, compose the
+ * record, and prepare the deletion commit.
+ *
+ * Bounded on purpose: one catalogue read, the removed module's own directory,
+ * and the commit. The publication account is rate limited and a removal is not
+ * worth a repository-wide crawl; what was NOT read is recorded in the record so
+ * "no inbound references" never reads as a clearance it is not.
+ */
+async function composeRemoval({ removal, token, fetchImpl, now }) {
+    const surface = surfaceForTargetPath(removal.target.path);
+    const removedId = removedIdForTarget(removal.target.path, surface);
+    const deregistration = deregistrationFor({ surface, targetPath: removal.target.path, removedId });
+
+    const read = async (path) => {
+        const response = await fetchImpl(`https://api.github.com/repos/${removal.target.repository}/contents/${path}?ref=main`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "Orchard-Removal/1.0",
+            },
+        });
+        if (!response.ok) return null;
+        const parsed = JSON.parse(await response.text());
+        if (Array.isArray(parsed)) return parsed;
+        return Buffer.from(parsed.content ?? "", parsed.encoding ?? "base64").toString("utf8");
+    };
+
+    const catalogText = surface === "learning" ? await read("catalog.json") : null;
+
+    // Siblings in the SAME learning path only. A module's prerequisites name
+    // modules, and the ones most likely to name this one are the ones beside
+    // it.
+    const siblings = [];
+    if (surface === "learning") {
+        const directory = removal.target.path.slice(0, removal.target.path.lastIndexOf("/"));
+        const listing = await read(directory);
+        if (Array.isArray(listing)) {
+            for (const entry of listing) {
+                if (entry?.type !== "file" || !entry.path?.endsWith(".json") || entry.path === removal.target.path) continue;
+                const content = await read(entry.path);
+                if (typeof content === "string") siblings.push({ path: entry.path, content });
+            }
+        }
+    }
+
+    // Scanned AFTER the deregistration, because the artifact's own catalogue
+    // listing is what the deregistration removes. Counting it as an inbound
+    // reference would make every removal hold on the entry it is deleting.
+    const remainingCatalogText = deregistration && typeof catalogText === 'string'
+        ? deregistration.apply(catalogText)
+        : catalogText;
+    const inbound = inboundReferences({ removedId, surface, catalogText: remainingCatalogText, siblings });
+    const redirect = redirectFor({ surface, targetPath: removal.target.path });
+    const record = buildRemovalRecord({
+        item: { item_id: removal.itemId },
+        target: removal.target,
+        rationale: removal.rationale,
+        evidence: removal.evidence,
+        catalogue: {
+            registry: deregistration?.path ?? null,
+            entry: removedId,
+            effect: deregistration
+                ? `The entry for ${removedId} is removed from ${deregistration.path} in the same commit, so no listing survives the file.`
+                : "This surface has no registry: the artifact indexes itself, so deleting the file is the whole removal.",
+        },
+        inbound,
+        redirect,
+        now,
+    });
+
+    try {
+        // Nothing is written to GitHub for a removal that will not go ahead.
+        // Same rule registrationFor follows on the way in: a precondition that
+        // fails costs no blob, no tree and no commit object.
+        if (record.record.inbound.found.length > 0) return { record };
+        const commit = await prepareRemovalCommit({
+            repository: removal.target.repository, path: removal.target.path,
+            deregistration, token, fetchImpl,
+        });
+        return { record, commit };
+    } catch (error) {
+        return { error: error.message, record };
+    }
+}

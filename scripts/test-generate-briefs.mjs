@@ -91,8 +91,8 @@ const [pendingId] = await seedGateItems(store, runId, ['undecided']);
 // crashed run leaves behind. It IS eligible: this is the recovery case.
 const [orphanedId] = await seedGateItems(store, runId, ['crashed-before-proposal']);
 await walkTo(store, runId, orphanedId, 'executing');
-// One with an outcome that is not an authorable brief form. It must be
-// reported as stranded, not silently dropped and not written anyway.
+// One removal. It is not authorable prose and it is not stranded either: it
+// is composed deterministically and handed back as a removal directive.
 const removalId = await seedItemWithOutcome(store, runId, 'obsolete-topic', 'removal');
 await walkTo(store, runId, removalId, 'ado-linked');
 // One update, carrying the evidence an update brief hands the drafter.
@@ -213,9 +213,13 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   check('every role carries its own completion budget, never a global one',
     r.briefs.every((b) => Object.values(b.roles).every((role) => role.maxCompletionTokens >= 4096)));
 
-  check('an outcome with no brief form is stranded and says so',
-    r.skipped.length === 1 && r.skipped[0].subjectId === removalId
-    && r.skipped[0].reason.includes('removal'));
+  // Was: "an outcome with no brief form is stranded and says so". A removal
+  // used to have no brief form and was reported stranded on every pass,
+  // forever. It has one now, and it never reaches the ensemble.
+  check('a removal is claimed as a removal directive, never sent to the ensemble',
+    r.skipped.length === 0 && r.removals.length === 1 && r.removals[0].subjectId === removalId
+    && r.removals[0].target.path === `modules/discovery/obsolete-topic.json`
+    && !r.briefs.some((b) => b.subjectId === removalId));
 }
 
 // --- needs-updating ------------------------------------------------------------
@@ -238,10 +242,11 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
 {
   const r = await generateBriefs({ ...base, limit: 1 });
   equal('the limit caps what is EMITTED', r.briefs.length, 1);
-  equal('and every stranded item is still counted, whatever the limit', r.skipped.length, 1);
+  equal('nothing is stranded now that removal has a form', r.skipped.length, 0);
+  equal('and the removal is emitted on its own channel, under its own cap', r.removals.length, 1);
   equal('and the rest are reported as not reached rather than silently dropped', r.notReached, 4);
-  equal('emitted plus stranded plus not-reached accounts for every eligible item',
-    r.briefs.length + r.skipped.length + r.notReached, r.eligible);
+  equal('emitted plus removals plus stranded plus not-reached accounts for every eligible item',
+    r.briefs.length + r.removals.length + r.skipped.length + r.notReached, r.eligible);
 }
 
 // --- claiming -----------------------------------------------------------------
@@ -252,7 +257,9 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   // recovery case existed.
   const claimSubjects = [alphaId, betaId, gammaId, removalId, updateId];
   const r = await generateBriefs({ ...base, subjects: claimSubjects, limit: 2, apply: true, now: NOW, claimedBy: 'tester' });
-  equal('under --apply the emitted items are moved to executing', r.claimed.length, 2);
+  // Three, not two: the two briefs the limit allows plus the removal, which
+  // is claimed the same way so a crash leaves it visibly executing.
+  equal('under --apply the emitted items are moved to executing', r.claimed.length, 3);
 
   // A plain claim with no completed run behind it -- exactly what this test
   // does, and NOT what generateBriefs alone can promise anymore, since the
@@ -265,7 +272,9 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   // exact same state a crashed run leaves behind.
   const after = await generateBriefs({ ...base, subjects: claimSubjects, limit: 10 });
   check('a claimed item with no completed run behind it is still eligible -- unbound work is always retriable',
-    r.claimed.every((id) => after.briefs.some((b) => b.subjectId === id)));
+    // Either channel: a removal is re-emitted as a removal directive, a
+    // drafted item as a brief. Both are unbound work and both stay retriable.
+    r.claimed.every((id) => after.briefs.some((b) => b.subjectId === id) || after.removals.some((entry) => entry.subjectId === id)));
   equal('the eligible count is unchanged: nothing has actually finished yet, only been claimed', after.eligible, 5);
 }
 
@@ -375,7 +384,7 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
 {
   equal('a discovery outcome maps to a creation brief', OUTCOME_KIND['new-module'], 'needs-creating');
   equal('a currency outcome maps to an update brief', OUTCOME_KIND.correction, 'needs-updating');
-  equal('removal is deliberately unauthorable', OUTCOME_KIND.removal, undefined);
+  equal('and a removal maps to its own deterministic form', OUTCOME_KIND.removal, 'needs-removing');
 
   const targets = JSON.parse(readFileSync(targetsPath, 'utf8'));
   check('the contract surface name finds the operator\'s older config key',

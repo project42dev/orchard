@@ -378,3 +378,90 @@ export function buildEvidenceDocument({ handoffs, binding, target, commit, propo
 }
 
 export default { STAGE_ROLE, reconstructStageContent, buildHandoffsFromProposal, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError };
+
+/**
+ * The same Git Data API preparation as prepareRealCommit, for a DELETION.
+ *
+ * Three differences, each of them the point:
+ *   1. There is no blob to write. The tree entry carries `sha: null`, which is
+ *      how the Git Data API says "this path is gone at this tree".
+ *   2. There is no content, so there is no format to validate. prepareRealCommit
+ *      validates format because it is the last place the bytes and the path are
+ *      both in hand; a removal has no bytes and the equivalent last check is
+ *      whether the path is actually there to remove, which is asserted here.
+ *   3. The registry edit is a DEregistration. It travels in the same tree for
+ *      exactly the reason a registration does: a file deleted while its
+ *      catalogue entry survives leaves a listing that 404s, which is worse than
+ *      the stale content the removal was for. One tree, one approval, merged
+ *      together or not at all.
+ *
+ * The prepared commit is reachable only by SHA until Gate 2 approves, the same
+ * as every other prepared commit.
+ */
+export async function prepareRemovalCommit({ repository, path, deregistration = null, baseBranch = "main", token, fetchImpl = fetch }) {
+    async function call(apiPath, { method = "GET", body, allow404 = false } = {}) {
+        const response = await fetchImpl(`${API}${apiPath}`, {
+            method,
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+                "User-Agent": "Orchard-Gate2-Evidence/1.0",
+                ...(body ? { "Content-Type": "application/json" } : {}),
+            },
+            ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+        const text = await response.text();
+        const parsed = text ? JSON.parse(text) : null;
+        if (allow404 && response.status === 404) return null;
+        if (!response.ok) fail("evidence.github-api", `GitHub ${method} ${apiPath} returned ${response.status}: ${parsed?.message ?? text}`);
+        return parsed;
+    }
+
+    const ref = await call(`/repos/${repository}/git/ref/heads/${encodeURIComponent(baseBranch)}`);
+    const baseCommit = ref.object.sha;
+    const commit = await call(`/repos/${repository}/git/commits/${baseCommit}`);
+    const baseTree = commit.tree.sha;
+
+    // Nothing to remove is not success. A removal prepared against a path that
+    // is already absent would produce an empty tree identical to its base, and
+    // a Gate 2 approval of a diff that changes nothing is a human signing off
+    // on an illusion.
+    const existing = await call(`/repos/${repository}/contents/${path}?ref=${baseCommit}`, { allow404: true });
+    if (!existing) fail("removal.absent", `${path} is not present on ${repository}@${baseCommit}, so there is nothing to remove`);
+
+    const deregistrationEntry = await (async () => {
+        if (!deregistration) return null;
+        const file = await call(`/repos/${repository}/contents/${deregistration.path}?ref=${baseCommit}`);
+        const currentText = Buffer.from(file.content ?? "", file.encoding ?? "base64").toString("utf8");
+        const nextText = deregistration.apply(currentText);
+        if (nextText === currentText) return null;
+        const registryBlob = await call(`/repos/${repository}/git/blobs`, { method: "POST", body: { content: nextText, encoding: "utf-8" } });
+        return { path: deregistration.path, mode: "100644", type: "blob", sha: registryBlob.sha };
+    })();
+
+    const entries = [{ path, mode: "100644", type: "blob", sha: null }];
+    if (deregistrationEntry) entries.push(deregistrationEntry);
+    const tree = await call(`/repos/${repository}/git/trees`, {
+        method: "POST",
+        body: { base_tree: baseTree, tree: entries },
+    });
+    const preparedTreeDigest = `sha256:${sha256(tree.sha)}`;
+    const summary = deregistrationEntry ? `${path} and its entry in ${deregistrationEntry.path}` : path;
+    const preparedCommit = await call(`/repos/${repository}/git/commits`, {
+        method: "POST",
+        body: {
+            message: `[Orchard] Remove ${summary}\n\n${TRAILER}: ${preparedTreeDigest}`,
+            tree: tree.sha,
+            parents: [baseCommit],
+        },
+    });
+    return {
+        baseCommit,
+        treeSha: tree.sha,
+        preparedTreeDigest,
+        preparedCommit: preparedCommit.sha,
+        registeredIn: deregistrationEntry?.path ?? null,
+        removedBlobSha: existing.sha ?? null,
+    };
+}

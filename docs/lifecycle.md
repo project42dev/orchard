@@ -860,6 +860,29 @@ Rules that keep it usable:
    redirects, catalogue removal, and package withdrawal, and an untracked
    removal is how dead links happen.
 
+   **Built, 2026-09-06.** A `removal` currency finding used to reach the queue
+   and stop: there was no brief form for it, so it was reported as stranded at
+   every pass forever. It has one now, and it never reaches the authoring
+   ensemble, because nothing about a deletion is prose to draft. The brief IS
+   the artifact: a removal record naming what goes, why, which catalogue entry
+   travels in the same commit, what still references it, and whether a URL
+   stops resolving. That record is what the owner reads at Gate 2 and what the
+   artifact digest binds.
+
+   Two things a removal refuses rather than guesses at. A live inbound
+   reference holds the item with the referrers named, because removing it
+   would break a page that works today; and a target already absent from the
+   repository is refused, because an approval of a diff that changes nothing
+   is a human signing off on an illusion. Neither writes a single object to
+   GitHub.
+
+   On redirects, the estate's own route rules answer the question rather than
+   an assumption: a learning module serves at its learning path's page and has
+   no URL of its own, so removing one orphans nothing; a resource and a
+   diagram each have their own page, so the record marks a redirect needed and
+   names the URL that stops resolving. Orchard states the need and does not
+   invent a redirect mechanism in a repository it does not own.
+
 ## What is built, and what is not
 
 | Phase | State |

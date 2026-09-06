@@ -65,7 +65,8 @@
                 "accessibility-reviewer",
                 "assessment-reviewer",
                 "diagram-reviewer",
-                "final-reviewer"
+                "final-reviewer",
+                "content-remover"
             ]
         },
         "model": {
