@@ -70,7 +70,9 @@
 
 - The remediation is no longer undeployed. Commit
 	`28b9f36040d9e40e28c53966ace9b1052ede5a10` was built and released through
-	`deployment/Deploy-OrchardTwoTrack.ps1`, which is the wrapper around the
+	`project42dev-ops/deployment/Deploy-Orchard.ps1` -- named
+	Deploy-OrchardTwoTrack.ps1 at the time, and it lives in the private
+	operations repository, not here -- which is the wrapper around the
 	Bicep templates `orchard-two-track-network-foundation.bicep` and
 	`orchard-two-track-target.bicep`.
 - Deployed image digest is now
@@ -83,14 +85,16 @@
 	handoff and a CI workflow, neither of which is runtime code.
 - Verified after release: state storage back to `publicNetworkAccess: Disabled`
 	with `defaultAction: Deny` and no IP rules, zero Track 1 jobs, and
-	`Test-OrchardTwoTrackInfrastructure.ps1` returned `Status: Passed` with
+	`project42dev-ops/deployment/Test-OrchardInfrastructure.ps1`, named
+	Test-OrchardTwoTrackInfrastructure.ps1 at the time, returned
+	`Status: Passed` with
 	`JobCount: 4`.
 - Module integrity on the new image is proven by the Dockerfile build-time smoke
 	layer, which imports both controllers, the blob state adapter, the corpus
 	snapshot module and `foundry-inspection-producer.mjs`. The ACR build passed,
 	so the remediated modules load.
 
-### DEFECT still open in Deploy-OrchardTwoTrack.ps1
+### DEFECT still open in Deploy-Orchard.ps1 (then Deploy-OrchardTwoTrack.ps1)
 
 - The script grants the bootstrap principal `Storage Blob Data Contributor` in
 	the bootstrap deployment and then uploads the corpus immediately at line 153

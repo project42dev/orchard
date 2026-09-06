@@ -14,7 +14,7 @@ surface-specific).
 ## Why this reuses Gate 2's existing grammar instead of inventing a new one
 
 `scripts/adapters/github-gate/adapter.mjs` is a pinned, trust-anchor-hashed
-file: `lib/protected-adapter.mjs` verifies its digest before trusting any
+file: `scripts/lib/protected-adapter.mjs` verifies its digest before trusting any
 decision it parses. Inventing a new decision verb (`reject-gate override`,
 `reject-gate confirm`) would mean editing that file and re-running
 `provision-trust-anchor.mjs`, a security-sensitive operation this design
@@ -80,7 +80,7 @@ escalated ones, because the ADO audit trail the owner asked for needs it
 on attempt one too.
 
 New function `buildRejectionEvidence(proposal)` in
-`lib/prepare-gate2-evidence.mjs`, called from the same place
+`scripts/lib/prepare-gate2-evidence.mjs`, called from the same place
 `run-authoring.mjs` already calls `reconstructStageContent` for the
 drafter stage:
 
