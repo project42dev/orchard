@@ -273,7 +273,11 @@ jobs:
         with:
           repository: ${{ env.CONTENT_REPOSITORY }}
           path: content-repo
-          token: ${{ secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN cannot reach another repository, so it is a last
+          # resort that fails the publish rather than a working fallback.
+          # ORG_PAT is organisation-wide; ORCHARD_PUBLISH_TOKEN is preferred
+          # because it can be scoped to the content repository alone.
+          token: ${{ secrets.ORCHARD_PUBLISH_TOKEN || secrets.ORG_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Publish content to content repo
         if: steps.decision.outputs.decision == 'approved'

@@ -94,7 +94,7 @@ jobs:
             - name: Read labelled content requests
               id: ingest
               env:
-                  GITHUB_TOKEN: ${{ secrets.ORCHARD_CONTENT_REQUEST_TOKEN || secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.ORCHARD_CONTENT_REQUEST_TOKEN || secrets.ORCHARD_PUBLISH_TOKEN || secrets.ORG_PAT || secrets.GITHUB_TOKEN }}
               run: |
                   set -euo pipefail
                   # Exit 2 means "some requests were malformed and were skipped".
