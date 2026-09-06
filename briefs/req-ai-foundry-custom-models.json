@@ -4,7 +4,7 @@
   "title": "Microsoft AI Foundry & Bringing Your Own Models and Agents",
   "pathId": "discovery",
   "surface": "learn",
-  "targetPath": "content/modules/discovery/ai-foundry-custom-models.json",
+  "targetPath": "modules/discovery/ai-foundry-custom-models.json",
   "level": "intermediate",
   "audience": "Developers, AI Practitioners, and Solutions Architects",
   "estimatedMinutes": 25,

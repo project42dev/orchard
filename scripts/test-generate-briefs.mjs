@@ -61,7 +61,7 @@ async function seedItemWithOutcome(store, runId, term, outcome, { surface = 'lea
     state: 'observed',
     proposal_digest: sha256Digest({ term, outcome }),
     artifact_digest: null,
-    target: { repository: 'project42dev/project42-platform', path: `content/modules/discovery/${term}.json` },
+    target: { repository: 'project42dev/project42-content', path: `modules/discovery/${term}.json` },
     evidence: evidence ?? [{ reference: `https://example.invalid/${term}`, digest: sha256Digest(term) }],
     created_at: NOW,
     updated_at: NOW,
@@ -137,8 +137,8 @@ const targetsPath = join(root, 'targets.json');
 writeFileSync(targetsPath, JSON.stringify({
   repository: 'example/content',
   surfaces: {
-    learn: { pathTemplates: ['content/modules/{topic}/'], suffix: '-learn' },
-    'field-guide': { pathTemplate: 'content/resources/{topic}/', suffix: '-field-guide' },
+    learn: { pathTemplates: ['modules/{topic}/'], suffix: '-learn' },
+    'field-guide': { pathTemplate: 'resources/{topic}/', suffix: '-field-guide' },
     'visual-guide': { pathTemplates: ['diagrams/{topic}.mmd'], suffix: '-visual-guide', form: 'mermaid' },
   },
 }));
@@ -186,8 +186,8 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   equal('and the ingest recovers the item from the brief id alone', match?.subjectId, alphaId);
 
   equal('a brief names where the content goes, from the RECORDED item target',
-    alpha.targets[0].pathPrefixes[0], 'content/modules/discovery/alpha.json');
-  equal('and which repository', alpha.targets[0].repository, 'project42dev/project42-platform');
+    alpha.targets[0].pathPrefixes[0], 'modules/discovery/alpha.json');
+  equal('and which repository', alpha.targets[0].repository, 'project42dev/project42-content');
 
   check('the recorded Gate 1 manifest title reaches the brief',
     alpha.title === 'How to teach alpha');

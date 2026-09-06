@@ -320,7 +320,7 @@ test('the description stands alone on the board', () => {
         rationale: '3 of the surveyed approved sources discuss it.',
         score: { formula_version: 'track1-demand-1.0.0', value: 36 },
         evidence_refs: ['https://example.invalid/a'],
-        target: { repository: 'project42dev/project42-platform', path: 'content/modules/discovery/x.json' },
+        target: { repository: 'project42dev/project42-content', path: 'modules/discovery/x.json' },
     };
     const decision = { source_repository: REPO, source_issue_number: 9, source_comment_id: '555' };
     const description = workItemDescription(row, detail, decision);

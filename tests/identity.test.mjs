@@ -48,7 +48,7 @@ test("revision, lifecycle, and idempotency keys are deterministic", () => {
 });
 
 test("safe canonical repository-relative target paths are accepted", () => {
-    const path = "content/learning/example-module.json";
+    const path = "modules/example-path/example-module.json";
     assert.equal(validateTargetPath(path), path);
 });
 

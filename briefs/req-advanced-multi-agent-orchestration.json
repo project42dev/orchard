@@ -4,7 +4,7 @@
   "title": "Advanced Multi-Agent Orchestration & Topologies",
   "pathId": "discovery",
   "surface": "learn",
-  "targetPath": "content/modules/discovery/advanced-multi-agent-orchestration.json",
+  "targetPath": "modules/discovery/advanced-multi-agent-orchestration.json",
   "level": "advanced",
   "audience": "AI Engineers, Systems Architects, and Technical Leads",
   "estimatedMinutes": 30,

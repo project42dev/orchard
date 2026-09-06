@@ -44,7 +44,7 @@ test("main that has advanced past the approved base is observed, not refused -- 
 test("main sitting exactly at the approved base still reconciles clean, with no drift reported", async () => {
     const adapter = {
         async reconcileProtectedMain({ expectedCommit }) {
-            return { classification: "exact", object: { repository: "project42dev/project42-platform", branch: "main", commit: expectedCommit } };
+            return { classification: "exact", object: { repository: "project42dev/project42-content", branch: "main", commit: expectedCommit } };
         },
     };
     const observed = await observeProtectedMain(adapter, binding);

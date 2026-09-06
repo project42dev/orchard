@@ -170,7 +170,7 @@ function New-TestBrief {
         prompt = 'Revise the context-window claim against the changed source.'
         targets = @(
             [ordered]@{
-                repository = 'project42dev/project42-platform'
+                repository = 'project42dev/project42-content'
                 pathPrefixes = @('content/learn/')
             }
         )

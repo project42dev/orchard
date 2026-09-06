@@ -210,7 +210,7 @@ test("publication is bound to the reviewed decision, artifact, diff, tree, base 
         (records) => { records.publication.displayed_diff_digest = changedDigest(records.publication.displayed_diff_digest); },
         (records) => { records.publication.prepared_tree_digest = changedDigest(records.publication.prepared_tree_digest); },
         (records) => { records.publication.base_commit = "0000000000000000000000000000000000000000"; },
-        (records) => { records.publication.target.path = "content/learning/other-module.json"; },
+        (records) => { records.publication.target.path = "modules/example-path/other-module.json"; },
         (records) => { records.publication.pull_request.displayed_diff_digest = changedDigest(records.publication.pull_request.displayed_diff_digest); }
     ];
 

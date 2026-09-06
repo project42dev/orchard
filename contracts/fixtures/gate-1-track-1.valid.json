@@ -29,8 +29,8 @@
                 "value": 72
             },
             "target": {
-                "repository": "project42dev/project42-platform",
-                "path": "content/learning/example-module.json"
+                "repository": "project42dev/project42-content",
+                "path": "modules/example-path/example-module.json"
             },
             "risks": [
                 "Primary evidence requires human confirmation."

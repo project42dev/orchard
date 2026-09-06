@@ -22,8 +22,8 @@
             "displayed_diff_digest": "sha256:5656565656565656565656565656565656565656565656565656565656565656",
             "prepared_tree_digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
             "target": {
-                "repository": "project42dev/project42-platform",
-                "path": "content/learning/example-existing-module.json"
+                "repository": "project42dev/project42-content",
+                "path": "modules/example-path/example-existing-module.json"
             },
             "base_commit": "3333333333333333333333333333333333333333",
             "diff_ref": "evidence/diff/track-2-item-2",

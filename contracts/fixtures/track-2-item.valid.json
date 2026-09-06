@@ -12,8 +12,8 @@
     "proposal_digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
     "artifact_digest": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
     "target": {
-        "repository": "project42dev/project42-platform",
-        "path": "content/learning/example-existing-module.json"
+        "repository": "project42dev/project42-content",
+        "path": "modules/example-path/example-existing-module.json"
     },
     "evidence": [
         {

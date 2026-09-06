@@ -2,8 +2,12 @@
 #
 # Triggered when someone comments on an Orchard proposal issue.
 # Reads the comment for a decision ("Approved" or "Denied"),
-# records the publication or rejection, commits content to the platform repo
+# records the publication or rejection, commits content to the CONTENT repo
 # (on Approve), syncs ADO state, posts a confirmation, and closes the issue.
+#
+# CONTENT_REPOSITORY is the WRITE target. It is deliberately a separate variable
+# from the track workflows' PLATFORM_REPOSITORY, which is a read-only context pin
+# on the product repository and must never be used as a publication target.
 #
 # The human's ONLY action is commenting "Approved" or "Denied".
 # Everything else is automated.
@@ -16,10 +20,13 @@ on:
 
 permissions:
   issues: write
-  contents: write # needed to push to platform repo
+  contents: write # needed to push to the content repo
 
 env:
   NODE_VERSION: "22"
+  # WRITE target for approved content. Deliberately NOT PLATFORM_REPOSITORY:
+  # publishing into the product repository is what caused the curriculum to drift.
+  CONTENT_REPOSITORY: ${{ vars.ORCHARD_CONTENT_REPOSITORY || 'project42dev/project42-content' }}
 
 jobs:
   review-decision:
@@ -51,7 +58,7 @@ jobs:
       # GATE 2. Approval binds to the exact artifact.
       #
       # This step used to run `grep -qiE '^\s*approved\s*$'` on the comment
-      # body, so one bare word authorised a commit to the content platform with
+      # body, so one bare word authorised a commit to the content repository with
       # nothing bound to it: not the item, not the revision, not the bytes. An
       # edited proposal stayed approvable and a stale approval could not be
       # detected. ADR-0025 rejects exactly that shape.
@@ -229,7 +236,7 @@ jobs:
               --apply
           done
 
-      # ---- PUBLISH CONTENT TO PLATFORM REPO (APPROVED) ----
+      # ---- PUBLISH CONTENT TO CONTENT REPO (APPROVED) ----
       # Downloads the delivery artifacts from the engine workflow run that
       # produced these proposals. delivery/private/ is gitignored, so a fresh
       # checkout doesn't have the 04-final.md files.
@@ -260,15 +267,15 @@ jobs:
           path: orchard/
         continue-on-error: true
 
-      - name: Checkout platform repo for publishing
+      - name: Checkout content repo for publishing
         if: steps.decision.outputs.decision == 'approved'
         uses: actions/checkout@v4
         with:
-          repository: project42dev/project42-platform
-          path: platform-repo
+          repository: ${{ env.CONTENT_REPOSITORY }}
+          path: content-repo
           token: ${{ secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
 
-      - name: Publish content to platform repo
+      - name: Publish content to content repo
         if: steps.decision.outputs.decision == 'approved'
         working-directory: orchard
         run: |
@@ -328,9 +335,9 @@ jobs:
               } else {
                 // Fallback: derive from surface
                 const s = '$SURFACE';
-                if (s === 'visual-guide') console.log('content/diagrams/');
-                else if (s === 'learn') console.log('content/modules/' + p.subjectId + '/');
-                else console.log('content/resources/' + p.subjectId + '/');
+                if (s === 'visual-guide') console.log('diagrams/');
+                else if (s === 'learn') console.log('modules/' + p.subjectId + '/');
+                else console.log('resources/' + p.subjectId + '/');
               }
             ")
 
@@ -348,19 +355,19 @@ jobs:
             echo "  Surface: $SURFACE"
             echo "  Target: $OUTPUT_FILE"
 
-            # Convert format: markdown → platform JSON or raw mermaid
+            # Convert format: markdown → learning-module JSON or raw mermaid
             node scripts/convert-delivery-format.mjs \
               --input "$FINAL_FILE" \
-              --output "../platform-repo/$OUTPUT_FILE" \
+              --output "../content-repo/$OUTPUT_FILE" \
               --surface "$SURFACE" \
               --subject "$SUBJECT"
 
-            echo "  ✅ Converted and copied to platform-repo/$OUTPUT_FILE"
+            echo "  ✅ Converted and copied to content-repo/$OUTPUT_FILE"
           done
 
-      - name: Commit and push to platform repo
+      - name: Commit and push to content repo
         if: steps.decision.outputs.decision == 'approved'
-        working-directory: platform-repo
+        working-directory: content-repo
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             git config user.name "Orchard Pipeline"
@@ -371,7 +378,7 @@ jobs:
             Approved by: ${{ github.event.comment.user.login }}
             Subjects: ${{ steps.extract.outputs.subjects }}"
             git push
-            echo "✅ Content pushed to platform repo"
+            echo "✅ Content pushed to content repo"
           else
             echo "No content changes to commit."
           fi
@@ -429,7 +436,7 @@ jobs:
         run: |
           gh issue close ${{ github.event.issue.number }} \
             --repo project42dev/orchard \
-            --comment "✅ **Published.** Content committed to platform repo, ADO synced, publication recorded. Closing."
+            --comment "✅ **Published.** Content committed to content repo, ADO synced, publication recorded. Closing."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

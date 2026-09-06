@@ -126,7 +126,7 @@ test('a candidate persisted by discovery is what Gate 1 announces', async () => 
   const posted = JSON.parse(calls.at(-1).body);
   assert.ok(posted.body.includes('How to teach vector-search'), 'the issue must name what is being decided');
   assert.ok(posted.body.includes('/orchard gate1 approve item='), 'the issue must carry the exact decision command');
-  assert.ok(posted.body.includes('project42dev/project42-platform'), 'the issue must show where the content would land');
+  assert.ok(posted.body.includes('project42dev/project42-content'), 'the issue must show where the content would land');
   store.close();
 });
 
@@ -188,7 +188,7 @@ function gate2Item(itemId, { reviewsPassed = true, accessibilityStatus = 'human-
     prepared_tree_digest: sha256Digest(`tree:${itemId}`), base_commit: '0'.repeat(40),
     diff_ref: `github:commit:${'a'.repeat(40)}:path:x.json`, artifact_ref: `orchard:artifact:${sha256Digest(itemId)}`,
     ado_external_key: `orchard:track-1:${itemId}:r2`, handoff_chain_digest: sha256Digest(`handoffs:${itemId}`),
-    target: { repository: 'project42dev/project42-platform', path: `content/modules/discovery/${itemId}.json` },
+    target: { repository: 'project42dev/project42-content', path: `modules/discovery/${itemId}.json` },
     factual_review: {
       status: reviewsPassed ? 'passed' : 'failed', evidence_ref: `orchard:handoff:${itemId}-factual`,
       ...(factualFinding ? { finding: factualFinding } : {}),
@@ -275,7 +275,7 @@ test('a Gate 2 item shows badge, target, and the approve command before any dige
   // scan this" was not -- that gap is what this test exists to close.
   const manifest = gate2Manifest([gate2Item('readable-item', { reviewsPassed: true })]);
   const body = renderGateIssueBody(manifest);
-  const heading = body.indexOf('### content/modules/discovery/readable-item.json');
+  const heading = body.indexOf('### modules/discovery/readable-item.json');
   const command = body.indexOf('/orchard gate2 approve item=readable-item');
   const details = body.indexOf('<details>');
   assert.ok(heading >= 0, 'the heading must name the file, not the raw item id -- that is what a human recognizes');
@@ -308,7 +308,7 @@ test('an escalated (rejected-twice) item shows a distinct badge and the real rea
   assert.ok(body.includes('Verifier (FAIL): the claim about X is not supported.'), 'the real verifier finding must be visible, not just a verdict label');
   assert.ok(body.includes('Adversary (REFUTED): the diagram omits a failure path.'), 'the real adversary finding must be visible, not just a verdict label');
   assert.ok(body.includes('This is the entire document that was blocked twice.'), 'the full rejected draft must be shown directly, not collapsed and not omitted');
-  const escalatedSectionStart = body.indexOf('### content/modules/discovery/escalated-item.json');
+  const escalatedSectionStart = body.indexOf('### modules/discovery/escalated-item.json');
   const escalatedSection = body.slice(escalatedSectionStart);
   const detailsIndex = escalatedSection.indexOf('<details>');
   const draftIndex = escalatedSection.indexOf('This is the entire document');

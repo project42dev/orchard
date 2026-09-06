@@ -43,9 +43,15 @@ const SHA256 = /^sha256:[a-f0-9]{64}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
 const TRAILER = "Orchard-Prepared-Tree-Digest";
 const DEFAULT_RETRIES = 2;
-const CANONICAL_REPO = "project42dev/project42-platform";
+// The repository every publication API call is made against when the caller
+// names none. Until 2026-09-05 this constant was the PLATFORM repository and
+// normalizeRepo() actively rewrote "project42dev/project42-content" back to it,
+// so a correctly configured content target still wrote to the product repo on
+// every live call. The rewrite is gone: the repository the caller names is the
+// repository that is written to, and only a missing one falls back.
+const CANONICAL_REPO = "project42dev/project42-content";
 function normalizeRepo(repo) {
-    if (!repo || repo === "project42dev/project42-content") return CANONICAL_REPO;
+    if (!repo) return CANONICAL_REPO;
     return repo;
 }
 

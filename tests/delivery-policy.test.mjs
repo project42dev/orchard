@@ -26,7 +26,7 @@ const policy = JSON.parse(await readFile(new URL('../config/delivery-policy.exam
 const binding = {
   run_id: runId, track: 'track-1', item_id: itemId, item_revision: 1, proposal_digest: digest('a'),
   gate1_decision_event_id: eventId, ado_external_key: `orchard:track-1:${itemId}:r1`, ado_work_item_id: 5001,
-  target: { repository: 'project42dev/project42-platform', path: 'content/item.md' },
+  target: { repository: 'project42dev/project42-content', path: 'content/item.md' },
 };
 const criterion = (name) => ({ name, measured_value: 1, threshold: 1, passed: true, evidence_ref: `qualification/${name}` });
 const providers = {

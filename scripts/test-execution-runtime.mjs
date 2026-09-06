@@ -108,7 +108,7 @@ function writeDeliveryStub(directory) {
 function writePublicationAdapter(directory) {
     const statePath = join(directory, "github-state.json").replace(/\\/g, "/");
     writeFileSync(statePath, JSON.stringify({
-        main: { repository: "project42dev/project42-platform", branch: "main", commit: BASE_COMMIT },
+        main: { repository: "project42dev/project42-content", branch: "main", commit: BASE_COMMIT },
         branches: {}, pulls: {}, nextNumber: 42, mergeCommit: MERGE_COMMIT,
     }));
     const path = join(directory, "test-publication-adapter.mjs");
@@ -213,7 +213,7 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
         "model-c": { format: "family-three" }, "model-d": { format: "family-four" },
     }));
     const targetsPath = join(directory, "surface-targets.json");
-    writeFileSync(targetsPath, JSON.stringify({ repository: "project42dev/project42-platform", surfaces: {} }));
+    writeFileSync(targetsPath, JSON.stringify({ repository: "project42dev/project42-content", surfaces: {} }));
     const workRoot = join(directory, "authoring-work");
     const stub = writeDeliveryStub(directory);
 
@@ -353,7 +353,7 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
         tests: gate2ManifestEvidence.tests, factual_evidence: gate2ManifestEvidence.factual_review,
         accessibility_evidence: gate2ManifestEvidence.accessibility_review,
         canonical_target: null,
-        pull_request: { number: pullNumber, url: `https://github.com/project42dev/project42-platform/pull/${pullNumber}` },
+        pull_request: { number: pullNumber, url: `https://github.com/project42dev/project42-content/pull/${pullNumber}` },
         publication_transaction_id: publicationState.transaction.transaction_id,
         protected_main_commit: MERGE_COMMIT,
         push_acknowledgement: publicationState.push_acknowledgement,

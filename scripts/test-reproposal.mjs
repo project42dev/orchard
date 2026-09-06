@@ -121,7 +121,7 @@ test('the re-proposal path creates no duplicate or orphaned rows', async () => {
         schema_version: '1.0.0', item_id: generateUuidV7(), run_id: runId, track: 'track-1',
         item_revision: 1, semantic_identity: sid, surface: 'learning', outcome: 'new-module',
         state: 'observed', proposal_digest: `sha256:${'1'.repeat(64)}`, artifact_digest: null,
-        target: { repository: 'project42dev/project42-platform', path: 'content/modules/discovery/dupe.json' },
+        target: { repository: 'project42dev/project42-content', path: 'modules/discovery/dupe.json' },
         evidence: [{ reference: 'proposal:dupe', digest: `sha256:${'2'.repeat(64)}` }],
         created_at: NOW, updated_at: NOW,
     }), 'the partial unique index is the last line of defence');

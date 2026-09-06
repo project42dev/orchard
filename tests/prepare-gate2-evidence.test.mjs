@@ -148,7 +148,7 @@ test("prepareRealCommit creates a blob, tree, and commit with a matching trailer
         throw new Error(`unexpected call ${url}`);
     };
     const result = await prepareRealCommit({
-        repository: "project42dev/project42-platform", path: "docs/learn/example.md",
+        repository: "project42dev/project42-content", path: "docs/learn/example.md",
         content: "new content", token: "tok", fetchImpl,
     });
     assert.equal(result.baseCommit, "a".repeat(40));
@@ -166,7 +166,7 @@ test("prepareRealCommit surfaces a real GitHub error instead of swallowing it", 
         throw new Error("unexpected call");
     };
     await assert.rejects(
-        () => prepareRealCommit({ repository: "project42dev/project42-platform", path: "x.md", content: "x", token: "tok", fetchImpl }),
+        () => prepareRealCommit({ repository: "project42dev/project42-content", path: "x.md", content: "x", token: "tok", fetchImpl }),
         Gate2EvidenceError,
     );
 });
@@ -176,7 +176,7 @@ test("buildEvidenceDocument marks reviews human-review, not passed, when no dedi
     const b = binding();
     b.ado_external_key = `orchard:${b.track}:${b.item_id}:r${b.item_revision}`;
     const handoffs = await buildHandoffsFromProposal({ proposal, binding: b, runStartedAt: new Date().toISOString() });
-    const target = { repository: "project42dev/project42-platform", path: "docs/learn/example.md" };
+    const target = { repository: "project42dev/project42-content", path: "docs/learn/example.md" };
     const commit = { baseCommit: "a".repeat(40), preparedCommit: "e".repeat(40), preparedTreeDigest: sha256Digest("tree") };
     const evidence = buildEvidenceDocument({ handoffs, binding: b, target, commit, proposal });
     assert.equal(evidence.manifest.factual_review.status, "human-review");

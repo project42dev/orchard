@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Found live 2026-08-19, on the only nine items this pipeline has ever
-// published to project42dev/project42-platform (merged pull requests #153
+// published to project42dev/project42-content (merged pull requests #153
 // through #161): every one of the nine carried the wrong format for its own
 // target path.
 //
@@ -37,8 +37,8 @@ import { buildAcceptanceCriteria, buildPrompt, formFor, surfaceCriteriaFor } fro
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { estate, seedGateItems, walkTo } from "./test-fixtures.mjs";
 
-const MODULE_PATH = "content/modules/discovery/rag.json";
-const DIAGRAM_PATH = "content/diagrams/retrieval-pipeline.mmd";
+const MODULE_PATH = "modules/discovery/rag.json";
+const DIAGRAM_PATH = "diagrams/retrieval-pipeline.mmd";
 
 // The real first lines of content/modules/discovery/rag.json on main.
 const PUBLISHED_MARKDOWN = [
@@ -169,7 +169,7 @@ test("a path whose extension declares no checkable format is passed through, nev
     assert.equal(inspection.checked, false, "a .md path is not something this guard can rule on");
     assert.equal(inspection.ok, true);
     assert.equal(declaredFormatFor("README"), null, "and neither is a path with no extension at all");
-    assert.equal(declaredFormatFor("content/modules/discovery/rag.JSON"), "json", "extension matching is case-insensitive");
+    assert.equal(declaredFormatFor("modules/discovery/rag.JSON"), "json", "extension matching is case-insensitive");
     assert.equal(firstDiagramLine("\n\n%% only comments\n"), null);
 });
 
@@ -201,7 +201,7 @@ test("prepareRealCommit refuses malformed content before the first API call, lea
     const { impl, calls } = commitFetchMock();
     await assert.rejects(
         () => prepareRealCommit({
-            repository: "project42dev/project42-platform", path: MODULE_PATH,
+            repository: "project42dev/project42-content", path: MODULE_PATH,
             content: PUBLISHED_MARKDOWN, token: "test-token-literal", fetchImpl: impl,
         }),
         (error) => error instanceof ArtifactFormatError && error.code === "artifact-format.json-unparsable",
@@ -212,7 +212,7 @@ test("prepareRealCommit refuses malformed content before the first API call, lea
 test("prepareRealCommit still prepares a real commit when the content matches its path", async () => {
     const { impl, calls } = commitFetchMock();
     const commit = await prepareRealCommit({
-        repository: "project42dev/project42-platform", path: MODULE_PATH,
+        repository: "project42dev/project42-content", path: MODULE_PATH,
         content: JSON.stringify(learningModule(), null, 2), token: "test-token-literal", fetchImpl: impl,
     });
     assert.equal(commit.preparedCommit, PREPARED_COMMIT);
@@ -223,7 +223,7 @@ test("prepareRealCommit still prepares a real commit when the content matches it
 test("the escalation path's opt-out is honoured, and is the only way past the guard", async () => {
     const { impl, calls } = commitFetchMock();
     const commit = await prepareRealCommit({
-        repository: "project42dev/project42-platform", path: MODULE_PATH,
+        repository: "project42dev/project42-content", path: MODULE_PATH,
         content: "draft the ensemble already rejected", token: "test-token-literal", fetchImpl: impl,
         validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
     });
@@ -349,7 +349,7 @@ test("a well-formed draft gets past the format guard, and holds later for a diff
 const LEARNING_ITEM = { kind: "needs-creating", surface: "learning", title: "Retrieval-augmented generation", subject_id: "rag", level: "intermediate" };
 
 test("a learning brief instructs the drafter to return one JSON object and nothing else", () => {
-    const prompt = buildPrompt(LEARNING_ITEM, null, [], { pathTemplates: ["content/modules/{topic}/"], suffix: "-learn" });
+    const prompt = buildPrompt(LEARNING_ITEM, null, [], { pathTemplates: ["modules/{topic}/"], suffix: "-learn" });
     assert.match(prompt, /Return exactly ONE JSON object and nothing else/, "the instruction the surface never carried");
     assert.match(prompt, /not prose and it is not Markdown/);
     assert.match(prompt, /LearningModule schema/, "and names the schema it must conform to");
