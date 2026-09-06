@@ -65,6 +65,7 @@ import { inspectArtifactFormat, SKIP_ARTIFACT_FORMAT_CHECK } from "./lib/artifac
 import { registrationFor, surfaceForTargetPath, RegistrationError } from "./lib/registration.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
+import { recoverStrandedItems } from "./lib/stranded-recovery.mjs";
 import { readGateToken } from "./announce-gates.mjs";
 
 function argOf(argv, name, fallback = null) {
@@ -645,6 +646,26 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     const proposalRoot = env.PROPOSAL_ROOT ?? join(runRecordDir, "proposals");
     for (const directory of [workRoot, runRecordDir, proposalRoot]) mkdirSync(directory, { recursive: true });
 
+    // Reopen items stranded at gate2-ready by an EARLIER run, before briefs
+    // are claimed, so the same run re-drafts them instead of the next one.
+    //
+    // attemptGate2Evidence below only ever looks at items this run just moved,
+    // and the proposal and evidence it needs live on the ephemeral disk of the
+    // container that produced them: no job mounts a volume. An item that fell
+    // out of that one window can never be prepared in place, which is why
+    // gate2.prep.no-evidence repeated for the same items on every run. Nothing
+    // drove the recovery that already existed; this drives it, bounded and
+    // reported, because every recovered item is re-drafted and that spends.
+    let strandedRecovery = { stranded: 0, recovered: [], refused: [], remaining: 0 };
+    {
+        const recoveryStore = openStateStore(resolve(dbPath));
+        try {
+            strandedRecovery = await recoverStrandedItems({ store: recoveryStore, track: argOf(argv, "track", null), now, env, log });
+        } finally {
+            recoveryStore.close();
+        }
+    }
+
     // Claim work. Each brief records ado-linked -> executing, so a crash after
     // this point leaves items visibly executing rather than silently unclaimed,
     // and the ingest below (this run or the next) is what moves them on.
@@ -728,7 +749,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             store.close();
         }
     }
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery };
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
