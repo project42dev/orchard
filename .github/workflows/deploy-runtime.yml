@@ -76,6 +76,11 @@ jobs:
             REGION_SHORT: ${{ vars.ORCHARD_REGION_SHORT || 'eus' }}
             INSTANCE: ${{ vars.ORCHARD_INSTANCE || '01' }}
             DEPLOY_TRACK_1: ${{ vars.ORCHARD_DEPLOY_TRACK_1 || 'true' }}
+            # The two protected adapters, at their paths in THIS repository. The
+            # deployed jobs carry container paths; these are where the same files
+            # live in a checkout, which is what CI can hash.
+            GATE_ADAPTER_SOURCE: ${{ vars.ORCHARD_GATE_ADAPTER_SOURCE || 'scripts/adapters/github-gate/adapter.mjs' }}
+            PUBLICATION_ADAPTER_SOURCE: ${{ vars.ORCHARD_PUBLICATION_ADAPTER_SOURCE || 'scripts/adapters/github-publication/adapter.mjs' }}
 
         steps:
             - name: Checkout the exact commit being deployed
@@ -98,6 +103,58 @@ jobs:
                     exit 1
                   fi
                   echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+            # THE HALF-SUCCESS THIS PREVENTS. Two jobs verify a protected adapter
+            # against a digest the release BOUND into their environment, and refuse
+            # to provision their decision authority if the adapter in the image is
+            # not the one bound. Roll out an image whose adapter changed without
+            # re-binding the digest and the job logs `anchor.adapter-mismatch`,
+            # provisions nothing, and publishes nothing -- while the rollout
+            # reports success. That is exactly the failure mode this workflow
+            # exists to make impossible, so the digests are recomputed here with
+            # the runtime's OWN hasher and set alongside the image.
+            #
+            # The publication anchor rotates itself when the bound digest changes.
+            # The GATE anchor does not: it is immutable once provisioned, so a
+            # commit that changes scripts/adapters/github-gate/ needs a schema
+            # migration to rotate it, exactly as migration 009 did. Setting the
+            # digest here is necessary and, for the gate, not sufficient.
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: "22"
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Install locked dependencies
+              run: npm ci --ignore-scripts
+
+            - name: Recompute the protected adapter digests
+              id: adapters
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  # protectedAdapterDigest, not a plain file hash: the digest covers
+                  # the adapter's whole local module graph, so hashing the entry file
+                  # alone would miss a changed dependency.
+                  hash_adapter() {
+                    node --input-type=module -e "
+                      import { protectedAdapterDigest } from './scripts/lib/protected-adapter.mjs';
+                      process.stdout.write(await protectedAdapterDigest(process.argv[1]));
+                    " "$1"
+                  }
+                  gate="$(hash_adapter "$GATE_ADAPTER_SOURCE")"
+                  publication="$(hash_adapter "$PUBLICATION_ADAPTER_SOURCE")"
+                  for digest in "$gate" "$publication"; do
+                    if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                      echo "::error::an adapter did not hash to a digest: '$digest'"
+                      exit 1
+                    fi
+                  done
+                  echo "gate=$gate" >> "$GITHUB_OUTPUT"
+                  echo "publication=$publication" >> "$GITHUB_OUTPUT"
+                  echo "gate adapter: $gate"
+                  echo "publication adapter: $publication"
 
             - name: Azure login (OIDC, no stored secret)
               uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
@@ -178,6 +235,8 @@ jobs:
                   RUNTIME_DIGEST: ${{ steps.images.outputs.runtime_digest }}
                   AUTHORING_REPOSITORY: ${{ steps.images.outputs.authoring_repository }}
                   AUTHORING_DIGEST: ${{ steps.images.outputs.authoring_digest }}
+                  GATE_ADAPTER_DIGEST: ${{ steps.adapters.outputs.gate }}
+                  PUBLICATION_ADAPTER_DIGEST: ${{ steps.adapters.outputs.publication }}
               run: |
                   set -euo pipefail
 
@@ -196,6 +255,10 @@ jobs:
                     runtime_jobs+=(t1-sch t1-man)
                     authoring_jobs+=(auth)
                   fi
+                  # The publication adapter digest lives only on the two
+                  # publication jobs (infra/orchard.bicep:1642, :1831); the gate
+                  # adapter digest is in commonEnv, so every job carries it.
+                  publication_jobs=(pub t2-pub)
 
                   declare -A expected=()
                   for suffix in "${runtime_jobs[@]}"; do
@@ -204,17 +267,26 @@ jobs:
                   for suffix in "${authoring_jobs[@]}"; do
                     expected["$(job "$suffix")"]="${LOGIN_SERVER}/${AUTHORING_REPOSITORY}@${AUTHORING_DIGEST}"
                   done
+                  declare -A wants_publication_digest=()
+                  for suffix in "${publication_jobs[@]}"; do
+                    name="$(job "$suffix")"
+                    [[ -v "expected[$name]" ]] && wants_publication_digest["$name"]=1
+                  done
 
                   # Attempt EVERY job before failing. Aborting on the first
                   # refusal would hide how much of the estate is stranded, and
                   # the operator needs the whole list to decide what to do.
                   failed=()
                   for name in "${!expected[@]}"; do
+                    vars=("ORCHARD_IMPLEMENTATION_COMMIT=${TAG}" "ORCHARD_GATE_ADAPTER_DIGEST=${GATE_ADAPTER_DIGEST}")
+                    if [[ -v "wants_publication_digest[$name]" ]]; then
+                      vars+=("ORCHARD_PUBLICATION_ADAPTER_DIGEST=${PUBLICATION_ADAPTER_DIGEST}")
+                    fi
                     echo "::group::update ${name}"
                     if az containerapp job update \
                          --resource-group "$RESOURCE_GROUP" --name "$name" \
                          --image "${expected[$name]}" \
-                         --set-env-vars "ORCHARD_IMPLEMENTATION_COMMIT=${TAG}" \
+                         --set-env-vars "${vars[@]}" \
                          --only-show-errors -o none; then
                       echo "requested ${name} -> ${expected[$name]}"
                     else
@@ -227,22 +299,33 @@ jobs:
                   # Verification is separate from the request and reads the
                   # deployed resource back, because "the command exited 0" is
                   # not evidence the job runs the new image.
+                  env_of() {
+                    az containerapp job show --resource-group "$RESOURCE_GROUP" --name "$1" \
+                      --query "properties.template.containers[0].env[?name=='$2'].value | [0]" -o tsv --only-show-errors || true
+                  }
                   {
-                    echo "| job | image | commit |"
-                    echo "| --- | --- | --- |"
+                    echo "| job | image | commit | gate adapter | publication adapter |"
+                    echo "| --- | --- | --- | --- | --- |"
                   } >> "$GITHUB_STEP_SUMMARY"
                   for name in "${!expected[@]}"; do
                     observed="$(az containerapp job show --resource-group "$RESOURCE_GROUP" --name "$name" \
                       --query 'properties.template.containers[0].image' -o tsv --only-show-errors || true)"
-                    observed_commit="$(az containerapp job show --resource-group "$RESOURCE_GROUP" --name "$name" \
-                      --query "properties.template.containers[0].env[?name=='ORCHARD_IMPLEMENTATION_COMMIT'].value | [0]" -o tsv --only-show-errors || true)"
-                    echo "| ${name} | ${observed:-unreadable} | ${observed_commit:-unset} |" >> "$GITHUB_STEP_SUMMARY"
+                    observed_commit="$(env_of "$name" ORCHARD_IMPLEMENTATION_COMMIT)"
+                    observed_gate="$(env_of "$name" ORCHARD_GATE_ADAPTER_DIGEST)"
+                    observed_publication="$(env_of "$name" ORCHARD_PUBLICATION_ADAPTER_DIGEST)"
+                    echo "| ${name} | ${observed:-unreadable} | ${observed_commit:-unset} | ${observed_gate:-unset} | ${observed_publication:-n/a} |" >> "$GITHUB_STEP_SUMMARY"
                     if [[ "$observed" != "${expected[$name]}" ]]; then
                       echo "::error::${name} runs ${observed:-unreadable}, expected ${expected[$name]}"
                       failed+=("${name} (image ${observed:-unreadable})")
                     elif [[ "$observed_commit" != "$TAG" ]]; then
                       echo "::error::${name} reports commit ${observed_commit:-unset}, expected ${TAG}"
                       failed+=("${name} (commit ${observed_commit:-unset})")
+                    elif [[ "$observed_gate" != "$GATE_ADAPTER_DIGEST" ]]; then
+                      echo "::error::${name} binds gate adapter ${observed_gate:-unset}, expected ${GATE_ADAPTER_DIGEST}; it would refuse to provision its decision authority"
+                      failed+=("${name} (gate adapter ${observed_gate:-unset})")
+                    elif [[ -v "wants_publication_digest[$name]" && "$observed_publication" != "$PUBLICATION_ADAPTER_DIGEST" ]]; then
+                      echo "::error::${name} binds publication adapter ${observed_publication:-unset}, expected ${PUBLICATION_ADAPTER_DIGEST}; it would publish nothing"
+                      failed+=("${name} (publication adapter ${observed_publication:-unset})")
                     fi
                   done
 

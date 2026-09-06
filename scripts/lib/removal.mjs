@@ -166,7 +166,6 @@ export function redirectFor({ surface, targetPath }) {
             to: null,
         };
     }
-    const pathId = null;
     return {
         needed: true,
         reason: `${route.path} is this artifact's own page and stops resolving once the file is gone`,
@@ -175,7 +174,6 @@ export function redirectFor({ surface, targetPath }) {
         // record states the need and where it should land; Orchard does not
         // invent a redirect mechanism in a repository it does not own.
         to: surface === "guide-diagram" ? "/guide/diagrams" : "/guide/resources",
-        pathId,
     };
 }
 

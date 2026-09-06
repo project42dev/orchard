@@ -58,7 +58,12 @@ UPDATE item_revision
            '$.target.path', substr(target_path, 9)
        )
  WHERE target_repository = 'project42dev/project42-platform'
-   AND target_path LIKE 'content/_%'
+   -- substr, not LIKE: LIKE is case-insensitive in SQLite and
+   -- contentRepositoryPathFor is not, so 'Content/x' would map here and be
+   -- refused there. The two must agree exactly or this migration is a
+   -- different rule wearing the same comment.
+   AND substr(target_path, 1, 8) = 'content/'
+   AND length(target_path) > 8
    AND json_valid(record_json)
    AND json_type(record_json, '$.target') = 'object'
    AND item_revision = (

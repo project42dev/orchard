@@ -112,7 +112,11 @@ gh variable set ORCHARD_DEPLOY_ENABLED --repo project42dev/orchard --body true
 gh workflow run "Deploy runtime" --repo project42dev/orchard
 ```
 
-**What one rollout does.** Builds `orchard-two-track` (from `delivery/Dockerfile.two-track`) and `orchard` (from `delivery/Dockerfile`), both tagged with the exact commit; resolves each tag to exactly one manifest digest; updates each job's image to that digest and its `ORCHARD_IMPLEMENTATION_COMMIT` to the same commit; then reads every job back and fails, naming each stranded job, unless all of them carry the expected digest and commit.
+**What one rollout does.** Builds `orchard-two-track` (from `delivery/Dockerfile.two-track`) and `orchard` (from `delivery/Dockerfile`), both tagged with the exact commit; resolves each tag to exactly one manifest digest; recomputes the two protected adapter digests with the runtime's own hasher; updates each job's image, its `ORCHARD_IMPLEMENTATION_COMMIT`, and its bound adapter digests; then reads every job back and fails, naming each stranded job, unless all of them match.
+
+**Why the adapter digests travel with the image.** The gate and publication jobs verify a protected adapter against a digest bound into their environment, and refuse to provision their decision authority if the adapter in the image is not the one bound. Rolling out an image whose adapter changed without re-binding that digest makes the job log `anchor.adapter-mismatch`, provision nothing and publish nothing, while the rollout reports success. That is the half-success this workflow exists to prevent, so the digests are recomputed and set in the same update.
+
+> **A commit that changes `scripts/adapters/github-gate/` needs more than a rollout.** The publication trust anchor rotates itself when its bound digest changes. The gate anchor is immutable once provisioned, so a changed gate adapter needs a schema migration to rotate it, exactly as migration `009-rotate-gate-trust-anchor.sql` did. Setting the digest is necessary and, for the gate, not sufficient.
 
 **What it deliberately does not do.**
 

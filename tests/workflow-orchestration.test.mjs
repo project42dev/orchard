@@ -151,6 +151,17 @@ test("the deploy workflow rebuilds and re-points the runtime, immutably and loud
     assert.match(deploy, /exit 1/);
     assert.doesNotMatch(deploy, /continue-on-error/);
 
+    // A protected adapter is verified inside the job against a digest the
+    // release BOUND into its environment. Ship an image whose adapter changed
+    // without re-binding that digest and the job provisions no decision
+    // authority and publishes nothing, while the rollout reports success --
+    // the exact half-success this workflow exists to prevent.
+    assert.match(deploy, /protectedAdapterDigest/, "the digests are recomputed with the runtime's own hasher");
+    assert.match(deploy, /ORCHARD_GATE_ADAPTER_DIGEST=/);
+    assert.match(deploy, /ORCHARD_PUBLICATION_ADAPTER_DIGEST=/);
+    assert.match(deploy, /would refuse to provision its decision authority/,
+        "and a job left on the wrong adapter fails the rollout by name");
+
     // The seed job's image carries release-staged artifacts that are gitignored
     // here, so a CI-built image would fail its own bound-digest verification.
     // It must never appear in the rollout list.
