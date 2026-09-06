@@ -33,9 +33,9 @@ it, and drives the content database.
 |---|---|
 | The content, the content model, the schemas | `project42-platform` |
 | The public marketing and entry surface | `project-42.dev` |
-| The Learn delivery surface | `learn.project-42.dev` |
-| The Field Guide delivery surface | `guide.project-42.dev` |
-| Learner account and profile | `account.project-42.dev` |
+| The Learn delivery surface | `project-42.dev`, under `/learn/**` |
+| The Field Guide delivery surface | `project-42.dev`, under `/guide/**` |
+| Learner account and profile | `project-42.dev`, under the account routes |
 | Owner administration | `admin.project-42.dev` |
 | An Azure AI Foundry deployment framework | `homestead-foundry` |
 | One owner's Foundry instance and model registry | `my-homestead-foundry` |
