@@ -169,6 +169,38 @@ export function reconcileTrack2Outcomes(itemIds, outcomes) {
  * one piece of content. When a finding closes, the subject is open again and
  * the T17 re-proposal rule applies unchanged.
  */
+/**
+ * Where an inspected file lives in the CONTENT repository.
+ *
+ * FOUND 2026-09-06, and it is exactly the silent success this repository's own
+ * rules forbid. Track 2 inspects a corpus snapshot laid out like the PLATFORM
+ * repository, where the curriculum is nested under `content/`, so an inspected
+ * module's source path is `content/modules/<path>/<id>.json`. A finding's
+ * publication target is the CONTENT repository
+ * (project42dev/project42-content), whose trees are `modules/`, `resources/`,
+ * `diagrams/` and `catalog.json` at the repository ROOT: there is no `content/`
+ * directory in it at all.
+ *
+ * Publishing a finding at its inspected path would therefore have written
+ * `content/modules/...` into the content repository -- a phantom tree no
+ * loader reads. The publication would have succeeded, the pull request would
+ * have merged, the site would have rebuilt, and the correction would have
+ * changed nothing anybody can see.
+ *
+ * The two layouts are otherwise identical (compared against both checkouts on
+ * 2026-09-06), so the mapping is exactly the prefix. A source path that is not
+ * under `content/` means the corpus layout has moved and this mapping is no
+ * longer true; that is refused rather than guessed at, because guessing here
+ * is invisible.
+ */
+export function contentRepositoryPathFor(sourcePath) {
+    const prefix = "content/";
+    if (typeof sourcePath !== "string" || !sourcePath.startsWith(prefix) || sourcePath.length <= prefix.length) {
+        throw new TypeError(`a canonical source path must sit under ${prefix} to map into the content repository: ${sourcePath}`);
+    }
+    return sourcePath.slice(prefix.length);
+}
+
 export function currencyCandidateFor(item, inspection, observedAt) {
     if (!TRACK_2_ACTIONABLE_CLASSIFICATIONS.includes(inspection?.classification)) {
         throw new TypeError(`not an actionable Track 2 classification: ${inspection?.classification}`);
@@ -187,11 +219,11 @@ export function currencyCandidateFor(item, inspection, observedAt) {
         title: `${inspection.classification}: ${item.stableId}`.slice(0, 200),
         term: item.canonicalId,
         level: null,
-        targetPath: item.sourcePath,
+        targetPath: contentRepositoryPathFor(item.sourcePath),
         evidence,
         evidenceRefs: [{ reference: item.sourcePath, digest: item.sourceDigest }],
         rationale: [
-            `The currency inspection of ${item.stableId} (${item.sourcePath}) classified the published content as needing ${inspection.classification},`,
+            `The currency inspection of ${item.stableId} (${item.sourcePath} in the inspected corpus, ${contentRepositoryPathFor(item.sourcePath)} in ${"project42dev/project42-content"}) classified the published content as needing ${inspection.classification},`,
             `on ${evidence.length} recorded evidence entr${evidence.length === 1 ? "y" : "ies"}.`,
             `The content digest at inspection time was ${item.digest}.`,
             "The classification and its evidence are in the proposal this decision binds to; nothing changes until a human approves it here.",

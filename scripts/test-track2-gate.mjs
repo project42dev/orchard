@@ -27,6 +27,7 @@ import { heldAtGate } from './lib/gate-queue.mjs';
 import { generateUuidV7 } from './lib/identity.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 import {
+    contentRepositoryPathFor,
     currencyCandidateFor,
     currencyFindingCandidates,
     runTrack2,
@@ -84,10 +85,10 @@ const CLASSIFICATION_BY_ID = {
 };
 
 const EXPECTED_CATEGORY_BY_PATH = {
-    'content/modules/module-a.json': 'update',
-    'content/resources/resource-a.json': 'correction',
-    'content/diagrams/diagram-a.mmd': 'removal',
-    'content/catalog.json': 'addition',
+    'modules/module-a.json': 'update',
+    'resources/resource-a.json': 'correction',
+    'diagrams/diagram-a.mmd': 'removal',
+    'catalog.json': 'addition',
 };
 
 function mixedInspector(item) {
@@ -129,7 +130,8 @@ test('the candidate builder covers every actionable classification and refuses n
     for (const classification of TRACK_2_ACTIONABLE_CLASSIFICATIONS) {
         const candidate = currencyCandidateFor(item, { classification, evidence: ['e:1'] }, '2026-08-16T00:00:00.000Z');
         assert.equal(candidate.category, classification);
-        assert.equal(candidate.targetPath, item.sourcePath, 'a finding targets the published file, never a fresh discovery path');
+        assert.equal(candidate.targetPath, 'resources/resource-a.json',
+            'a finding targets the published file in the CONTENT repository, which has no content/ prefix');
         assert.match(candidate.semanticIdentity, /^sid:v1:[a-f0-9]{64}$/);
     }
     const update = currencyCandidateFor(item, { classification: 'update', evidence: ['e:1'] }, '2026-08-16T00:00:00.000Z');
@@ -197,7 +199,7 @@ test('Gate 1 announces for track-2 with the right count, through the same announ
         assert.deepEqual(results.map((r) => [r.gate, r.action, r.count]), [['gate-1', 'created', 4], ['gate-2', 'empty', 0]]);
         const posted = JSON.parse(calls.at(-1).body);
         assert.ok(posted.title.includes('4 items awaiting approval (Currency)'), 'the issue title must name the track by what it does and the count');
-        assert.ok(posted.body.includes('content/modules/module-a.json'), 'the issue must name the published file the finding is about');
+        assert.ok(posted.body.includes('modules/module-a.json'), 'the issue must name the published file the finding is about');
         assert.ok(posted.body.includes('/orchard gate1 approve item='), 'the issue must carry the exact decision command');
     } finally {
         store.close();
@@ -321,13 +323,29 @@ async function deny(store, runId, itemId, reason) {
     });
 }
 
+test('an inspected corpus path maps onto the content repository, which has no content/ prefix', () => {
+    // The inspected snapshot is laid out like the PLATFORM repository. The
+    // publication target is project42dev/project42-content, whose trees sit at
+    // the repository root. Publishing at the inspected path would create a
+    // phantom content/ tree there that no loader reads: a merged pull request
+    // that changes nothing anybody can see.
+    assert.equal(contentRepositoryPathFor('content/catalog.json'), 'catalog.json');
+    assert.equal(contentRepositoryPathFor('content/modules/ai-foundations/prompting.json'), 'modules/ai-foundations/prompting.json');
+    assert.equal(contentRepositoryPathFor('content/resources/coding-tools/agents.json'), 'resources/coding-tools/agents.json');
+    assert.equal(contentRepositoryPathFor('content/diagrams/agent-orchestration.mmd'), 'diagrams/agent-orchestration.mmd');
+    for (const bad of ['modules/x.json', 'content/', '', null, 'contents/x.json']) {
+        assert.throws(() => contentRepositoryPathFor(bad), /must sit under content\//,
+            'a layout this mapping is no longer true for is refused, never guessed at');
+    }
+});
+
 test('a changed assessment supersedes the stale item instead of duplicating or ignoring it', async () => {
     const root = platformFixture();
     const store = stateEstate();
     try {
         const first = await runTrack2(runOptions(root, store));
         assert.equal(first.findings.persisted, 4);
-        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'content/modules/module-a.json');
+        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'modules/module-a.json');
         assert.equal(stale.category, 'update');
 
         // The same file, a week later, read as needing removal rather than update.
@@ -340,7 +358,7 @@ test('a changed assessment supersedes the stale item instead of duplicating or i
 
         const held = heldAtGate(store.db, 'gate-1', 'track-2');
         assert.equal(held.length, 4, 'the gate holds one item per subject, never two questions about one file');
-        const current = held.find((entry) => entry.target.path === 'content/modules/module-a.json');
+        const current = held.find((entry) => entry.target.path === 'modules/module-a.json');
         assert.equal(current.category, 'removal', "the gate asks this week's question");
         assert.notEqual(current.item_id, stale.item_id);
         assert.ok(current.rationale.includes(stale.item_id), 'the gate says what this replaces');
@@ -403,7 +421,7 @@ test('a decision aimed at a superseded item is refused by the lifecycle', async 
     const store = stateEstate();
     try {
         const first = await runTrack2(runOptions(root, store));
-        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'content/modules/module-a.json');
+        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'modules/module-a.json');
         await runTrack2(runOptions(root, store, {
             inspector: async (item) => reclassify({ 'learning-module:module-a': 'removal' })(item),
         }));
