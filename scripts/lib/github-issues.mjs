@@ -214,3 +214,39 @@ export async function openOrUpdateGateIssue({ repo, marker, title, body, labels 
     });
     return { action: "created", number: created.number, url: created.html_url };
 }
+
+/**
+ * Every issue in `repo` carrying `label`, oldest first.
+ *
+ * WHY THIS EXISTS. A learner's content request is filed as an issue on the
+ * curriculum repository. Until this existed nothing anywhere read those
+ * issues, so a request reached a maintainer's inbox and stopped: the ingest
+ * only ever read a hand-maintained local JSON file, which meant somebody had
+ * to retype the request before the pipeline could see it. Nobody ever did.
+ *
+ * Paging, not search, for the same reason listOpenGateIssues pages: the search
+ * API is eventually consistent, and a request that is invisible for a few
+ * minutes after filing is a request the scheduled run silently drops.
+ *
+ * Pull requests are excluded. The issues endpoint returns them too, and a PR
+ * that happens to carry the label is not a content request.
+ */
+export async function listIssuesByLabel({ repo, label, state = "open", token, fetchImpl = fetch, maxPages = 5 }) {
+    if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
+    if (typeof label !== "string" || label.length === 0) throw new TypeError("a label is required");
+    if (!["open", "closed", "all"].includes(state)) throw new TypeError("state must be open, closed or all");
+    const found = [];
+    for (let page = 1; page <= maxPages; page += 1) {
+        const batch = await call(
+            `/repos/${repo}/issues?state=${state}&labels=${encodeURIComponent(label)}&per_page=100&page=${page}&sort=created&direction=asc`,
+            { token, fetchImpl },
+        );
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        for (const issue of batch) {
+            if (issue?.pull_request) continue;
+            found.push(issue);
+        }
+        if (batch.length < 100) break;
+    }
+    return found;
+}
