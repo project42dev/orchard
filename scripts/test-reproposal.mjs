@@ -174,6 +174,7 @@ test('a version 5 database with a closed item migrates in place and the subject 
         { version: 8, name: '008-decision-event-per-item-uniqueness' },
         { version: 9, name: '009-rotate-gate-trust-anchor' },
         { version: 10, name: '010-superseded-item-uniqueness' },
+        { version: 11, name: '011-repoint-publication-targets' },
     ]);
     assert.ok(outcome.verification.ok, `post-migration verification: ${JSON.stringify(outcome.verification)}`);
 

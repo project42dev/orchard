@@ -42,7 +42,7 @@ test("fresh migration is transactional, versioned, verified, and replay-safe", (
     assert.equal(replay.backup, null);
 
     const db = new DatabaseSync(path);
-    assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get().n, 9);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM schema_migration").get().n, CURRENT_SCHEMA_VERSION - 1, "one applied row per vendored migration; versions start at 2");
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'publication_transaction'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'closure_packet'").get());
     assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'closure_acceptance'").get());
@@ -84,7 +84,7 @@ test("009 rotates the gate trust anchor only, and the anchor stays immutable aft
     db.close();
 
     const outcome = migrateContentDb(path);
-    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor", "010-superseded-item-uniqueness"]);
+    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor", "010-superseded-item-uniqueness", "011-repoint-publication-targets"]);
     assert.ok(outcome.verification.ok, JSON.stringify(outcome.verification));
 
     const after = new DatabaseSync(path);

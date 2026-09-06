@@ -20,6 +20,7 @@ import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles } from "./lib/job-chain.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
+import { reportUnmappedPublicationTargets } from "./lib/publication-target-migration.mjs";
 import { blockedNoteFor } from "./generate-briefs.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
@@ -199,6 +200,14 @@ async function runAzure(track, log) {
         const gateToken = await readGateToken({ log });
         const decisionStore = openStateStore(state.path);
         try {
+            // Historical items predate the repoint onto project42-content and
+            // publication authority refuses them forever. The correction is
+            // schema migration 011, which openStateStore has already applied
+            // by the time this line runs. This is read-only and is the other
+            // half of it: a row 011 deliberately refused is silent, so every
+            // item still pointing away from the content repository is named
+            // here, with the reason, on every single run until a human acts.
+            reportUnmappedPublicationTargets({ store: decisionStore, log });
             await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
         } finally {
             decisionStore.close();
@@ -358,6 +367,14 @@ async function runRoleAzure(role, log) {
         const gateToken = await readGateToken({ log });
         const decisionStore = openStateStore(state.path);
         try {
+            // Historical items predate the repoint onto project42-content and
+            // publication authority refuses them forever. The correction is
+            // schema migration 011, which openStateStore has already applied
+            // by the time this line runs. This is read-only and is the other
+            // half of it: a row 011 deliberately refused is silent, so every
+            // item still pointing away from the content repository is named
+            // here, with the reason, on every single run until a human acts.
+            reportUnmappedPublicationTargets({ store: decisionStore, log });
             await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
         } finally {
             decisionStore.close();

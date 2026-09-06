@@ -139,6 +139,7 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
         { version: 8, name: '008-decision-event-per-item-uniqueness' },
         { version: 9, name: '009-rotate-gate-trust-anchor' },
         { version: 10, name: '010-superseded-item-uniqueness' },
+        { version: 11, name: '011-repoint-publication-targets' },
     ]);
     assert.ok(outcome.verification.ok, `post-migration verification: ${JSON.stringify(outcome.verification)}`);
 
