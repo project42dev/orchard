@@ -1,5 +1,6 @@
 {
   "reviewedWith": "OrchardSourceReview/1.0 (+https://github.com/project42dev/orchard)",
+  "checkedAt": "2026-09-06",
   "sources": [
     {
       "id": "ms-learn-ai",
@@ -40,8 +41,8 @@
     {
       "id": "google-cloud-skills-boost",
       "label": "Google Cloud Skills Boost",
-      "url": "https://www.cloudskillsboost.google/",
-      "host": "www.cloudskillsboost.google",
+      "url": "https://www.skills.google/",
+      "host": "www.skills.google",
       "kind": "catalog",
       "robotsStatus": 200,
       "robotsAllowsWildcardAgent": true,
@@ -148,13 +149,13 @@
     {
       "id": "snowflake-learning",
       "label": "Snowflake Learning — AI/ML",
-      "url": "https://www.snowflake.com/learn/",
-      "host": "www.snowflake.com",
+      "url": "https://learn.snowflake.com/en/",
+      "host": "learn.snowflake.com",
       "kind": "catalog",
-      "robotsStatus": 200,
-      "robotsAllowsWildcardAgent": true,
-      "matchedRule": "Allow: /",
-      "basis": "longest match",
+      "robotsStatus": 530,
+      "robotsAllowsWildcardAgent": null,
+      "matchedRule": null,
+      "basis": "robots.txt returned 530",
       "crawlDelaySeconds": null
     },
     {
@@ -184,13 +185,13 @@
     {
       "id": "anthropic-learn",
       "label": "Anthropic — Learn",
-      "url": "https://www.anthropic.com/learn",
-      "host": "www.anthropic.com",
+      "url": "https://academy.claude.com/",
+      "host": "academy.claude.com",
       "kind": "catalog",
       "robotsStatus": 200,
       "robotsAllowsWildcardAgent": true,
-      "matchedRule": "Allow: /",
-      "basis": "longest match",
+      "matchedRule": null,
+      "basis": "no matching rule",
       "crawlDelaySeconds": null
     },
     {
@@ -208,8 +209,8 @@
     {
       "id": "meta-llama-docs",
       "label": "Meta Llama documentation",
-      "url": "https://www.llama.com/docs/",
-      "host": "www.llama.com",
+      "url": "https://developer.meta.com/ai/docs/overview/",
+      "host": "developer.meta.com",
       "kind": "catalog",
       "robotsStatus": 200,
       "robotsAllowsWildcardAgent": true,
@@ -532,13 +533,13 @@
     {
       "id": "llamaindex-docs",
       "label": "LlamaIndex documentation",
-      "url": "https://docs.llamaindex.ai/",
-      "host": "docs.llamaindex.ai",
+      "url": "https://developers.llamaindex.ai/python/framework/",
+      "host": "developers.llamaindex.ai",
       "kind": "practitioner",
       "robotsStatus": 200,
       "robotsAllowsWildcardAgent": true,
-      "matchedRule": null,
-      "basis": "no applicable group",
+      "matchedRule": "Allow: /",
+      "basis": "longest match",
       "crawlDelaySeconds": null
     },
     {
@@ -619,10 +620,10 @@
       "url": "https://docs.vllm.ai/",
       "host": "docs.vllm.ai",
       "kind": "practitioner",
-      "robotsStatus": 200,
-      "robotsAllowsWildcardAgent": true,
+      "robotsStatus": 429,
+      "robotsAllowsWildcardAgent": null,
       "matchedRule": null,
-      "basis": "no matching rule",
+      "basis": "robots.txt returned 429",
       "crawlDelaySeconds": null
     },
     {
@@ -832,8 +833,8 @@
     {
       "id": "ai-safety-fundamentals",
       "label": "AI Safety Fundamentals — BlueDot Impact",
-      "url": "https://aisafetyfundamentals.com/",
-      "host": "aisafetyfundamentals.com",
+      "url": "https://bluedot.org/",
+      "host": "bluedot.org",
       "kind": "safety",
       "robotsStatus": 200,
       "robotsAllowsWildcardAgent": true,
@@ -1012,8 +1013,8 @@
     {
       "id": "zindi",
       "label": "Zindi — Africa AI community",
-      "url": "https://zindi.africa/",
-      "host": "zindi.africa",
+      "url": "https://zindi.world/",
+      "host": "zindi.world",
       "kind": "community",
       "robotsStatus": 404,
       "robotsAllowsWildcardAgent": true,

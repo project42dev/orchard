@@ -35,7 +35,7 @@
     {
       "id": "google-cloud-skills-boost",
       "label": "Google Cloud Skills Boost",
-      "url": "https://www.cloudskillsboost.google/",
+      "url": "https://www.skills.google/",
       "kind": "catalog"
     },
     {
@@ -89,7 +89,7 @@
     {
       "id": "snowflake-learning",
       "label": "Snowflake Learning — AI/ML",
-      "url": "https://www.snowflake.com/learn/",
+      "url": "https://learn.snowflake.com/en/",
       "kind": "catalog"
     },
     {
@@ -107,7 +107,7 @@
     {
       "id": "anthropic-learn",
       "label": "Anthropic — Learn",
-      "url": "https://www.anthropic.com/learn",
+      "url": "https://academy.claude.com/",
       "kind": "catalog"
     },
     {
@@ -119,7 +119,7 @@
     {
       "id": "meta-llama-docs",
       "label": "Meta Llama documentation",
-      "url": "https://www.llama.com/docs/",
+      "url": "https://developer.meta.com/ai/docs/overview/",
       "kind": "catalog"
     },
     {
@@ -281,7 +281,7 @@
     {
       "id": "llamaindex-docs",
       "label": "LlamaIndex documentation",
-      "url": "https://docs.llamaindex.ai/",
+      "url": "https://developers.llamaindex.ai/python/framework/",
       "kind": "practitioner"
     },
     {
@@ -431,7 +431,7 @@
     {
       "id": "ai-safety-fundamentals",
       "label": "AI Safety Fundamentals — BlueDot Impact",
-      "url": "https://aisafetyfundamentals.com/",
+      "url": "https://bluedot.org/",
       "kind": "safety"
     },
     {
@@ -521,7 +521,7 @@
     {
       "id": "zindi",
       "label": "Zindi — Africa AI community",
-      "url": "https://zindi.africa/",
+      "url": "https://zindi.world/",
       "kind": "community"
     },
     {

@@ -35,7 +35,9 @@
         "skipped": 4,
         "unevaluated": 0,
         "stale": 0,
-        "exception_count": 0
+        "exception_count": 0,
+        "silent": 2,
+        "retired": 0
     },
     "item_count": 1,
     "manifest_digest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"

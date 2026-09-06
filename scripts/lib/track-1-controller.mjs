@@ -26,6 +26,8 @@ export const TRACK_1_OUTCOMES = Object.freeze([
 // stopping for: it can mean the registry no longer matches what those hosts
 // serve.
 const FAILURE_OUTCOMES = new Set(["rate-limited", "failed"]);
+// Below this share of enabled sources evaluated, the run is not a success.
+export const DEFAULT_MIN_COVERAGE = 0.9;
 const BLOCKED_OUTCOMES = new Set(["blocked"]);
 const IPV6_GLOBAL_UNICAST = ipaddr.parseCIDR("2000::/3");
 const BLOCKED_IPV6_RANGES = Object.freeze([
@@ -258,7 +260,14 @@ export function createBoundedFetchAdapter(options = {}) {
     if (typeof fetchImpl !== "function") throw new TypeError("fetchImpl must be a function");
     const limits = {
         maxRedirects: positiveInteger(options.maxRedirects, "maxRedirects", 3),
-        maxBytes: positiveInteger(options.maxBytes, "maxBytes", 1_000_000),
+        // 3 MB, not 1 MB. On 2026-09-06 six approved catalogue listings --
+        // alignment-forum, codecademy-ai, coursera-ml, edx-ai,
+        // great-learning-ai and ibm-ai-engineering-cert -- measured 1.04 MB
+        // to 1.92 MB and were every one of them refused by the 1 MB cap, as
+        // `blocked`, silently. The cap was not catching abuse; it was set
+        // below the size of an ordinary listing page. It stays bounded,
+        // because an unbounded read is still a way to be hurt by a host.
+        maxBytes: positiveInteger(options.maxBytes, "maxBytes", 3_000_000),
         timeoutMs: positiveInteger(options.timeoutMs, "timeoutMs", 15_000),
         maxRetries: Number.isSafeInteger(options.maxRetries ?? 1) && (options.maxRetries ?? 1) >= 0 ? (options.maxRetries ?? 1) : 1,
     };
@@ -307,12 +316,44 @@ export function createBoundedFetchAdapter(options = {}) {
     };
 }
 
-function coverageFor(sources, outcomes) {
+// Sources that were reached and produced nothing usable. A blocked source is
+// one of these: our own guard refused the fetch, which is a correct decision
+// and a zero result at the same time. Keeping blocked out of the FAILURE
+// budget below is right -- it must not abort a run early -- but keeping it out
+// of the coverage verdict is how a run surveyed 78 sources, evaluated 54, and
+// reported success.
+const SILENT_OUTCOMES = new Set(["rate-limited", "failed", "blocked", "unevaluated"]);
+
+export function silentOutcomes(outcomes) {
+    return outcomes.filter((entry) => SILENT_OUTCOMES.has(entry.outcome));
+}
+
+/**
+ * The coverage verdict, separate from the failure cap on purpose.
+ *
+ * The cap is an abort: stop early, the network is clearly broken. This is a
+ * verdict on a finished run: of the sources we said we would survey, how many
+ * actually told us anything. A run that evaluated two thirds of its inputs is
+ * not a successful run however cleanly it exited, and until now nothing in the
+ * system could say so.
+ */
+export function coverageVerdict(coverage, minCoverage = DEFAULT_MIN_COVERAGE) {
+    const expected = coverage.approved_enabled_source_count;
+    const ratio = expected === 0 ? 0 : coverage.successfully_evaluated / expected;
+    return { ratio, minCoverage, met: expected > 0 && ratio >= minCoverage, expected, evaluated: coverage.successfully_evaluated };
+}
+
+function coverageFor(sources, outcomes, registrySources = sources) {
     const count = (name) => outcomes.filter((entry) => entry.outcome === name).length;
     return {
         approved_enabled_source_count: sources.filter((source) => source.enabled).length,
+        // Retirement shrinks the denominator, so it is reported beside it. A
+        // run that reaches 98% by retiring a quarter of its list has not
+        // improved; the number has to be readable alongside what was dropped.
+        retired: registrySources.filter((source) => !source.enabled).length,
         attempted: outcomes.filter((entry) => !["skipped", "unevaluated"].includes(entry.outcome)).length,
         successfully_evaluated: count("success") + count("redirected"),
+        silent: silentOutcomes(outcomes).length,
         redirected: count("redirected"),
         rate_limited: count("rate-limited"),
         failed: count("failed"),
@@ -395,7 +436,7 @@ export async function runTrack1(options) {
     // bounded so a registry that has drifted away from what its hosts serve
     // stops the run instead of grinding through every source.
     const maxBlocked = options.limits?.maxBlocked ?? (options.limits?.maxFailures ? options.limits.maxFailures * 4 : Number.MAX_SAFE_INTEGER);
-    const maxBytes = options.limits?.maxBytes ?? 1_000_000;
+    const maxBytes = options.limits?.maxBytes ?? 3_000_000;
     const maxDurationMs = options.limits?.timeoutMs ?? 15_000;
     const outcomes = [];
     let attempted = 0;
@@ -403,7 +444,7 @@ export async function runTrack1(options) {
     let blocked = 0;
 
     if (options.mode !== "dry-run" && options.stateStore) {
-        const initialCoverage = coverageFor(sources, []);
+        const initialCoverage = coverageFor(sources, [], registry.sources);
         await options.stateStore.recordRun(runRecord({ ...options, runId }, registry, initialCoverage, "running", startedAt, null));
     }
 
@@ -440,7 +481,7 @@ export async function runTrack1(options) {
     }
 
     const reconciliation = reconcileTrack1Outcomes(sources.map((source) => source.id), outcomes);
-    const coverage = coverageFor(sources, outcomes);
+    const coverage = coverageFor(sources, outcomes, registry.sources);
 
     // Candidates are synthesised from what was fetched, so this cannot be an
     // input. It runs here, BEFORE the run is finalized, for one reason: the run
@@ -455,10 +496,36 @@ export async function runTrack1(options) {
     const candidates = dedupeCandidates(synthesis.candidates ?? []);
     const itemCount = synthesis.items?.persisted ?? 0;
 
-    const fullSuccess = options.mode === "full" && coverage.attempted >= 50 && coverage.approved_enabled_source_count >= 50 && coverage.unevaluated === 0 && failures <= maxFailures && reconciliation.ok;
+    const verdict = coverageVerdict(coverage, options.minCoverage ?? DEFAULT_MIN_COVERAGE);
+    // Every source that produced nothing, by name, with the reason it produced
+    // nothing. Before this the run recorded seven aggregate counters and no way
+    // to tell which sources they described, so a source that had been failing
+    // for a month was indistinguishable from one that had nothing to report.
+    const byId = new Map(sources.map((source) => [source.id, source]));
+    const attribution = {
+        silent: silentOutcomes(outcomes).map((entry) => ({
+            sourceId: entry.sourceId,
+            label: byId.get(entry.sourceId)?.label ?? entry.sourceId,
+            url: byId.get(entry.sourceId)?.url ?? null,
+            outcome: entry.outcome,
+            reason: entry.reason ?? null,
+            status: entry.status ?? null,
+        })).sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
+        retired: registry.sources.filter((source) => !source.enabled).map((source) => ({
+            sourceId: source.id,
+            reason: source.policy?.statusReason ?? null,
+        })).sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
+        causes: {},
+        coverage: verdict,
+    };
+    for (const entry of attribution.silent) {
+        const cause = `${entry.outcome}/${entry.reason ?? entry.status ?? "unknown"}`;
+        attribution.causes[cause] = (attribution.causes[cause] ?? 0) + 1;
+    }
+    const fullSuccess = options.mode === "full" && coverage.attempted >= 50 && coverage.approved_enabled_source_count >= 50 && coverage.unevaluated === 0 && failures <= maxFailures && reconciliation.ok && verdict.met;
     const status = fullSuccess ? "completed" : reconciliation.ok ? "incomplete" : "failed";
     const completedAt = (options.now?.() ?? new Date()).toISOString();
     const run = runRecord({ ...options, runId, itemCount }, registry, coverage, status, startedAt, completedAt);
     if (options.mode !== "dry-run" && options.stateStore) await options.stateStore.finalizeRun(run);
-    return { track: "track-1", mode: options.mode, status, registry: { version: registry.version, digest: registry.digest }, run, sources, outcomes, reconciliation, candidates, items: synthesis.items, candidateBatches: partitionCandidates(candidates) };
+    return { track: "track-1", mode: options.mode, status, registry: { version: registry.version, digest: registry.digest }, run, sources, outcomes, reconciliation, attribution, candidates, items: synthesis.items, candidateBatches: partitionCandidates(candidates) };
 }

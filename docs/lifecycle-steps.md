@@ -153,7 +153,16 @@ verifying the container. Issue I-37.
 
 ## Step 1: Survey the approved sources (discovery)
 
-**Status: BUILT.** Verified in production: 78 of 78 sources, 0 unevaluated.
+**Status: BUILT.** Measured 2026-09-06 against the approved list: 78 attempted,
+54 successfully evaluated, 24 produced nothing. The sentence this replaces read
+"78 of 78 sources, 0 unevaluated" -- true, and misleading, because it counted
+what was *attempted*. Every run since had reported success while roughly a third
+of its inputs said nothing at all. Coverage is now reported as attempted against
+successfully evaluated, every silent source is named individually, and a run
+below 90% coverage does not report `completed`. Of the 24, ten sources were
+retired as gone, seven were repointed at hosts that had been renamed, one was
+held because its new host's robots.txt cannot be read, and six were healthy
+pages wrongly refused by a 1 MB byte cap that is now 3 MB.
 
 | Field | Value |
 | --- | --- |
@@ -182,6 +191,15 @@ them together previously made healthy runs look broken.
 **On failure:** more than 15 failed sources fails the run. `unevaluated` must
 be zero; a non-zero value means the survey did not finish and the run is not
 `completed`.
+
+**Coverage threshold.** `--min-coverage` (default 0.9) is a verdict on a
+finished run, not an abort: below it the run is not `completed` and the process
+exits 4. It counts `blocked` as having produced nothing, unlike the failure cap,
+which deliberately does not. Both are needed and they are not the same
+mechanism. The cap stops a run that is going wrong; the threshold refuses to
+call a finished run successful when a third of its sources were refused by our
+own guards. Retired sources are reported beside the ratio, because retiring a
+source lifts coverage by shrinking its denominator and that must be readable.
 
 ---
 

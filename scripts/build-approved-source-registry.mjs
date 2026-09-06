@@ -61,6 +61,7 @@ function robotsPolicyFor(evidence, reviewedAt) {
 }
 
 export function buildRegistry({ watchList, robotsEvidence, approvals, reviewedAt, defaultDelaySeconds = 30 }) {
+  const robotsCheckedAt = robotsEvidence?.checkedAt ?? null;
   const evidenceById = new Map((robotsEvidence?.sources ?? []).map((s) => [s.id, s]));
   const decisionById = new Map((approvals?.decisions ?? []).map((d) => [d.id, d]));
 
@@ -101,7 +102,10 @@ export function buildRegistry({ watchList, robotsEvidence, approvals, reviewedAt
         approvalReference: decision.approvalReference,
         owner: decision.owner ?? approvals.defaultOwner,
         licenseTermsReview: decision.licenseTermsReview ?? approvals.defaultLicenseTermsReview,
-        robotsPolicy: robotsPolicyFor(evidence, reviewedAt),
+        // The robots evidence carries its own collection date. It used to be
+        // stamped with the human approval date, so the registry asserted a
+        // robots check on a day no check had run.
+        robotsPolicy: robotsPolicyFor(evidence, robotsCheckedAt ?? reviewedAt),
         ratePolicy: decision.ratePolicy ?? ratePolicyFor(evidence, defaultDelaySeconds),
         evidenceRetentionClass: decision.evidenceRetentionClass ?? approvals.defaultEvidenceRetentionClass,
         reviewedAt: decision.reviewedAt ?? reviewedAt,

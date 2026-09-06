@@ -34,11 +34,16 @@ usage: discover-approved-sources.mjs --track track-1 --mode <full|subset|dry-run
        --source-registry <path> --registry-digest sha256:<64 hex>
        --content-commit <40-char-sha>
        [--source-ids id,id] [--max-sources 100] [--max-failures 5]
+       [--min-coverage 0.9]
        [--probes <path>] [--gap-threshold 0]
        [--run-id <uuidv7>] [--implementation-commit SHA]
        [--trigger-type monthly|weekly|manual|replay]
        [--trigger-reference <text>] [--actor-kind scheduler|operator]
        [--actor-reference <text>] [--state-db <path>] [--out <path>]
+
+Every run reports attempted against successfully evaluated, names every source
+that produced nothing and why, and does not report success below --min-coverage
+of the enabled sources (default 0.9).
 
 Only sources that are enabled AND carry a reviewed policy are fetched; the
 registry loader rejects anything else before a request is made. Non-dry runs
@@ -74,6 +79,67 @@ function buildLimits(args) {
     if (args["max-sources"] !== undefined) limits.maxSources = positiveInteger(args["max-sources"], "max-sources");
     if (args["max-failures"] !== undefined) limits.maxFailures = positiveInteger(args["max-failures"], "max-failures");
     return limits;
+}
+
+function minCoverage(args) {
+    if (args["min-coverage"] === undefined) return undefined;
+    const value = Number.parseFloat(args["min-coverage"]);
+    if (!Number.isFinite(value) || value < 0 || value > 1) throw new TypeError("--min-coverage must be a fraction from 0 through 1");
+    return value;
+}
+
+/**
+ * Say what the survey covered, and name what it did not.
+ *
+ * The run used to log seven aggregate counters. That is enough to see that
+ * something produced nothing and not enough to see WHICH something, so a source
+ * that had been dead for a month looked exactly like a source with no news --
+ * the silent-success failure this project keeps hitting. Every silent source is
+ * now logged by id, with the reason, on every run, whether or not the threshold
+ * is met.
+ */
+export function reportCoverage(result, log) {
+    const attribution = result.attribution ?? { silent: [], retired: [], causes: {}, coverage: null };
+    const verdict = attribution.coverage;
+    log("info", "track1.coverage", {
+        enabled: verdict?.expected ?? null,
+        retired: attribution.retired.length,
+        attempted: result.run?.coverage?.attempted ?? null,
+        successfullyEvaluated: verdict?.evaluated ?? null,
+        silent: attribution.silent.length,
+        ratio: verdict ? Number(verdict.ratio.toFixed(4)) : null,
+        threshold: verdict?.minCoverage ?? null,
+        met: verdict?.met ?? null,
+        causes: attribution.causes,
+    });
+    for (const entry of attribution.silent) {
+        log(verdict?.met ? "warn" : "error", "track1.source.silent", {
+            sourceId: entry.sourceId,
+            label: entry.label,
+            url: entry.url,
+            outcome: entry.outcome,
+            reason: entry.reason,
+            status: entry.status,
+        });
+    }
+    // Retirement lifts the ratio by shrinking the denominator, so what was
+    // dropped is stated next to it rather than left for someone to notice.
+    if (attribution.retired.length > 0) {
+        log("info", "track1.sources.retired", {
+            count: attribution.retired.length,
+            sourceIds: attribution.retired.map((entry) => entry.sourceId),
+        });
+    }
+    if (verdict && !verdict.met) {
+        log("error", "track1.coverage.below-threshold", {
+            evaluated: verdict.evaluated,
+            enabled: verdict.expected,
+            ratio: Number(verdict.ratio.toFixed(4)),
+            threshold: verdict.minCoverage,
+            effect: "the run surveyed less of its approved list than the threshold allows and is not reported as completed",
+        });
+    }
+    return verdict;
 }
 
 /**
@@ -151,6 +217,25 @@ function loadProbes(path, log) {
     const probes = Array.isArray(doc) ? doc : doc.probes;
     if (!Array.isArray(probes) || probes.length === 0) throw new TypeError(`probe file ${path} has no probes array`);
     return probes;
+}
+
+/**
+ * What the run tells the operator through its exit code.
+ *
+ * 4 is new and is the point of this function: a run that surveyed less of its
+ * approved list than the threshold allows must not exit 0, even in a subset run
+ * where "completed" was never on offer. Coverage is the verdict that has to
+ * escape the process, because a scheduler reads an exit code and nothing else.
+ *
+ * A dry run is exempt. It deliberately evaluates nothing, so measuring its
+ * coverage against a threshold would fail every validation run for being what
+ * it was asked to be.
+ */
+export function exitCodeFor(result, mode) {
+    if (result.status === "failed") return 2;
+    if (mode !== "dry-run" && result.attribution?.coverage && !result.attribution.coverage.met) return 4;
+    if (mode !== "dry-run" && result.status !== "completed") return 3;
+    return 0;
 }
 
 export async function main(argv = process.argv.slice(2), options = {}) {
@@ -242,6 +327,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
                 // passing an unset cap through would fail the whole run at
                 // digest time rather than defaulting.
                 limits: buildLimits(args),
+                minCoverage: minCoverage(args),
                 stateStore: store,
             });
             log("info", "track1.survey.finished", {
@@ -249,6 +335,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
                 sources: result.sources.length,
                 ...result.run?.coverage,
             });
+            reportCoverage(result, log);
         } catch (error) {
             throw stageError("ERR_ORCHARD_CONTROLLER_FAILED", error);
         }
@@ -260,6 +347,9 @@ export async function main(argv = process.argv.slice(2), options = {}) {
         const enriched = {
             ...result,
             outcomes,
+            // Named, in the artifact as well as the log, so the record of the
+            // run answers "which sources produced nothing" without a re-run.
+            attribution: result.attribution,
             candidates: synthesis.candidates,
             candidateBatches: partitionCandidates(synthesis.candidates),
             // What the gate now holds because of this run. The output file is a
@@ -271,8 +361,7 @@ export async function main(argv = process.argv.slice(2), options = {}) {
         };
 
         writeControllerResult({ result: enriched, mode: args.mode, outputPath: args.out });
-        if (result.status === "failed") process.exitCode = 2;
-        else if (args.mode !== "dry-run" && result.status !== "completed") process.exitCode = 3;
+        process.exitCode = exitCodeFor(result, args.mode);
     } finally {
         store?.close();
     }

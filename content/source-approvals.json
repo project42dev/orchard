@@ -24,7 +24,7 @@
     {
       "id": "google-cloud-skills-boost",
       "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list. Host moved: the reviewed URL now redirects to https://www.skills.google/, confirmed by following the redirect chain on 2026-09-06 and re-running scripts/check-source-robots.mjs against the new host. Same publisher, renamed host; not a new human approval."
     },
     {
       "id": "google-ai-essentials",
@@ -33,8 +33,8 @@
     },
     {
       "id": "aws-skill-builder",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: the catalogue URL 302s to skillbuilder.aws with showRedirectNotFoundBanner=true, AWS's own marker for a page that no longer exists. The AI and ML catalogue filter is gone; what is served is the site home page, so the source can only ever contribute noise."
     },
     {
       "id": "aws-mlu",
@@ -68,23 +68,23 @@
     },
     {
       "id": "snowflake-learning",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "pending",
+      "statusReason": "Held 2026-09-06: snowflake.com/learn/ now redirects to learn.snowflake.com, whose robots.txt answers 530 on repeated attempts. AB#7371 approved a host that no longer serves the page, and permission on the new host cannot be read. Unknown is not permission."
     },
     {
       "id": "red-hat-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: https://developers.redhat.com/ai answers 404 (the production transport reports 403, a plain client 404; either way nothing is served). No equivalent public listing has been reviewed to replace it."
     },
     {
       "id": "intel-ai-developer",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: the Intel developer AI overview answers 403 to the production transport while answering 200 to a plain client with the same user agent, so the host fingerprints the client. A source that succeeds or fails on transport rather than content cannot be surveyed reproducibly."
     },
     {
       "id": "anthropic-learn",
       "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list. Host moved: the reviewed URL now redirects to https://academy.claude.com/, confirmed by following the redirect chain on 2026-09-06 and re-running scripts/check-source-robots.mjs against the new host. Same publisher, renamed host; not a new human approval."
     },
     {
       "id": "openai-academy",
@@ -94,12 +94,12 @@
     {
       "id": "meta-llama-docs",
       "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list. Host moved: the reviewed URL now redirects to https://developer.meta.com/ai/docs/overview/, confirmed by following the redirect chain on 2026-09-06 and re-running scripts/check-source-robots.mjs against the new host. Same publisher, renamed host; not a new human approval."
     },
     {
       "id": "coursera-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: https://www.coursera.org/browse/data-science/artificial-intelligence answers 404. Coursera has restructured its browse tree; coursera-ml still resolves and stays enabled, so Coursera remains represented."
     },
     {
       "id": "coursera-ml",
@@ -113,8 +113,8 @@
     },
     {
       "id": "udacity-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: https://www.udacity.com/catalog/artificial-intelligence answers 404. The catalogue moved behind a different structure and no equivalent public listing has been reviewed to replace it."
     },
     {
       "id": "udemy-ai",
@@ -123,8 +123,8 @@
     },
     {
       "id": "pluralsight-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: https://www.pluralsight.com/paths/artificial-intelligence answers 404. The path was withdrawn and no equivalent public listing has been reviewed to replace it."
     },
     {
       "id": "linkedin-learning-ai",
@@ -168,13 +168,13 @@
     },
     {
       "id": "skillshare-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: https://www.skillshare.com/en/browse/artificial-intelligence answers 403 to any non-browser client. The host declines automated reads of this path, so a bounded read-only survey cannot evaluate it however often it is retried."
     },
     {
       "id": "oreilly-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: https://www.oreilly.com/online-learning/topics/artificial-intelligence.html answers 404. The topic page was removed and no equivalent public listing has been reviewed to replace it."
     },
     {
       "id": "cloud-guru-ai",
@@ -183,8 +183,8 @@
     },
     {
       "id": "cloudacademy-ai",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: Cloud Academy was folded into QA. cloudacademy.com/library/ai/ 301s to platform.qa.com/library/ai/, which answers 404. The listing does not exist on either host, and QA is a different publisher from the one AB#7371 reviewed."
     },
     {
       "id": "mit-xpro-ai",
@@ -213,8 +213,8 @@
     },
     {
       "id": "papers-with-code",
-      "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approval": "retired",
+      "statusReason": "Retired 2026-09-06: Papers with Code was shut down and paperswithcode.com redirects to huggingface.co/papers/trending. Hugging Face is a different publisher and is already covered by huggingface-learn and huggingface-spaces, so this entry would double-count a source already surveyed."
     },
     {
       "id": "wandb-courses",
@@ -229,7 +229,7 @@
     {
       "id": "llamaindex-docs",
       "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list. Host moved: the reviewed URL now redirects to https://developers.llamaindex.ai/python/framework/, confirmed by following the redirect chain on 2026-09-06 and re-running scripts/check-source-robots.mjs against the new host. Same publisher, renamed host; not a new human approval."
     },
     {
       "id": "crewai-docs",
@@ -354,7 +354,7 @@
     {
       "id": "ai-safety-fundamentals",
       "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list. Host moved: the reviewed URL now redirects to https://bluedot.org/, confirmed by following the redirect chain on 2026-09-06 and re-running scripts/check-source-robots.mjs against the new host. Same publisher, renamed host; not a new human approval."
     },
     {
       "id": "alignment-forum",
@@ -429,7 +429,7 @@
     {
       "id": "zindi",
       "approval": "approved",
-      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list."
+      "approvalReference": "AB#7371 Track 1 source review, 2026-08-15. Evidence: scripts/check-source-robots.mjs against every host in the watch list. Host moved: the reviewed URL now redirects to https://zindi.world/, confirmed by following the redirect chain on 2026-09-06 and re-running scripts/check-source-robots.mjs against the new host. Same publisher, renamed host; not a new human approval."
     },
     {
       "id": "aicrowd",

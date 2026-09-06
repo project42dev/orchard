@@ -182,7 +182,13 @@ async function main() {
 
   console.error(`reviewing ${sources.length} source(s) across distinct hosts`);
   const results = await reviewSources(sources);
-  writeFileSync(args.out, `${JSON.stringify({ reviewedWith: USER_AGENT, sources: results }, null, 2)}\n`);
+  // The date the evidence was gathered, stamped by the run that gathered it.
+  // Without it the registry builder had to be told a date, and was told the
+  // wrong one: robotsPolicy read "Checked 2026-08-15" over evidence collected
+  // three weeks later, because the only date on hand was the human approval
+  // date. Evidence dates itself now.
+  const checkedAt = new Date().toISOString().slice(0, 10);
+  writeFileSync(args.out, `${JSON.stringify({ reviewedWith: USER_AGENT, checkedAt, sources: results }, null, 2)}\n`);
 
   const allowed = results.filter((r) => r.robotsAllowsWildcardAgent === true).length;
   const denied = results.filter((r) => r.robotsAllowsWildcardAgent === false).length;
