@@ -58,11 +58,15 @@ Orchard is an enterprise-grade content lifecycle engine designed for continuous 
 
 All detailed architectural and operational documentation is available in the [`docs/`](docs/) directory:
 
+- 🚦 [**Status — what is built, deployed and proven**](docs/status.md)
 - 🏛️ [**Architecture & System Design**](docs/architecture.md)
 - 🛠️ [**Operations & Operator Runbook**](docs/operations.md)
 - 🔄 [**Content Lifecycle & State Machine**](docs/lifecycle.md)
 - 📊 [**Hosting Architecture Diagram**](docs/hosting-architecture.mmd)
 - 📦 [**Installation & Environment Setup**](docs/install.md)
+- 🪜 [**Lifecycle, step by step**](docs/lifecycle-steps.md)
+- 🔀 [**Workflow orchestration**](docs/workflow-orchestration.md)
+- 🧭 [**Decisions**](docs/decisions.md) and [**Architecture decision records**](docs/adr/index.md)
 - 🛡️ [**Repository Boundary Policy**](REPO-BOUNDARY.md)
 
 ---
