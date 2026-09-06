@@ -383,7 +383,7 @@ flowchart TD
     end
 
   A1 --> B1["Candidate or finding<br/>one item and revision"]
-  A2 -.->|"no item id or revision today, I-12"| B1
+  A2 -->|"currency finding, keyed on its subject"| B1
 
   subgraph DELIVERY["Bound delivery lifecycle"]
     B1 --> B2{"Gate 1 decision"}
@@ -447,7 +447,8 @@ consistency check rather than fix anything. Specifically, `graph.ts`'s edges
 `currencyRecord`-`issue1`, `approvedTracker`, `orchestration`,
 `storeWritten`, `issue2`, `gate2`, `rework` and `commitPush` are all drawn
 solid, matching this page's diagram before its correction, and for the same
-reasons: I-12 (currency cannot produce a gated item) and steps 6 through 15
+reasons: I-12 (which was "currency cannot produce a gated item", fixed
+2026-09-06) and steps 6 through 15
 being `NO RUNTIME` or `NOT BUILT` per `lifecycle-steps.md`. **Follow-up,
 tracked as part of T9's diagram work:** apply the same `pending` treatment
 already used there for `requestIntake` and `verifyLive` to the rest of that

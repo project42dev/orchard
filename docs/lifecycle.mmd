@@ -10,7 +10,7 @@ flowchart TD
     end
 
     A1 --> B1["Candidate or finding<br/>one item and revision"]
-    A2 -.->|"no item id or revision today, I-12"| B1
+    A2 -->|"currency finding, keyed on its subject"| B1
 
     subgraph DELIVERY["Bound delivery lifecycle"]
         B1 --> B2{"Gate 1 decision"}
