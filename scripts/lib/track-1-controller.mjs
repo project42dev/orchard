@@ -347,10 +347,13 @@ function coverageFor(sources, outcomes, registrySources = sources) {
     const count = (name) => outcomes.filter((entry) => entry.outcome === name).length;
     return {
         approved_enabled_source_count: sources.filter((source) => source.enabled).length,
-        // Retirement shrinks the denominator, so it is reported beside it. A
-        // run that reaches 98% by retiring a quarter of its list has not
-        // improved; the number has to be readable alongside what was dropped.
-        retired: registrySources.filter((source) => !source.enabled).length,
+        // Every registry entry outside the run scope: retired, rejected, and
+        // held pending a human decision alike. Disabling shrinks the
+        // denominator, so it is reported beside it -- a run that reaches 98% by
+        // dropping a quarter of its list has not improved, and the number has
+        // to be readable alongside what was dropped. It is "disabled", not
+        // "retired", because it counts all three and only some are retired.
+        disabled: registrySources.filter((source) => !source.enabled).length,
         attempted: outcomes.filter((entry) => !["skipped", "unevaluated"].includes(entry.outcome)).length,
         successfully_evaluated: count("success") + count("redirected"),
         silent: silentOutcomes(outcomes).length,
@@ -511,7 +514,7 @@ export async function runTrack1(options) {
             reason: entry.reason ?? null,
             status: entry.status ?? null,
         })).sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
-        retired: registry.sources.filter((source) => !source.enabled).map((source) => ({
+        disabled: registry.sources.filter((source) => !source.enabled).map((source) => ({
             sourceId: source.id,
             reason: source.policy?.statusReason ?? null,
         })).sort((left, right) => left.sourceId.localeCompare(right.sourceId)),

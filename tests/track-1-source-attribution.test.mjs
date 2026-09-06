@@ -102,7 +102,7 @@ test("every run reports attempted against successfully evaluated", async () => {
     assert.equal(result.run.coverage.attempted, 60);
     assert.equal(result.run.coverage.successfully_evaluated, 58);
     assert.equal(result.run.coverage.silent, 2);
-    assert.equal(result.run.coverage.retired, 0);
+    assert.equal(result.run.coverage.disabled, 0);
 });
 
 test("every source that produced nothing is named, with its reason", async () => {
@@ -153,13 +153,13 @@ test("blocked sources trip the threshold even though they never trip the failure
     assert.deepEqual(result.attribution.causes, { "blocked/byte-cap": 20 });
 });
 
-test("retirement is reported beside coverage so it cannot quietly lift the ratio", async () => {
+test("disabling a source is reported beside coverage so it cannot quietly lift the ratio", async () => {
     const retiredIds = Array.from({ length: 10 }, (_, i) => `source-${String(i).padStart(3, "0")}`);
     const result = await survey(70, { retiredIds });
     assert.equal(result.run.coverage.approved_enabled_source_count, 60);
-    assert.equal(result.run.coverage.retired, 10);
-    assert.equal(result.attribution.retired.length, 10);
-    for (const entry of result.attribution.retired) {
+    assert.equal(result.run.coverage.disabled, 10);
+    assert.equal(result.attribution.disabled.length, 10);
+    for (const entry of result.attribution.disabled) {
         assert.match(entry.reason, /retired for the test/, "a retired source states why");
     }
     assert.equal(result.attribution.coverage.met, true);

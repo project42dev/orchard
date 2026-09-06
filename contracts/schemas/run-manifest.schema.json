@@ -384,10 +384,10 @@
                     "minimum": 0,
                     "description": "Sources that were reached and produced nothing usable: rate-limited, failed, blocked or unevaluated. Named individually in the run output."
                 },
-                "retired": {
+                "disabled": {
                     "type": "integer",
                     "minimum": 0,
-                    "description": "Registry entries not enabled for this run. Reported beside the enabled count so a coverage ratio cannot be improved silently by shrinking its denominator."
+                    "description": "Registry entries not enabled for this run: retired, rejected, or held. Reported beside the enabled count so a coverage ratio cannot be improved silently by shrinking its denominator."
                 }
             }
         },

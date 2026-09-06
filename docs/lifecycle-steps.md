@@ -198,8 +198,10 @@ exits 4. It counts `blocked` as having produced nothing, unlike the failure cap,
 which deliberately does not. Both are needed and they are not the same
 mechanism. The cap stops a run that is going wrong; the threshold refuses to
 call a finished run successful when a third of its sources were refused by our
-own guards. Retired sources are reported beside the ratio, because retiring a
-source lifts coverage by shrinking its denominator and that must be readable.
+own guards. Disabled sources -- retired, rejected, or held pending a human
+decision -- are counted and named beside the ratio, because dropping a source
+lifts coverage by shrinking its denominator and that must be readable rather
+than discovered.
 
 ---
 

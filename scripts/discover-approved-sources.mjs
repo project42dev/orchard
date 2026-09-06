@@ -99,11 +99,11 @@ function minCoverage(args) {
  * is met.
  */
 export function reportCoverage(result, log) {
-    const attribution = result.attribution ?? { silent: [], retired: [], causes: {}, coverage: null };
+    const attribution = result.attribution ?? { silent: [], disabled: [], causes: {}, coverage: null };
     const verdict = attribution.coverage;
     log("info", "track1.coverage", {
         enabled: verdict?.expected ?? null,
-        retired: attribution.retired.length,
+        disabled: attribution.disabled.length,
         attempted: result.run?.coverage?.attempted ?? null,
         successfullyEvaluated: verdict?.evaluated ?? null,
         silent: attribution.silent.length,
@@ -122,12 +122,12 @@ export function reportCoverage(result, log) {
             status: entry.status,
         });
     }
-    // Retirement lifts the ratio by shrinking the denominator, so what was
+    // Disabling lifts the ratio by shrinking the denominator, so what was
     // dropped is stated next to it rather than left for someone to notice.
-    if (attribution.retired.length > 0) {
-        log("info", "track1.sources.retired", {
-            count: attribution.retired.length,
-            sourceIds: attribution.retired.map((entry) => entry.sourceId),
+    if (attribution.disabled.length > 0) {
+        log("info", "track1.sources.disabled", {
+            count: attribution.disabled.length,
+            sourceIds: attribution.disabled.map((entry) => entry.sourceId),
         });
     }
     if (verdict && !verdict.met) {
