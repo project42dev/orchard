@@ -257,12 +257,18 @@ test('wrong main commit is refused only when the merge is unconfirmed too; exact
   // So the provider has to disagree about both before acknowledgement fails.
   //
   // This assertion used to pass without disturbing the pull request at all, but
-  // only by accident: this fixture named project42-platform as the target while
-  // the transaction was built against PUBLICATION_REPOSITORY, so the fake's
-  // protected-main and pull-request objects were filed under a repository the
-  // acknowledgement never asked about and NOTHING could be reconciled. Pointing
-  // publication at project42dev/project42-content (2026-09-05) made the two
-  // agree, which exposed the fallback this test had never actually reached.
+  // only by accident, and the accident is worth recording. The fixture named
+  // project42-platform as the target, so the transaction targeted the platform
+  // repository while the branch and the pull request were created under
+  // PUBLICATION_REPOSITORY, which was already project42-content. Protected main
+  // was therefore queried on the platform repo and mismatched, raising the
+  // error; the merged-pull-request fallback was then also queried on the
+  // platform repo, where the pull request did not exist, so it found nothing and
+  // the main error was rethrown. Measured at 3539d89: query-main(platform),
+  // query-merge(platform) -> null. With every repository consistent the fallback
+  // finds the pull request merged at the exact commit and acknowledges, which is
+  // exactly what it was added to do, so the test has to disagree about the merge
+  // as well before a refusal is the right answer.
   const merged = applied.github.fakeClient.pullRequests[0];
   const confirmedMergeCommit = merged.mergeCommit;
   merged.mergeCommit = '7'.repeat(40);
