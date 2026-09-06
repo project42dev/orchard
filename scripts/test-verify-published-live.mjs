@@ -20,7 +20,7 @@
 
 import {
   verifyOne, verifyAll, expectedUrl, markersFor,
-  publicPathForTarget, baseUrlForTarget,
+  publicPathForTarget, ownPageForTarget, baseUrlForTarget,
 } from "./verify-published-live.mjs";
 
 let assertions = 0, failures = 0;
@@ -213,6 +213,139 @@ const reply = (body, { status = 200, url = "https://project-42.dev/learn/ai-foun
   ok(fetched === 2, "every item is actually FETCHED; the old code fetched none of them");
   ok(counted.results.every((r) => typeof r.url === "string"), "every result carries the URL it checked");
 }
+
+// --- A PUBLISHED REMOVAL IS VERIFIED BY ABSENCE, NOT BY PRESENCE -------------
+//
+// The third defect. This script proves a page serves by finding a marker from
+// the item on it. Point that at a removal that published SUCCESSFULLY and it
+// reports the removal broken: the file is gone, the page does not serve, the
+// check calls the correct outcome a fault.
+//
+// It was worse than that. A Track 2 removal's Gate 1 manifest title is
+// `removal: <stableId>` (currencyCandidateFor in lib/track-2-controller.mjs),
+// which appears on no page anywhere, so a removal could never have passed the
+// marker check whatever was live.
+//
+// Routes confirmed by curl on 2026-09-06 against https://project-42.dev:
+//   GET /learn/ai-foundations/what-ai-does            -> 200
+//   GET /learn/ai-foundations/definitely-not-a-module -> 404
+//   the path page links each module as href="/learn/<pathId>/<moduleId>"
+{
+  ok(ownPageForTarget("modules/ai-foundations/agents-and-guardrails.json").path
+       === "/learn/ai-foundations/agents-and-guardrails",
+     "a module's OWN page is /learn/<pathId>/<moduleId>, which is what stops resolving when it is removed");
+  ok(ownPageForTarget("modules/ai-foundations/agents-and-guardrails.json").listing === "/learn/ai-foundations",
+     "and its listing page is the learning path, which must keep serving");
+  ok(ownPageForTarget("resources/coding-agents/ai-assisted-code-review-checklist.json").path
+       === "/guide/resources/ai-assisted-code-review-checklist",
+     "for every other surface the own page is the listed page");
+}
+
+// A removal row carries outcome 'removal', which is what gate-queue records
+// from the Gate 1 proposal category and is one of the five actionable Track 2
+// classifications.
+const REMOVED_MODULE = {
+  id: "0198f2a0-1c3a-7a51-9d2e-6f0b2c4d8e21",
+  surface: "learning",
+  outcome: "removal",
+  target_repository: "project42dev/project42-content",
+  path: "modules/ai-foundations/agents-and-guardrails.json",
+  title: "removal: learning:content/modules/ai-foundations/agents-and-guardrails.json",
+};
+const REMOVED_RESOURCE = {
+  id: "0198f2a0-1c3a-7a51-9d2e-6f0b2c4d8e22",
+  surface: "guide",
+  outcome: "removal",
+  target_repository: "project42dev/project42-content",
+  path: "resources/coding-agents/ai-assisted-code-review-checklist.json",
+  title: "removal: guide:content/resources/coding-agents/ai-assisted-code-review-checklist.json",
+};
+
+// A router keyed on path, because a module removal fetches two pages.
+const routed = (byPath) => async (url) => {
+  const { pathname } = new URL(url);
+  const hit = byPath[pathname];
+  if (!hit) throw new Error(`the test fetched an unexpected path: ${pathname}`);
+  const status = hit.status ?? 200;
+  return { ok: status >= 200 && status < 300, status, url: hit.url ?? url, text: async () => hit.body ?? "" };
+};
+
+const PATH_PAGE_WITHOUT = '<h2 id="module-list-title">Modules</h2><a href="/learn/ai-foundations/what-ai-does">What AI does</a>';
+const PATH_PAGE_STILL_LINKING = `${PATH_PAGE_WITHOUT}<a href="/learn/ai-foundations/agents-and-guardrails">Agents</a>`;
+
+{
+  const gone = await verifyOne(REMOVED_RESOURCE, CONFIG, {
+    fetchImpl: routed({ "/guide/resources/ai-assisted-code-review-checklist": { status: 404, body: "not found" } }),
+  });
+  ok(gone.expectation === "absent", "a removal is checked for absence, not presence");
+  ok(gone.verified === true, "a resource whose page is 404 is a removal that WORKED");
+  ok(gone.serving === false, "and it is never reported as serving");
+
+  const stillThere = await verifyOne(REMOVED_RESOURCE, CONFIG, {
+    fetchImpl: routed({ "/guide/resources/ai-assisted-code-review-checklist": { body: "<h1>AI-assisted code review checklist</h1>" } }),
+  });
+  ok(stillThere.verified === false, "a removal whose page still returns 200 did NOT take effect");
+  ok(stillThere.reasons.some((r) => r.includes("still serving")),
+     "and the reason says the page is still serving, not that the item is missing a marker");
+
+  const redirected = await verifyOne(REMOVED_RESOURCE, CONFIG, {
+    fetchImpl: routed({
+      "/guide/resources/ai-assisted-code-review-checklist": { body: "<h1>Resources</h1>", url: "https://project-42.dev/guide/resources" },
+    }),
+  });
+  ok(redirected.verified === true, "a removal that redirects to its surface index is verified by the redirect the record asked for");
+}
+
+{
+  const clean = await verifyOne(REMOVED_MODULE, CONFIG, {
+    fetchImpl: routed({
+      "/learn/ai-foundations/agents-and-guardrails": { status: 404, body: "not found" },
+      "/learn/ai-foundations": { body: PATH_PAGE_WITHOUT },
+    }),
+  });
+  ok(clean.verified === true, "a module whose own page is gone and whose path no longer lists it is a clean removal");
+  ok(clean.listing.status === 200, "the listing page is recorded alongside the verdict");
+
+  const stillListed = await verifyOne(REMOVED_MODULE, CONFIG, {
+    fetchImpl: routed({
+      "/learn/ai-foundations/agents-and-guardrails": { status: 404, body: "not found" },
+      "/learn/ai-foundations": { body: PATH_PAGE_STILL_LINKING },
+    }),
+  });
+  ok(stillListed.verified === false,
+     "a file deleted while the catalogue still links it is a listing that 404s, which is the defect the removal record calls worse than the stale content");
+  ok(stillListed.reasons.some((r) => r.includes("still links")), "and the reason names the surviving link");
+
+  const listingBroken = await verifyOne(REMOVED_MODULE, CONFIG, {
+    fetchImpl: routed({
+      "/learn/ai-foundations/agents-and-guardrails": { status: 404, body: "not found" },
+      "/learn/ai-foundations": { status: 404, body: "not found" },
+    }),
+  });
+  ok(listingBroken.verified === false,
+     "a removal that takes the whole learning path down with it is a broken catalogue, not a clean removal");
+
+  const modulePageAlive = await verifyOne(REMOVED_MODULE, CONFIG, {
+    fetchImpl: routed({ "/learn/ai-foundations/agents-and-guardrails": { body: "<h1>Agents, Tools, and Guardrails</h1>" } }),
+  });
+  ok(modulePageAlive.verified === false, "a module still serving its own page has not been removed");
+}
+
+// The verdict has to read correctly in the aggregate too: counting `serving`
+// as the pass would report every successful removal as a failure.
+{
+  const out = await verifyAll([ITEM, REMOVED_RESOURCE], CONFIG, {
+    fetchImpl: routed({
+      "/learn/ai-foundations": { body: "<h1>Agents, Tools, and Guardrails</h1>" },
+      "/guide/resources/ai-assisted-code-review-checklist": { status: 404, body: "not found" },
+    }),
+  });
+  ok(out.checked === 2, "both items are checked");
+  ok(out.verified === 2 && out.failed.length === 0,
+     `a serving publication and a proven removal are both verified, got verified=${out.verified} failed=${out.failed.length}`);
+  ok(out.serving === 1 && out.removed === 1, "the two kinds of proof are counted separately, never conflated");
+}
+
 
 console.log(
   failures === 0

@@ -31,14 +31,16 @@
 //   inbound     -- what still references it, and, honestly, what was and was
 //                  not looked at. A removal with a live inbound reference HOLDS:
 //                  publishing it would break a page that works today.
-//   redirect    -- whether a URL stops resolving, decided by the estate's own
-//                  route rules rather than by assumption. A learning module has
-//                  no URL of its own (verify-published-live.mjs:
-//                  modules/<pathId>/<moduleId>.json serves at /learn/<pathId>,
-//                  the PATH's page), so removing one orphans nothing and needs
-//                  no redirect. A resource and a diagram each have their own
-//                  page, so removing one does orphan a URL and the record says
-//                  so, names it, and names where it should point.
+//   redirect    -- which URL stops resolving, decided by the estate's own route
+//                  rules rather than by assumption: ownPageForTarget in
+//                  verify-published-live.mjs is the single derivation, so the
+//                  record and the live check can never disagree about which URL
+//                  is supposed to be gone. Every surface orphans a URL. A
+//                  module's lands on the learning path that used to list it; a
+//                  resource's and a diagram's land on their surface index.
+//                  Corrected 2026-09-06: this said a module had no page of its
+//                  own. /learn/ai-foundations/what-ai-does returns 200 and a
+//                  bogus module id returns 404, so it does.
 
 import { canonicalJson, generateUuidV7, sha256Digest } from "./identity.mjs";
 import { createAgentHandoff } from "./handoffs.mjs";
@@ -46,7 +48,7 @@ import {
     REGISTRY_BY_SURFACE, RegistrationError, surfaceForTargetPath,
     learningPathIdForTarget, diagramIdForTarget,
 } from "./registration.mjs";
-import { publicPathForTarget } from "../verify-published-live.mjs";
+import { ownPageForTarget } from "../verify-published-live.mjs";
 
 export class RemovalError extends Error {
     constructor(code, message) {
@@ -148,32 +150,34 @@ export function deregistrationFor({ surface, targetPath, removedId }) {
 /**
  * Does a public URL stop resolving when this is removed?
  *
- * Decided by the estate's own route rules, not by assumption. A learning module
- * is listed on its learning path's page and has no page of its own, so removing
- * one orphans no URL. A resource and a diagram each serve at their own route,
- * so removing one leaves a live URL with nothing behind it.
+ * Decided by the estate's own route rules, not by assumption -- and the rules
+ * are ownPageForTarget's, not a second copy of them here.
+ *
+ * CORRECTED 2026-09-06, by measurement. This said a learning module "has no
+ * page of its own, so removing one orphans no URL". It does have one:
+ *
+ *   GET /learn/ai-foundations/what-ai-does            -> 200
+ *   GET /learn/ai-foundations/definitely-not-a-module -> 404
+ *
+ * So every surface orphans a URL, and the module's redirect lands on the
+ * learning path that used to list it, which is the nearest page that still
+ * exists. The record was wrong in a way live verification would then have
+ * checked against, which is how two wrongs agree and nobody notices.
  */
 export function redirectFor({ surface, targetPath }) {
-    const route = publicPathForTarget(targetPath);
+    const route = ownPageForTarget(targetPath);
     if (route.error) {
         return { needed: false, reason: route.error };
-    }
-    if (surface === "learning") {
-        return {
-            needed: false,
-            reason: `a learning module has no page of its own: modules/<pathId>/<moduleId>.json serves at ${route.path}, the learning path's page, which keeps resolving with one fewer module listed`,
-            from: null,
-            to: null,
-        };
     }
     return {
         needed: true,
         reason: `${route.path} is this artifact's own page and stops resolving once the file is gone`,
         from: route.path,
-        // Deliberately the surface index and not a guess at a replacement. This
-        // record states the need and where it should land; Orchard does not
-        // invent a redirect mechanism in a repository it does not own.
-        to: surface === "guide-diagram" ? "/guide/diagrams" : "/guide/resources",
+        // Deliberately the surface index (or, for a module, the learning path
+        // that listed it) and not a guess at a replacement. This record states
+        // the need and where it should land; Orchard does not invent a redirect
+        // mechanism in a repository it does not own.
+        to: route.listing ?? (surface === "guide-diagram" ? "/guide/diagrams" : "/guide/resources"),
     };
 }
 

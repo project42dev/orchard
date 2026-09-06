@@ -418,6 +418,7 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
     });
     assert.equal(verified.checked, 1, "the published item was fetched");
     assert.equal(verified.serving, 1, "and proven serving with its own marker");
+    assert.equal(verified.verified, 1, "serving is one kind of verified verdict; a proven removal is the other");
     assert.equal(verified.resolved, 1, "the closure packet resolved the ADO story");
     assert.equal(verified.closed, 1, "the recorded owner acceptance closed the item");
     assert.equal(stateOf(), "closed", "the lifecycle is complete, end to end, through the deployed entry points");
@@ -437,7 +438,7 @@ test("verification fails loudly when a published page is not serving", async () 
         fetchImpl: async () => { throw new Error("must not fetch"); },
     });
     assert.equal(empty.checked, 0);
-    assert.equal(empty.notServing, 0);
+    assert.equal(empty.notVerified, 0);
     void runId;
 });
 

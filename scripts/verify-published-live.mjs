@@ -79,6 +79,36 @@ export function publicPathForTarget(targetPath) {
   };
 }
 
+// THE ARTIFACT'S OWN PAGE, which is not always the page that PROVES it.
+//
+// publicPathForTarget above answers "where would a reader see this listed",
+// and for a module that is deliberately the learning path's page: a module the
+// catalogue does not list is unreachable however well its own route serves, so
+// the listing is what proves publication took.
+//
+// This answers the other question, which only a removal asks: "which URL stops
+// resolving when this file is gone". They differ for exactly one surface.
+// Verified live 2026-09-06 against https://project-42.dev:
+//
+//   GET /learn/ai-foundations/what-ai-does           -> 200
+//   GET /learn/ai-foundations/definitely-not-a-module -> 404
+//
+// So a module DOES have a page of its own, and removing one orphans it. The
+// removal record said otherwise ("a learning module has no page of its own")
+// until that was measured; redirectFor in lib/removal.mjs now derives its
+// answer from here so the record and the check can never disagree.
+export function ownPageForTarget(targetPath) {
+  const path = String(targetPath ?? "").trim();
+  if (!path) return { error: "the publication transaction records no target path, so no public URL can be derived" };
+
+  // modules/<pathId>/<moduleId>.json -> /learn/<pathId>/<moduleId>
+  const module_ = /^modules\/([^/]+)\/([^/]+)\.json$/.exec(path);
+  if (module_) return { path: `/learn/${module_[1]}/${module_[2]}`, listing: `/learn/${module_[1]}` };
+
+  // Every other surface's own page IS its listed page.
+  return publicPathForTarget(path);
+}
+
 // The origin to verify against. A single top-level publicBaseUrl covers the
 // whole estate now that it is one portal; a surface may still override it,
 // because a surface moving origin without the others is the case the target
@@ -149,8 +179,115 @@ export function decodeEntities(text) {
     .replace(/&(?:nbsp|#0*160|#[xX]0*[aA]0);/g, " ");
 }
 
+// A REMOVAL THAT WORKED IS NOT A VERIFICATION THAT FAILED.
+//
+// This script proves a page serves by fetching it and finding a marker from the
+// item. Applied to a removal that published successfully, that reports the
+// removal broken: the file is gone, the page does not serve, and the check
+// calls the correct outcome a fault. It was worse than that in practice -- a
+// Track 2 removal's Gate 1 manifest title is `removal: <stableId>`, which is
+// not on any page anywhere, so a removal could never have passed the marker
+// check no matter what was live.
+//
+// So a removal is verified by ABSENCE:
+//
+//   - its own page (ownPageForTarget, the same derivation the removal record's
+//     `redirect.from` is built from -- deterministic in surface and target
+//     path, so deriving it here equals reading the recorded one) must stop
+//     resolving, or land on the redirect target the record named
+//   - a module's removal is also a DEREGISTRATION: the learning path that
+//     listed it must still serve, and must no longer link the module. A
+//     deregistration that breaks catalog.json is the real risk of a module
+//     removal, and a module still linked from a page whose file is gone is a
+//     listing that 404s -- the exact defect the removal record calls worse than
+//     the stale content it was for.
+//
+// The item is a removal when workflow_item.outcome is "removal", which is one
+// of TRACK_2_ACTIONABLE_CLASSIFICATIONS and is the value gate-queue records as
+// the item's outcome from the Gate 1 proposal category.
+export function isRemoval(item) {
+  return item?.outcome === "removal";
+}
+
+async function fetchPage(url, { fetchImpl, timeoutMs }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetchImpl(url, { redirect: "follow", signal: controller.signal });
+    return { response };
+  } catch (e) {
+    return { error: `fetch failed: ${e?.name === "AbortError" ? `timed out after ${timeoutMs}ms` : e?.message}` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const GONE_STATUSES = new Set([404, 410]);
+
+export async function verifyRemoved(item, surfaceConfig, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  const res = { id: item.id, expectation: "absent", verified: false, reasons: [] };
+  const base = typeof surfaceConfig === "string" ? surfaceConfig : baseUrlForTarget(surfaceConfig, item?.path);
+  if (!base) {
+    res.reasons.push(`no publicBaseUrl is configured for ${item?.path ?? "an item with no target path"}, so the removal cannot be verified`);
+    return res;
+  }
+  const route = ownPageForTarget(item?.path);
+  if (route.error) { res.reasons.push(`${route.error} (item ${item?.id ?? "with no id"})`); return res; }
+  res.url = new URL(route.path, base).toString();
+
+  const { response, error } = await fetchPage(res.url, { fetchImpl, timeoutMs });
+  if (error) { res.reasons.push(error); return res; }
+  res.status = response.status;
+
+  const landed = response.url ? new URL(response.url) : null;
+  const samePath = !landed || new URL(res.url).pathname.replace(/\/$/, "") === landed.pathname.replace(/\/$/, "");
+  if (GONE_STATUSES.has(response.status)) {
+    res.verified = true;
+  } else if (!samePath) {
+    // A redirect away from the removed artifact's own page is the recorded
+    // redirect having been honoured. Where it landed is stated either way.
+    res.verified = true;
+    res.reasons.push(`redirected to ${landed.pathname}, which is where a removed ${item.surface ?? "artifact"} is expected to land`);
+  } else {
+    res.reasons.push(
+      `HTTP ${response.status} at ${route.path}: the removal was recorded as published, but the artifact's own page is still serving. ` +
+        "A removal is proven by absence, and this URL is present.",
+    );
+    return res;
+  }
+
+  // The deregistration half. Only a module has a separate listing page; for
+  // every other surface the artifact's own page IS its listing.
+  if (!route.listing) return res;
+  const listingUrl = new URL(route.listing, base).toString();
+  const listing = await fetchPage(listingUrl, { fetchImpl, timeoutMs });
+  if (listing.error) {
+    res.verified = false;
+    res.reasons.push(`the learning path ${route.listing} could not be fetched, so the deregistration is unproven: ${listing.error}`);
+    return res;
+  }
+  res.listing = { url: listingUrl, status: listing.response.status };
+  if (!listing.response.ok) {
+    res.verified = false;
+    res.reasons.push(`the learning path ${route.listing} returned HTTP ${listing.response.status}: the removal took the page down with the module, which is a broken catalogue, not a clean removal`);
+    return res;
+  }
+  const listingBody = decodeEntities(await listing.response.text());
+  if (listingBody.includes(route.path)) {
+    res.verified = false;
+    res.reasons.push(`the learning path ${route.listing} still links ${route.path}, so the catalogue entry outlived the file and that listing now 404s`);
+  }
+  return res;
+}
+
 export async function verifyOne(item, surfaceConfig, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
-  const res = { id: item.id, serving: false, reasons: [] };
+  if (isRemoval(item)) {
+    const removed = await verifyRemoved(item, surfaceConfig, { fetchImpl, timeoutMs });
+    // `serving` stays false for a removal and is meaningless there: the page
+    // is supposed to be gone. `verified` is the verdict every caller reads.
+    return { serving: false, ...removed };
+  }
+  const res = { id: item.id, expectation: "present", serving: false, verified: false, reasons: [] };
   const target = expectedUrl(item, surfaceConfig);
   if (target.error) { res.reasons.push(target.error); return res; }
   res.url = target.url;
@@ -194,12 +331,18 @@ export async function verifyOne(item, surfaceConfig, { fetchImpl = fetch, timeou
   }
 
   res.serving = true;
+  res.verified = true;
   return res;
 }
 
 // `config` is the whole config/surface-targets.json document, not a surface
 // entry pulled out of it by a column value. See baseUrlForTarget for why the
 // column cannot be trusted to pick the entry.
+//
+// `verified` is the verdict, not `serving`: a removal is verified when its page
+// is GONE, so counting "serving" as the pass would report every successful
+// removal as a failure. `serving` and `removed` are reported separately so the
+// two kinds of proof stay legible.
 export async function verifyAll(items, config, opts = {}) {
   const results = [];
   for (const item of items) {
@@ -207,8 +350,10 @@ export async function verifyAll(items, config, opts = {}) {
   }
   return {
     checked: results.length,
-    serving: results.filter((r) => r.serving).length,
-    failed: results.filter((r) => !r.serving),
+    verified: results.filter((r) => r.verified).length,
+    serving: results.filter((r) => r.verified && r.expectation !== "absent").length,
+    removed: results.filter((r) => r.verified && r.expectation === "absent").length,
+    failed: results.filter((r) => !r.verified),
     results,
   };
 }
@@ -229,7 +374,7 @@ function arg(name, fallback = null) {
 // schema: a query with a wrong table name is exactly the defect class that
 // shipped here once already.
 export const PUBLISHED_ITEMS_SQL =
-  `SELECT p.item_id AS id, p.created_at AS published_at, i.surface,
+  `SELECT p.item_id AS id, p.created_at AS published_at, i.surface, i.outcome,
           p.target_repository, p.target_path AS path
      FROM publication_transaction p
      LEFT JOIN workflow_item i ON i.item_id = p.item_id
@@ -262,7 +407,7 @@ if (invokedDirectly) {
     });
     const out = await verifyAll(rows, config);
     process.stdout.write(JSON.stringify(out, null, 2) + "\n");
-    process.stderr.write(`live verification: ${out.serving}/${out.checked} serving\n`);
+    process.stderr.write(`live verification: ${out.verified}/${out.checked} verified (${out.serving} serving, ${out.removed} proven removed)\n`);
     process.exitCode = out.failed.length === 0 ? 0 : 1;
   } finally {
     store.close();

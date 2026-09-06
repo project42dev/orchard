@@ -79,13 +79,17 @@ export async function verifyLive({ store, surfaceConfig, fetchImpl, now, log }) 
     });
     if (rows.length === 0) {
         log("info", "verification.live.nothing-published", { effect: "no publication transaction exists to verify" });
-        return { checked: 0, serving: 0, failed: [] };
+        return { checked: 0, verified: 0, serving: 0, removed: 0, failed: [], results: [] };
     }
     const outcome = await verifyAll(rows, surfaceConfig, fetchImpl ? { fetchImpl } : {});
     for (const result of outcome.results) {
         const item = store.db.prepare("SELECT origin_run_id, current_revision FROM workflow_item WHERE item_id = ?").get(result.id);
         if (!item) continue;
-        const evidence = { kind: "live-verification", item_id: result.id, serving: result.serving, url: result.url ?? null, status: result.status ?? null, reasons: result.reasons, verified_at: now };
+        // `expectation` is recorded, not only the verdict: a removal is proven
+        // by ABSENCE, so an evidence row saying serving:false means opposite
+        // things for a publication and for a removal, and a reader a year from
+        // now has no way to tell which without it.
+        const evidence = { kind: "live-verification", item_id: result.id, expectation: result.expectation ?? "present", verified: result.verified === true, serving: result.serving === true, url: result.url ?? null, status: result.status ?? null, reasons: result.reasons, verified_at: now };
         store.recordObservation({
             observation_id: generateUuidV7(),
             run_id: item.origin_run_id,
@@ -96,7 +100,7 @@ export async function verifyLive({ store, surfaceConfig, fetchImpl, now, log }) 
             observed_at: now,
             live_verification: evidence,
         });
-        log(result.serving ? "info" : "error", "verification.live.result", { item: result.id, serving: result.serving, url: result.url ?? null, reasons: result.reasons });
+        log(result.verified ? "info" : "error", "verification.live.result", { item: result.id, expectation: result.expectation ?? "present", verified: result.verified === true, url: result.url ?? null, reasons: result.reasons });
     }
     return outcome;
 }
@@ -114,26 +118,31 @@ export async function main(argv = process.argv.slice(2), {
     const surfacesPath = env.ORCHARD_SURFACES_PATH ?? resolve(HERE, "..", "config", "surface-targets.json");
     const now = new Date().toISOString();
     const store = openStateStore(resolve(dbPath));
-    const summary = { checked: 0, serving: 0, notServing: 0, resolved: 0, closed: 0, held: 0 };
+    const summary = { checked: 0, verified: 0, serving: 0, removed: 0, notVerified: 0, resolved: 0, closed: 0, held: 0 };
     try {
         const surfaceConfig = existsSync(surfacesPath) ? JSON.parse(readFileSync(surfacesPath, "utf8")) : {};
         const live = await verifyLive({ store, surfaceConfig, fetchImpl, now, log });
         summary.checked = live.checked;
+        summary.verified = live.verified;
         summary.serving = live.serving;
-        summary.notServing = live.failed.length;
+        summary.removed = live.removed;
+        summary.notVerified = live.failed.length;
 
         // Closure work proceeds even when some OTHER item fails its live
         // check; the failure still fails the run at the end. An item only
         // advances toward closure when its own page is proven serving.
-        const servingIds = new Set(live.results?.filter((result) => result.serving).map((result) => result.id) ?? []);
+        // Keyed on `verified` and not `serving`, because a published removal
+        // is never serving -- its page is supposed to be gone -- and must still
+        // be allowed to close.
+        const verifiedIds = new Set(live.results?.filter((result) => result.verified).map((result) => result.id) ?? []);
 
         const publishedRows = store.db.prepare(
             "SELECT item_id, track, current_revision, origin_run_id FROM workflow_item WHERE current_state = 'published' ORDER BY updated_at, item_id",
         ).all();
         for (const row of publishedRows) {
-            if (!servingIds.has(row.item_id)) {
+            if (!verifiedIds.has(row.item_id)) {
                 summary.held += 1;
-                log("warn", "verification.closure.not-serving", { item: row.item_id, effect: "closure needs the page proven live first; the item stays published" });
+                log("warn", "verification.closure.unverified", { item: row.item_id, effect: "closure needs the live verdict proven first -- the page serving, or for a removal the page gone; the item stays published" });
                 continue;
             }
             const { path, document: packet } = readEvidence(evidenceRoot, "closure-evidence", row.item_id);
@@ -196,9 +205,9 @@ export async function main(argv = process.argv.slice(2), {
         }
 
         log("info", "verification.finished", summary);
-        if (summary.notServing > 0) {
+        if (summary.notVerified > 0) {
             throw Object.assign(
-                new Error(`${summary.notServing} published item(s) are not serving`),
+                new Error(`${summary.notVerified} published item(s) did not verify: a publication that is not serving, or a removal whose page is still there`),
                 { code: "ERR_ORCHARD_VERIFICATION_FAILED" },
             );
         }

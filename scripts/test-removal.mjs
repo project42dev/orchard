@@ -135,11 +135,17 @@ test('a removed diagram leaves the diagram catalogue, and an unknown path is ref
 // --- the two questions a removal has to answer --------------------------------
 
 test('a removal states whether a URL stops resolving, from the estate route rules', () => {
-    // A module is listed on its learning path's page and has no page of its
-    // own, so removing one orphans nothing.
+    // CORRECTED 2026-09-06 by measurement against the live portal:
+    //   GET /learn/ai-foundations/what-ai-does            -> 200
+    //   GET /learn/ai-foundations/definitely-not-a-module -> 404
+    // A module DOES have a page of its own, so removing one orphans it, and
+    // the redirect lands on the learning path that used to list it. This
+    // asserted the opposite, and the live check would then have been measured
+    // against the same wrong claim -- two wrongs agreeing, and nobody notices.
     const module_ = redirectFor({ surface: 'learning', targetPath: MODULE_PATH });
-    assert.equal(module_.needed, false);
-    assert.match(module_.reason, /\/learn\/agentic-systems-and-mcp/);
+    assert.equal(module_.needed, true);
+    assert.equal(module_.from, '/learn/agentic-systems-and-mcp/obsolete-topic');
+    assert.equal(module_.to, '/learn/agentic-systems-and-mcp');
 
     // A diagram serves at its own route, so removing one leaves a live URL
     // with nothing behind it, and the record has to say so.
@@ -262,7 +268,8 @@ test('an approved removal reaches publication, and the owner reads the removal r
     assert.equal(record.rationale.summary, removal.rationale);
     assert.equal(record.catalogue.registry, 'catalog.json');
     assert.deepEqual(record.inbound.found, []);
-    assert.equal(record.redirect.needed, false);
+    assert.equal(record.redirect.needed, true);
+    assert.equal(record.redirect.from, '/learn/agentic-systems-and-mcp/obsolete-topic');
     // Nothing was drafted, so nothing was spent, and the record says so rather
     // than reporting a review that never happened.
     assert.deepEqual(manifestItem.cost, { currency: 'USD', amount: 0 });
