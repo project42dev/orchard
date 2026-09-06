@@ -151,12 +151,24 @@ export function proposalFromRequest(req) {
   if (!req.id || !req.title || !req.summary || !Array.isArray(req.objectives)) {
     throw new Error(`Invalid curriculum request format for item: ${JSON.stringify(req)}`);
   }
+  // No `|| 'discovery'` fallback. `discovery` is not a learning path that
+  // project42-content's catalog.json declares, so a module filed under it is
+  // refused by registerLearningModule and, if it ever got through, serves a 404
+  // at /learn/discovery -- confirmed live on 2026-09-06. pathId is a required
+  // field on a request and is validated against the declared paths, so a
+  // request arriving here without one is a defect. It says so rather than
+  // quietly composing a path nothing can publish.
+  if (typeof req.pathId !== 'string' || req.pathId.trim() === '') {
+    throw new Error(
+      `curriculum request "${req.id}" declares no pathId. A module is reachable only at the learning path that lists it, so there is nowhere to publish this.`,
+    );
+  }
 
   const proposal = {
     id: `req-${req.id}`,
     kind: 'learn',
     surface: 'learn',
-    targetPath: `modules/${req.pathId || 'discovery'}/${req.id}.json`,
+    targetPath: `modules/${req.pathId.trim()}/${req.id}.json`,
     title: req.title,
     summary: req.summary,
     level: req.level || 'intermediate',

@@ -56,7 +56,7 @@
     > The `batch_digest` field itself is still computed and persisted exactly
     > as this ADR describes; only the idempotency key that decides whether a
     > new issue is opened uses the different value. See
-    > `project42-platform/docs/orchard/lifecycle-steps.md`, Step 5.
+    > [`lifecycle-steps.md`](../lifecycle-steps.md), Step 5.
 10. **Gate 2 carries the finished artifact, the readable diff and its digest,
     the prepared-tree digest, tests, factual and accessibility review, the
     handoff chain, cost, tracker links, the allowlisted repository, the safe

@@ -506,7 +506,10 @@ disambiguation; the rename itself is unbuilt.
 
 ## Step 14: Verify the published content is live
 
-**Status: BUILT, NO RUNTIME.** Updated 2026-09-06.
+**Status: BUILT AND REACHABLE, unproven since repair.** Updated 2026-09-06.
+Correcting the 2026-08-15 marker below, which said NO RUNTIME:
+`run-verification.mjs` imports this script and is registered as the
+`verification` phase in `scripts/orchard-production-runtime.mjs`.
 
 `scripts/verify-published-live.mjs` fetches the published location and confirms
 the content is actually serving before the item may move on to
@@ -525,14 +528,16 @@ Two defects have been fixed since this step was first written, and one remains:
   not fully resolve" for **every** item and live verification silently verified
   nothing. The public route is now derived from the item's own
   `publication_transaction.target_path`, per surface, by
-  `publicUrlForTarget()`: `modules/<pathId>/<moduleId>.json` becomes
+  `publicPathForTarget()`: `modules/<pathId>/<moduleId>.json` becomes
   `/learn/<pathId>`, `resources/<pack>/<resourceId>.json` becomes
   `/guide/resources/<resourceId>`, and `diagrams/<id>.mmd` becomes
   `/guide/diagrams/<id>`. The surface is derived from the path too, not read
   from a column, because the column and the configuration file used two
   different vocabularies for one fact.
-- **Still open: NO RUNTIME.** Nothing deployed invokes it. The check is correct
-  and proven by hand against the live portal; it is not yet part of any job.
+- **Still open.** The check is correct and proven by hand against the live
+  portal, but no production run has been observed since the repair. Because it
+  was reachable throughout, the second defect above was not a dormant bug: the
+  phase executed and reported zero items serving on every run.
 
 **Corrected 2026-08-15.** This step was missing entirely from
 `docs/lifecycle.mmd` (Issue I-48); the diagram jumped straight from
@@ -640,7 +645,7 @@ A third, from the same family, is worth adding:
 | --- | --- | --- |
 | 0 to 6 | built; step 2 unproven; step 6 approval broken | built and running |
 | 7 to 13 | **no runtime** | **running in production.** Brought up 2026-08-16 to 2026-08-20; the first publication run merged nine items on 2026-08-19 |
-| 14 | no runtime | built, repaired 2026-09-06, **still not invoked by any job** |
+| 14 | recorded as no runtime, which was wrong: it is the `verification` phase of the production runtime | built and reachable; repaired 2026-09-06 after resolving a URL for **no** item at all; unproven in production since |
 | 15 | not built | closure packet and owner acceptance are in the machine; not separately re-verified here |
 | 16 | not designed | not designed |
 

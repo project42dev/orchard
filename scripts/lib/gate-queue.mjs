@@ -74,14 +74,28 @@ const SURFACE_BY_PROBE_KIND = Object.freeze({
 // content/ path in the content repository would create a phantom tree that no
 // loader reads.
 //
-// KNOWN DEFECT (unchanged by the repoint): "discovery" is not a declared
-// learning path in the content repository's catalog.json, so a Track 1 learning
-// item landing here is refused by registerLearningModule with
-// registration.no-such-path. It was equally undeclared in the platform
-// repository's content/catalog.json, so this is pre-existing, not caused by the
-// repoint. Naming a real path is a product decision, not a rename.
+// FIXED 2026-09-06. A learning candidate used to be filed under
+// modules/discovery/, and "discovery" is not a declared learning path in
+// project42dev/project42-content catalog.json -- nor was it in the platform
+// repository's content/catalog.json before the repoint, so this predated it.
+// Every Track 1 learning item was therefore refused by registerLearningModule
+// with registration.no-such-path, and had one slipped past, it would have been
+// unreachable: /learn/discovery returns 404, confirmed live on 2026-09-06.
+//
+// The fix is not to pick a different placeholder. A module is reachable only at
+// the learning path that lists it, so the path is part of what is being
+// proposed, and a probe now declares it (seed-inputs/probes.json, `pathId`).
+// A learning candidate with no declared path is REFUSED here, naming the probe,
+// because filing it somewhere that looks harmless is the silent success this
+// project's own rules forbid.
+//
+// The guide surface is deliberately not treated the same way. Its registry is
+// null: the catalogue loader discovers every .json under resources/ and each
+// resource carries its own id, so a resource indexes itself and its route is
+// /guide/resources/<its own id> whatever pack directory it sits in. The pack is
+// organisational, not load-bearing, so a declared pathId is used when there is
+// one and `resources/discovery` remains an acceptable default.
 const DIRECTORY_BY_SURFACE = Object.freeze({
-    learning: "modules/discovery",
     guide: "resources/discovery",
     "guide-diagram": "diagrams",
 });
@@ -134,7 +148,22 @@ export function targetForCandidate(candidate) {
         return { repository: TARGET_REPOSITORY, path: candidate.targetPath };
     }
     const surface = candidate.surface;
-    const directory = DIRECTORY_BY_SURFACE[surface];
+    if (surface === "learning") {
+        const pathId = candidate.pathId;
+        if (typeof pathId !== "string" || pathId.trim() === "") {
+            throw new TypeError(
+                `the learning candidate "${candidate.subject ?? candidate.term}" declares no pathId, so there is no learning path to publish it into. ` +
+                "A module no path lists has no URL at all. Declare pathId on the probe in seed-inputs/probes.json, naming a path that catalog.json declares.",
+            );
+        }
+        return {
+            repository: TARGET_REPOSITORY,
+            path: `modules/${slugify(pathId)}/${slugify(candidate.term ?? candidate.subject)}.json`,
+        };
+    }
+    const directory = candidate.pathId && surface === "guide"
+        ? `resources/${slugify(candidate.pathId)}`
+        : DIRECTORY_BY_SURFACE[surface];
     if (!directory) throw new TypeError(`no target directory for surface ${surface}`);
     return {
         repository: TARGET_REPOSITORY,

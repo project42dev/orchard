@@ -185,8 +185,12 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   const match = matchToWorkItem({ doc: { briefId: alpha.id } }, itemIds);
   equal('and the ingest recovers the item from the brief id alone', match?.subjectId, alphaId);
 
+  // The declared learning path, not a placeholder directory. Until 2026-09-06
+  // this read modules/discovery/, and "discovery" is a path catalog.json has
+  // never declared, so every module briefed here was destined for a location
+  // that registration refuses and that serves a 404 if it gets through.
   equal('a brief names where the content goes, from the RECORDED item target',
-    alpha.targets[0].pathPrefixes[0], 'modules/discovery/alpha.json');
+    alpha.targets[0].pathPrefixes[0], 'modules/agentic-systems-and-mcp/alpha.json');
   equal('and which repository', alpha.targets[0].repository, 'project42dev/project42-content');
 
   check('the recorded Gate 1 manifest title reaches the brief',

@@ -59,6 +59,8 @@ function candidate(term, sources = 3) {
   return {
     subject,
     surface: 'learning',
+    // A learning candidate declares the learning path it is proposed into.
+    pathId: 'agentic-systems-and-mcp',
     outcome: `teach ${subject}`,
     scope: 'content',
     title: `How to teach ${term}`,

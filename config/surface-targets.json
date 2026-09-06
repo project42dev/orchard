@@ -7,7 +7,8 @@
     "{topic} is the work item's subject id with its surface suffix removed. {subject} is the subject id unchanged. Nothing else is substituted.",
     "The template describes where the work GOES, not where it is. A needs-creating item has no path yet, which is the point of the template.",
     "A SURFACE THAT NEEDS A CATALOGUE ENTRY AS WELL AS A FILE DECLARES BOTH PATHS. A proposal that writes the artifact and never registers it produces something no reader can reach.",
-    "THE CURRICULUM IS NOT IN THE PRODUCT REPOSITORY. As of 2026-09-05 the canonical curriculum lives in project42dev/project42-content and project42dev/project42-platform consumes it. Orchard publishes to the content repository only; a proposal naming the platform repository fails contract validation on purpose."
+    "THE CURRICULUM IS NOT IN THE PRODUCT REPOSITORY. As of 2026-09-05 the canonical curriculum lives in project42dev/project42-content and project42dev/project42-platform consumes it. Orchard publishes to the content repository only; a proposal naming the platform repository fails contract validation on purpose.",
+    "THE PUBLIC ROUTE IS DERIVED FROM THE PUBLISHED PATH, NOT FROM A TEMPLATE. pathTemplates says where the FILE goes; it is not a URL. A learning module goes to modules/<pathId>/<moduleId>.json and its reader-facing page is /learn/<pathId>, the path that lists it. A field-guide resource goes to resources/<pack>/<resourceId>.json and its page is /guide/resources/<resourceId>, the LEAF and not the pack: /guide/resources/coding-agents was 404 on 2026-09-06 while /guide/resources/ai-assisted-code-review-checklist was 200. A diagram goes to diagrams/<id>.mmd and its page is /guide/diagrams/<id>. Each surface used to declare a publicPathTemplate substituting {topic}; they were removed on 2026-09-06 because {topic} was being asked to mean a directory on one surface and a leaf on another, and because nothing ever supplied it, so live verification composed a URL for no item at all and reported success while checking nothing. publicPathForTarget() in scripts/verify-published-live.mjs is the single derivation."
   ],
   "repository": "project42dev/project42-content",
   "surfaces": {
@@ -18,8 +19,7 @@
       "suffix": "-learn",
       "form": "learning-module-json",
       "why": "Every indexed Learn module lives under modules/<topic>/ in project42dev/project42-content, one directory per learning path, one JSON file per module. Proven by the 88 module files across 14 paths already there. The deliverable is ONE JSON object conforming to the LearningModule schema the platform validates against (project42-platform src/schema.ts is the schema of record; the content repository is where the instances live), not prose: the catalogue loader JSON.parse's every .json under modules/, so a Markdown file there stops the whole catalogue building. Declared explicitly after 2026-08-19, when the seven learning items this pipeline had published all turned out to be raw Markdown at .json paths because this surface declared no form.",
-      "publicBaseUrl": "https://project-42.dev",
-      "publicPathTemplate": "/learn/{topic}"
+      "publicRoute": "/learn/<pathId>, derived from modules/<pathId>/<moduleId>.json; the learning path is what has a page, and registration.mjs is what puts the module on it"
     },
     "field-guide": {
       "pathTemplates": [
@@ -27,8 +27,7 @@
       ],
       "suffix": "-field-guide",
       "why": "Every indexed Field Guide resource lives under resources/<topic>/ in project42dev/project42-content, one directory per resource pack, one JSON file per resource. The reader reaches an individual resource at /guide/resources/<resource-id> on the single portal.",
-      "publicBaseUrl": "https://project-42.dev",
-      "publicPathTemplate": "/guide/resources/{topic}"
+      "publicRoute": "/guide/resources/<resourceId>, derived from the LEAF of resources/<pack>/<resourceId>.json, never the pack directory"
     },
     "visual-guide": {
       "pathTemplates": [
@@ -38,8 +37,7 @@
       "suffix": "-visual-guide",
       "form": "mermaid",
       "why": "Visual guides are the diagrams the portal publishes at /guide/diagrams and /guide/diagrams/<id>, where the UI calls them visual guides. The Mermaid source is diagrams/<id>.mmd in project42dev/project42-content and the catalogue entry is in diagrams/catalogue.json; the SVG is GENERATED and is never authored by hand. Both paths are named because a .mmd file with no catalogue entry renders nothing and reaches no reader. Corrected 2026-09-05: the repository is the content repository, not the platform product repository, and the paths have no content/ prefix.",
-      "publicBaseUrl": "https://project-42.dev",
-      "publicPathTemplate": "/guide/diagrams/{topic}"
+      "publicRoute": "/guide/diagrams/<id>, derived from diagrams/<id>.mmd"
     },
     "learning": {
       "pathTemplates": [
@@ -48,8 +46,8 @@
       "suffix": "-learn",
       "form": "learning-module-json",
       "why": "Alias of the learn surface, kept because the contract vocabulary says learning where the probe vocabulary says learn. Every indexed Learn module lives under modules/<topic>/ in project42dev/project42-content. The deliverable is ONE JSON object conforming to the LearningModule schema, not prose.",
-      "publicBaseUrl": "https://project-42.dev",
-      "publicPathTemplate": "/learn/{topic}"
+      "publicRoute": "/learn/<pathId>, derived from modules/<pathId>/<moduleId>.json; the learning path is what has a page, and registration.mjs is what puts the module on it"
     }
-  }
+  },
+  "publicBaseUrl": "https://project-42.dev"
 }

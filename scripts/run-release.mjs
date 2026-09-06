@@ -60,9 +60,17 @@ const USER_AGENT = "Orchard-Release/1.0";
 // Defaults, overridable by deployment configuration so an adopter is not
 // forced onto this estate's repository names.
 const DEFAULT_PLATFORM_REPO = "project42dev/project42-platform";
+// ONE CONSUMER, because there is one site. learn.project-42.dev and
+// guide.project-42.dev were separate applications with their own repositories
+// and their own @project42/platform pins. In September 2026 the estate
+// consolidated onto the single project-42.dev origin, which serves /learn/**
+// and /guide/**, and both repositories were archived. Releasing to them did not
+// fail loudly -- it bumped a dependency in two archived repositories that
+// nothing deploys, which reads as a successful three-site release. Corrected
+// 2026-09-06; project42dev/project-42.dev is the one repository that actually
+// pins @project42/platform today. ORCHARD_RELEASE_SITE_REPOS still overrides
+// this, so an adopter is not tied to this estate's names.
 const DEFAULT_SITE_REPOS = Object.freeze([
-    "project42dev/learn.project-42.dev",
-    "project42dev/guide.project-42.dev",
     "project42dev/project-42.dev",
 ]);
 

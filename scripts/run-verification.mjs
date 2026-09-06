@@ -65,7 +65,12 @@ async function advance(store, row, from, to, cause, now) {
     });
 }
 
-export async function verifyLive({ store, surfaces, fetchImpl, now, log }) {
+// `surfaceConfig` is the WHOLE config/surface-targets.json document. It used
+// to be the .surfaces sub-object, indexed by workflow_item.surface, which never
+// matched: the column carries the contract vocabulary (learning, guide,
+// guide-diagram) and the file is keyed by the probe vocabulary (learn,
+// field-guide, visual-guide). See baseUrlForTarget() in verify-published-live.mjs.
+export async function verifyLive({ store, surfaceConfig, fetchImpl, now, log }) {
     const titleFor = store.db.prepare(ITEM_TITLE_SQL);
     const rows = store.db.prepare(PUBLISHED_ITEMS_SQL).all(null, null).map((row) => {
         const observed = titleFor.get(row.id, `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${row.id}`);
@@ -76,7 +81,7 @@ export async function verifyLive({ store, surfaces, fetchImpl, now, log }) {
         log("info", "verification.live.nothing-published", { effect: "no publication transaction exists to verify" });
         return { checked: 0, serving: 0, failed: [] };
     }
-    const outcome = await verifyAll(rows, surfaces, fetchImpl ? { fetchImpl } : {});
+    const outcome = await verifyAll(rows, surfaceConfig, fetchImpl ? { fetchImpl } : {});
     for (const result of outcome.results) {
         const item = store.db.prepare("SELECT origin_run_id, current_revision FROM workflow_item WHERE item_id = ?").get(result.id);
         if (!item) continue;
@@ -111,8 +116,8 @@ export async function main(argv = process.argv.slice(2), {
     const store = openStateStore(resolve(dbPath));
     const summary = { checked: 0, serving: 0, notServing: 0, resolved: 0, closed: 0, held: 0 };
     try {
-        const surfaces = existsSync(surfacesPath) ? JSON.parse(readFileSync(surfacesPath, "utf8")).surfaces ?? {} : {};
-        const live = await verifyLive({ store, surfaces, fetchImpl, now, log });
+        const surfaceConfig = existsSync(surfacesPath) ? JSON.parse(readFileSync(surfacesPath, "utf8")) : {};
+        const live = await verifyLive({ store, surfaceConfig, fetchImpl, now, log });
         summary.checked = live.checked;
         summary.serving = live.serving;
         summary.notServing = live.failed.length;

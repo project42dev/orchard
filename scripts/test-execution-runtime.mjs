@@ -400,7 +400,8 @@ test("the four execution roles move one item from gate1-pending to closed", asyn
 
     const surfacesPath = join(directory, "public-surfaces.json");
     writeFileSync(surfacesPath, JSON.stringify({
-        surfaces: { learning: { publicBaseUrl: "https://learn.example.test/", publicPathTemplate: "items/{id}" } },
+        publicBaseUrl: "https://learn.example.test/",
+        surfaces: { learn: {}, "field-guide": {}, "visual-guide": {} },
     }));
     const title = gate1Items[0].title;
     const fetchImpl = async (url) => ({

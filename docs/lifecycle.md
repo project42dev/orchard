@@ -22,17 +22,20 @@ state).
 > re-derived on 2026-09-06 directly from `scripts/lib/state-machine.mjs`, which
 > holds the one authoritative vocabulary; the schema CHECK constraint and the
 > contract enum are held in lockstep with it by
-> `scripts/test-state-vocabulary.mjs`. The previous version of this page listed
-> fourteen states, four of which the machine does not have and seven of which it
-> does. Where a document and the transition table disagree, the transition table
-> is right.
+> `scripts/test-state-vocabulary.mjs`. The machine has **twenty-two** states. The
+> previous version of this page listed sixteen, **two** of which the machine does
+> not have (`discovered` and `verified`) while it omitted **eight** the machine
+> does have (`observed`, `proposed`, `publication-validating`,
+> `publication-pr-open`, `publication-merging`, `ado-closure-ready`, `blocked`,
+> `superseded`). Where a document and the transition table disagree, the
+> transition table is right.
 
 ---
 
 ## 1. The lifecycle state machine
 
-Sixteen states on the direct path, plus six reachable only through exception
-rules. No item bypasses a state, skips an authorization gate, or publishes
+Sixteen states on the direct path, joined by sixteen transitions, plus six more
+states reachable only through exception rules: twenty-two in all. No item bypasses a state, skips an authorization gate, or publishes
 without verified proof.
 
 ```text
@@ -110,8 +113,8 @@ without verified proof.
      +----------------+
 ```
 
-`observed -> closed` directly, on cause `no-change-reviewed`, is the
-seventeenth transition: a Track 2 inspection that finds nothing wrong closes the
+`observed -> closed` directly, on cause `no-change-reviewed`, is the sixteenth
+and last entry in the direct transition table: a Track 2 inspection that finds nothing wrong closes the
 item without ever proposing work.
 
 ---
@@ -274,16 +277,17 @@ converge on the same labeled issue and there is exactly one parser.
   `ROLE_TOKEN_BUDGET`, with `research` and `finalization` jobs in the model map.
   Corrected 2026-09-06: this bullet contradicted the ensemble section further
   down the same page, which had already recorded the closure.
-- **Live verification, step 14, is implemented, was broken, and is still not
-  invoked.** `scripts/verify-published-live.mjs` refuses bare 2xx responses and
+- **Live verification, step 14, is implemented, wired, and was broken.** `scripts/verify-published-live.mjs` refuses bare 2xx responses and
   demands an item-derived marker in the body, which is the right design. Until
   2026-09-06 it also composed its URL by substituting a `{topic}` placeholder
   from a database row that never carried one, so it resolved a URL for **no item
   at all** and reported success while checking nothing. The public route is now
   derived from the item's own target path per surface, with tests and a live
-  proof against the portal. **What remains open is the wiring**: nothing
-  deployed invokes it yet, so it is repaired but unproven in production. See
-  [Status](status.md).
+  proof against the portal. It is **not** unwired: `run-verification.mjs` is the
+  `verification` phase of `orchard-production-runtime.mjs`, which is what made
+  the defect expensive — the check ran and reported zero items serving every
+  time. What remains open is that no production run has been observed since the
+  repair. See [Status](status.md).
 - **Request intake is built (closed 2026-09-06).** Corrected: this bullet said
   no code existed. `scripts/ingest-curriculum-requests.mjs` reads open
   `content-request` issues under `--from-issues`,

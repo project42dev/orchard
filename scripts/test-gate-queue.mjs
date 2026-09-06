@@ -47,6 +47,10 @@ function candidate(term, overrides = {}) {
   const subject = `Teaching ${term}`;
   return {
     subject, surface: 'learning', outcome: `teach ${subject}`, scope: 'content',
+    // A learning candidate carries the learning path it proposes into. Real
+    // probes declare it (seed-inputs/probes.json); a candidate without one is
+    // refused, which is asserted below.
+    pathId: 'agentic-systems-and-mcp',
     title: `How to teach ${term}`, term, level: 'intermediate',
     demandOccurrences: 12, demandSourceCount: 3,
     evidence: ['a:4', 'b:4', 'c:4'],
@@ -164,6 +168,66 @@ test('a target path is always one the platform repository can accept', () => {
   assert.equal(targetForCandidate(candidate('x', { surface: 'guide-diagram' })).path, 'diagrams/x.mmd');
 });
 
+// The defect: every learning candidate was filed under modules/discovery/, and
+// "discovery" is not a learning path project42-content's catalog.json declares.
+// registerLearningModule refused all of them with registration.no-such-path,
+// and /learn/discovery is a 404, confirmed live 2026-09-06. A module no path
+// lists has no URL at all, so a placeholder directory is not a partial answer.
+test('a learning module is proposed into a learning path that exists, never a placeholder', () => {
+  assert.equal(
+    targetForCandidate(candidate('agent handoffs', { pathId: 'agentic-systems-and-mcp' })).path,
+    'modules/agentic-systems-and-mcp/agent-handoffs.json',
+    'the declared learning path is the directory, because that is what lists the module',
+  );
+  assert.ok(
+    !targetForCandidate(candidate('anything')).path.startsWith('modules/discovery/'),
+    'nothing lands under modules/discovery any more',
+  );
+
+  // Refusing is the point. Filing it somewhere harmless-looking is the silent
+  // success this project's rules forbid.
+  assert.throws(
+    () => targetForCandidate(candidate('orphan', { pathId: null })),
+    /declares no pathId/,
+    'a learning candidate with no declared path is refused, not guessed at',
+  );
+  assert.throws(() => targetForCandidate(candidate('orphan', { pathId: '   ' })), /declares no pathId/);
+
+  // The guide surface is deliberately NOT refused: its registry is null, the
+  // loader discovers every .json under resources/, and the public route is
+  // /guide/resources/<the resource's own id> whatever pack it sits in. The pack
+  // is organisational. A declared path is used when there is one.
+  assert.equal(
+    targetForCandidate(candidate('prompt injection', { surface: 'guide', pathId: null })).path,
+    'resources/discovery/prompt-injection.json',
+    'a guide resource still has a default pack, because the pack is not load-bearing',
+  );
+  assert.equal(
+    targetForCandidate(candidate('prompt injection', { surface: 'guide', pathId: 'ai-security-and-governance' })).path,
+    'resources/ai-security-and-governance/prompt-injection.json',
+  );
+});
+
+// Every learning path a shipped probe proposes into must be one the content
+// repository actually declares, or the probe is a publication that cannot land.
+test('every learning probe declares a path, and the diagram probes need none', async () => {
+  const { fileURLToPath } = await import('node:url');
+  const { readFileSync } = await import('node:fs');
+  const probes = JSON.parse(readFileSync(
+    fileURLToPath(new URL('../seed-inputs/probes.json', import.meta.url)), 'utf8',
+  )).probes;
+  for (const probe of probes) {
+    const surface = surfaceForProbe(probe);
+    if (surface !== 'learning') continue;
+    assert.equal(typeof probe.pathId, 'string', `probe ${probe.id} declares no pathId`);
+    assert.ok(probe.pathId.length > 0, `probe ${probe.id} declares an empty pathId`);
+    assert.doesNotThrow(
+      () => targetForCandidate({ ...candidate(probe.id), pathId: probe.pathId }),
+      `probe ${probe.id} cannot produce a target path`,
+    );
+  }
+});
+
 // A wrong directory here is invisible in every log: the blob is written, the
 // pull request merges, publication reports success, and the file simply is not
 // part of any surface. `guide` pointed at content/reference, which holds one
@@ -172,13 +236,14 @@ test('a target path is always one the platform repository can accept', () => {
 // had reached publication yet.
 test('every surface lands in a directory the platform actually indexes', () => {
   assert.equal(
-    targetForCandidate(candidate('prompt injection', { surface: 'guide' })).path,
+    targetForCandidate(candidate('prompt injection', { surface: 'guide', pathId: null })).path,
     'resources/discovery/prompt-injection.json',
     'Field Guide resources are discovered under resources/<topic>/, never content/reference',
   );
   assert.equal(
-    targetForCandidate(candidate('prompt injection', { surface: 'learning' })).path,
-    'modules/discovery/prompt-injection.json',
+    targetForCandidate(candidate('prompt injection', { surface: 'learning', pathId: 'ai-security-and-governance' })).path,
+    'modules/ai-security-and-governance/prompt-injection.json',
+    'a learning module lands under the path that lists it, never under a placeholder directory',
   );
   assert.equal(
     targetForCandidate(candidate('prompt injection', { surface: 'guide-diagram' })).path,

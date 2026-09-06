@@ -388,7 +388,14 @@ function siteSeed(name, pinnedVersion = "0.72.1") {
     };
 }
 
-const RUN_OPTIONS = { token: "ghs_simulated", today: "2026-08-19", env: {} };
+// The default consumer list is ONE repository, because the estate is one site
+// (see DEFAULT_SITE_REPOS in run-release.mjs). These tests exercise the
+// multi-site behaviour that must keep working for an adopter who has several:
+// a site the App cannot reach, a site already pinned, a lockfile too large for
+// the contents API. So they declare their own consumers, the way an adopter
+// does, instead of leaning on this estate's default.
+const RUN_ENV = { ORCHARD_RELEASE_SITE_REPOS: [LEARN, GUIDE, WWW].join(",") };
+const RUN_OPTIONS = { token: "ghs_simulated", today: "2026-08-19", env: RUN_ENV };
 
 // --- 1. nothing to release --------------------------------------------------
 
@@ -705,7 +712,7 @@ test("with no credential the role reports the effect and changes nothing", async
 
     // No vault URL and no repo variable, which is exactly what readGateToken
     // treats as unconfigured. It must not throw and must not reach the API.
-    const summary = await runRelease([], { log, env: {}, fetchImpl: github.fetchImpl, today: "2026-08-19" });
+    const summary = await runRelease([], { log, env: RUN_ENV, fetchImpl: github.fetchImpl, today: "2026-08-19" });
 
     assert.equal(summary.released, false);
     assert.equal(github.calls.length, 0, "not one API call is made without a credential");

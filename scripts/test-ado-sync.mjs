@@ -57,6 +57,8 @@ function candidate(term) {
     const subject = `Teaching ${term}`;
     return {
         subject, surface: 'learning', outcome: `teach ${subject}`, scope: 'content',
+        // A learning candidate declares the learning path it is proposed into.
+        pathId: 'agentic-systems-and-mcp',
         title: `How to teach ${term}`, term, level: 'intermediate',
         demandOccurrences: 12, demandSourceCount: 3, evidence: ['a:4'],
         evidenceRefs: [{ reference: `https://example.invalid/${term}`, digest: sha256Digest(term) }],

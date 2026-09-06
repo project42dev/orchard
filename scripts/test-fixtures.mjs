@@ -44,6 +44,10 @@ export function candidate(term, overrides = {}) {
     const subject = `Teaching ${term}`;
     return {
         subject, surface: 'learning', outcome: `teach ${subject}`, scope: 'content',
+        // A learning candidate declares the learning path it proposes into. It
+        // is required: modules/<pathId>/ is the only place a module is listed,
+        // and gate-queue refuses a learning candidate without one.
+        pathId: 'agentic-systems-and-mcp',
         title: `How to teach ${term}`, term, level: 'intermediate',
         demandOccurrences: 12, demandSourceCount: 3,
         evidence: ['a:4', 'b:4', 'c:4'],

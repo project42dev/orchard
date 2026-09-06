@@ -118,6 +118,10 @@ export function candidatesFromOutcomes({ outcomes, probes, sources, gapThreshold
         const candidate = {
             subject,
             surface,
+            // The learning path this probe proposes into, declared on the probe
+            // itself. Load-bearing: without it a learning candidate has nowhere
+            // real to be published. See targetForCandidate in gate-queue.mjs.
+            pathId: probe.pathId ?? null,
             outcome: probe.outcome ?? `teach ${subject}`,
             scope: "content",
             title: probe.title ?? subject,

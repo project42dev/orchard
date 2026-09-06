@@ -76,10 +76,13 @@ code contradict the Verified column as it was then written:
 - **Every Track 1 learning item was refused at registration.** `discovery` was
   never a declared learning path in either target repository's `catalog.json`,
   so `registration.no-such-path` fired on every one. Fixed 2026-09-06.
-- **Live verification verified nothing.** `scripts/verify-published-live.mjs`
-  substituted a `{topic}` placeholder from a row that never carried one, so
-  `expectedUrl` returned "did not fully resolve" for every item and the check
-  reported success by checking nothing. Fixed 2026-09-06.
+- **Live verification verified nothing, while running.**
+  `scripts/verify-published-live.mjs` substituted a `{topic}` placeholder from a
+  row that never carried one, so `expectedUrl` returned "did not fully resolve"
+  for every item, no URL was ever fetched, and the `verification` phase of the
+  production runtime reported zero items serving on every run. Fixed 2026-09-06:
+  the route is derived from the item's own target path per surface, proven by
+  resolving real published items and fetching them.
 
 ### What cannot be determined from this repository
 
@@ -110,13 +113,19 @@ table.
 | Direct request intake (`seed-inputs/curriculum-requests.json`) | yes | yes | yes | yes |
 | Publication through protected-main pull requests | yes | yes | yes | yes |
 | Registration, so a published file is reachable | yes | yes | yes | **no.** Built 2026-08-19, after the defect it exists for. No full run has been observed since the 2026-09-06 learning-path fix |
-| Live verification that a published page really serves | yes | yes | **no** | **no.** Repaired 2026-09-06 and proven against the live site by hand. Nothing deployed invokes it yet |
+| Live verification that a published page really serves | yes | yes | yes | **no.** It IS reachable — `orchard-production-runtime.mjs` runs it as the `verification` phase — and until 2026-09-06 it resolved a URL for no item at all, so every run reported 0 serving. Repaired and proven against the live portal by hand; no production run has been observed since |
 | Consumer site version bumping and release gate | yes | yes | yes | yes |
 | Portable single-template deployment | yes | yes | yes | yes |
 
-Two rows are deliberately not green. A check that has been repaired but never
-run by the deployed system is exactly the thing this page exists to keep apart
-from a check that is working.
+Two rows are deliberately not green. A check that has been repaired but not yet
+observed working in production is exactly the thing this page exists to keep
+apart from a check that is working.
+
+The live-verification row is worth reading twice. The check was **connected all
+along** — `run-verification.mjs` is a phase of the production runtime — which is
+precisely why the defect mattered: it ran, and it reported zero items serving
+every time, because it could not build a URL for any of them. A disconnected
+check is inert. A connected check that measures nothing is believed.
 
 ## What was claimed on 2026-08-20
 
