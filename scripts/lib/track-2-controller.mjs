@@ -351,7 +351,7 @@ export async function runTrack2(options) {
     // corpus. Findings from partitions that completed before an unrelated
     // failure stopped the run ARE persisted, exactly as a Track 1 survey keeps
     // the candidates it validated before a later fetch failed.
-    let findings = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, items: [], existing: [] };
+    let findings = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, superseded: 0, items: [], existing: [] };
     if (options.mode !== "dry-run" && options.stateStore) {
         const observedAt = (options.now?.() ?? new Date()).toISOString();
         const candidates = currencyFindingCandidates(items, outcomes, observedAt);
@@ -371,6 +371,7 @@ export async function runTrack2(options) {
                 persisted: findings.persisted,
                 alreadyKnown: findings.skipped,
                 reproposed: findings.reproposed,
+                superseded: findings.superseded,
                 failed: findings.failed,
             });
         }

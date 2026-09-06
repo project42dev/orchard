@@ -24,9 +24,38 @@ export class StateConflictError extends Error {
     }
 }
 
+// How deep each connection currently sits inside transaction(). Every record*
+// method opens its own transaction and always did; runLinkedWrites (below) is
+// the only caller that nests them, so a depth above zero means someone
+// deliberately asked for several records to commit together, and the inner
+// call must JOIN that unit of work rather than begin and commit its own.
+const transactionDepth = new WeakMap();
+
 function transaction(db, operation, options = {}) {
+    const depth = transactionDepth.get(db) ?? 0;
+    if (depth > 0) {
+        // Nested: a savepoint, so an inner failure unwinds exactly the inner
+        // writes and leaves the outer unit of work intact to fail or succeed
+        // on its own terms.
+        const savepoint = `orchard_nested_${depth}`;
+        transactionDepth.set(db, depth + 1);
+        try {
+            db.exec(`SAVEPOINT ${savepoint}`);
+            try {
+                const result = operation();
+                db.exec(`RELEASE ${savepoint}`);
+                return result;
+            } catch (error) {
+                try { db.exec(`ROLLBACK TO ${savepoint}`); db.exec(`RELEASE ${savepoint}`); } catch { /* savepoint already unwound */ }
+                throw error;
+            }
+        } finally {
+            transactionDepth.set(db, depth);
+        }
+    }
     options.onStage?.("transaction-beginning");
     db.exec("BEGIN IMMEDIATE");
+    transactionDepth.set(db, 1);
     options.onStage?.("transaction-begun");
     try {
         const result = operation();
@@ -35,6 +64,8 @@ function transaction(db, operation, options = {}) {
     } catch (error) {
         try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
         throw error;
+    } finally {
+        transactionDepth.set(db, 0);
     }
 }
 
@@ -86,6 +117,43 @@ export class StateStore {
     close() {
         if (this.ownsDatabase && this.db) this.db.close();
         this.db = null;
+    }
+
+    /**
+     * Commit several record* writes as ONE unit, with foreign keys checked at
+     * the commit rather than at each statement.
+     *
+     * WHY THIS EXISTS. Supersession is circular by construction. The old
+     * item's superseded_by_item_id points FORWARD at its successor, and the
+     * partial unique index refuses to let the successor exist while the old
+     * item still occupies the subject. So the transition must be written
+     * before the successor row, and the transition's own foreign key cannot
+     * be satisfied until the successor row exists. SQLite's own answer is
+     * defer_foreign_keys, which holds every foreign key check until COMMIT --
+     * and it is switched off automatically at each COMMIT or ROLLBACK, so it
+     * cannot leak past this call.
+     *
+     * The operation is awaited with the transaction open. That is safe here
+     * and only here: the awaits inside record* are schema validation, not I/O
+     * against this database, and the caller holds the blob coordination lease
+     * that makes it the single writer for the whole run.
+     */
+    async runLinkedWrites(operation) {
+        const db = this.db;
+        if (transactionDepth.get(db)) throw new StateConflictError("linked writes cannot be nested");
+        db.exec("BEGIN IMMEDIATE");
+        db.exec("PRAGMA defer_foreign_keys = ON");
+        transactionDepth.set(db, 1);
+        try {
+            const result = await operation();
+            db.exec("COMMIT");
+            return result;
+        } catch (error) {
+            try { db.exec("ROLLBACK"); } catch { /* transaction already ended */ }
+            throw error;
+        } finally {
+            transactionDepth.set(db, 0);
+        }
     }
 
     provisionTrustAnchor(record) {

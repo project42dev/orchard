@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const MIGRATIONS_DIRECTORY = resolve(HERE, "..", "schema", "migrations");
-export const CURRENT_SCHEMA_VERSION = 9;
+export const CURRENT_SCHEMA_VERSION = 10;
 const MIGRATIONS = Object.freeze([
     { version: 2, name: "002-two-track-authority", file: "002-two-track-authority.sql" },
     { version: 3, name: "003-closure-evidence", file: "003-closure-evidence.sql" },
@@ -17,7 +17,8 @@ const MIGRATIONS = Object.freeze([
     { version: 6, name: "006-live-item-uniqueness", file: "006-live-item-uniqueness.sql" },
     { version: 7, name: "007-workflow-item-state-check", file: "007-workflow-item-state-check.sql" },
     { version: 8, name: "008-decision-event-per-item-uniqueness", file: "008-decision-event-per-item-uniqueness.sql" },
-    { version: 9, name: "009-rotate-gate-trust-anchor", file: "009-rotate-gate-trust-anchor.sql" }
+    { version: 9, name: "009-rotate-gate-trust-anchor", file: "009-rotate-gate-trust-anchor.sql" },
+    { version: 10, name: "010-superseded-item-uniqueness", file: "010-superseded-item-uniqueness.sql" }
 ]);
 
 function nowIso(now) {

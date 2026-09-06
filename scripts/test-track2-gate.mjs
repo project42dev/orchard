@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { announceGates } from './announce-gates.mjs';
 import { heldAtGate } from './lib/gate-queue.mjs';
+import { generateUuidV7 } from './lib/identity.mjs';
 import { openStateStore } from './lib/state-store.mjs';
 import {
     currencyCandidateFor,
@@ -273,6 +274,156 @@ test('corpus drift persists no findings, because the evidence describes a corpus
         assert.equal(result.status, 'failed');
         assert.equal(result.findings.persisted, 0);
         assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM workflow_item').get().n, 0);
+    } finally {
+        store.close();
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Supersession (2026-09-06). A currency finding's identity is its SUBJECT, not
+// its assessment, so the same file read differently a week later is the same
+// question changing, not a second question. Before migration 010 the partial
+// unique index counted a superseded item as still occupying its subject, so
+// the successor could never be written and the stale assessment sat at the
+// gate forever.
+// ---------------------------------------------------------------------------
+
+/** The mixed inspector, with named items' classifications swapped. */
+function reclassify(overrides) {
+    return (item) => ({
+        classification: overrides[item.stableId] ?? CLASSIFICATION_BY_ID[item.stableId] ?? 'evidence-backed-no-change',
+        evidence: [`digest:${item.digest}`, `source:${item.sourcePath}`],
+    });
+}
+
+/** One finding on one subject, so a test can move exactly one item about. */
+function singleFinding(classification) {
+    return (item) => ({
+        classification: item.stableId === 'learning-module:module-a' ? classification : 'evidence-backed-no-change',
+        evidence: [`digest:${item.digest}`],
+    });
+}
+
+async function deny(store, runId, itemId, reason) {
+    await store.recordTransition({
+        schema_version: '1.0.0',
+        transition_id: generateUuidV7(),
+        run_id: runId,
+        item_id: itemId,
+        item_revision: 1,
+        from_state: 'gate1-pending',
+        to_state: 'denied',
+        cause: 'decision-denied',
+        reason,
+        actor: 'test-fixture',
+        occurred_at: '2026-08-16T00:00:00.000Z',
+        correlation_id: runId,
+    });
+}
+
+test('a changed assessment supersedes the stale item instead of duplicating or ignoring it', async () => {
+    const root = platformFixture();
+    const store = stateEstate();
+    try {
+        const first = await runTrack2(runOptions(root, store));
+        assert.equal(first.findings.persisted, 4);
+        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'content/modules/module-a.json');
+        assert.equal(stale.category, 'update');
+
+        // The same file, a week later, read as needing removal rather than update.
+        const second = await runTrack2(runOptions(root, store, {
+            inspector: async (item) => reclassify({ 'learning-module:module-a': 'removal' })(item),
+        }));
+        assert.equal(second.findings.superseded, 1, 'exactly the one subject whose assessment changed');
+        assert.equal(second.findings.persisted, 1);
+        assert.equal(second.findings.skipped, 3, 'the three unchanged assessments are still the same question');
+
+        const held = heldAtGate(store.db, 'gate-1', 'track-2');
+        assert.equal(held.length, 4, 'the gate holds one item per subject, never two questions about one file');
+        const current = held.find((entry) => entry.target.path === 'content/modules/module-a.json');
+        assert.equal(current.category, 'removal', "the gate asks this week's question");
+        assert.notEqual(current.item_id, stale.item_id);
+        assert.ok(current.rationale.includes(stale.item_id), 'the gate says what this replaces');
+
+        const old = store.db.prepare('SELECT current_state, superseded_by_item_id FROM workflow_item WHERE item_id = ?').get(stale.item_id);
+        assert.equal(old.current_state, 'superseded');
+        assert.equal(old.superseded_by_item_id, current.item_id, 'the predecessor names its successor');
+        const fresh = store.db.prepare('SELECT supersedes_item_id FROM workflow_item WHERE item_id = ?').get(current.item_id);
+        assert.equal(fresh.supersedes_item_id, stale.item_id, 'lineage runs both ways');
+
+        const transitions = store.listTransitions(stale.item_id);
+        assert.equal(transitions.at(-1).to_state, 'superseded');
+        assert.equal(transitions.at(-1).cause, 'superseded', "the machine's own cause, not a raw UPDATE");
+
+        const verification = store.verify();
+        assert.ok(verification.ok, `integrity and foreign keys must hold across a supersession: ${JSON.stringify(verification)}`);
+    } finally {
+        store.close();
+    }
+});
+
+test('a changed assessment on a subject a human decided is skipped, never superseded', async () => {
+    const root = platformFixture();
+    const store = stateEstate();
+    try {
+        const first = await runTrack2(runOptions(root, store, { inspector: async (item) => singleFinding('update')(item) }));
+        const itemId = first.findings.items[0].item_id;
+        await deny(store, first.run.run_id, itemId, 'the owner does not want this file touched');
+
+        const second = await runTrack2(runOptions(root, store, { inspector: async (item) => singleFinding('removal')(item) }));
+        assert.equal(second.findings.persisted, 0, 'a denied subject is not re-proposed under a new classification');
+        assert.equal(second.findings.superseded, 0, 'a decision a machine can undo is not a decision');
+        assert.equal(second.findings.skipped, 1);
+        assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM workflow_item').get().n, 1);
+        assert.equal(store.db.prepare('SELECT current_state FROM workflow_item WHERE item_id = ?').get(itemId).current_state, 'denied');
+    } finally {
+        store.close();
+    }
+});
+
+test('a rejected finding does not reappear at the gate on any later cycle', async () => {
+    const root = platformFixture();
+    const store = stateEstate();
+    try {
+        const first = await runTrack2(runOptions(root, store, { inspector: async (item) => singleFinding('update')(item) }));
+        await deny(store, first.run.run_id, first.findings.items[0].item_id, 'rejected at Gate 1');
+        for (let cycle = 1; cycle <= 3; cycle += 1) {
+            const later = await runTrack2(runOptions(root, store, { inspector: async (item) => singleFinding('update')(item) }));
+            assert.equal(later.findings.persisted, 0, `cycle ${cycle} must propose nothing`);
+            assert.equal(heldAtGate(store.db, 'gate-1', 'track-2').length, 0, `cycle ${cycle} must hold nothing at the gate`);
+        }
+        assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM workflow_item').get().n, 1);
+    } finally {
+        store.close();
+    }
+});
+
+test('a decision aimed at a superseded item is refused by the lifecycle', async () => {
+    const root = platformFixture();
+    const store = stateEstate();
+    try {
+        const first = await runTrack2(runOptions(root, store));
+        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'content/modules/module-a.json');
+        await runTrack2(runOptions(root, store, {
+            inspector: async (item) => reclassify({ 'learning-module:module-a': 'removal' })(item),
+        }));
+        await assert.rejects(
+            store.recordTransition({
+                schema_version: '1.0.0',
+                transition_id: generateUuidV7(),
+                run_id: first.run.run_id,
+                item_id: stale.item_id,
+                item_revision: 1,
+                from_state: 'gate1-pending',
+                to_state: 'gate1-approved',
+                cause: 'decision-approved',
+                actor: 'test-fixture',
+                occurred_at: '2026-08-17T00:00:00.000Z',
+                correlation_id: first.run.run_id,
+            }),
+            /stale state/,
+            'approving the displaced question must not advance anything',
+        );
     } finally {
         store.close();
     }

@@ -138,6 +138,7 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
         { version: 7, name: '007-workflow-item-state-check' },
         { version: 8, name: '008-decision-event-per-item-uniqueness' },
         { version: 9, name: '009-rotate-gate-trust-anchor' },
+        { version: 10, name: '010-superseded-item-uniqueness' },
     ]);
     assert.ok(outcome.verification.ok, `post-migration verification: ${JSON.stringify(outcome.verification)}`);
 
@@ -150,7 +151,10 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
         // T17's partial unique index must survive the 007 rebuild.
         const index = store.db.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'ux_workflow_item_one_live_per_subject'").get();
         assert.ok(index, 'the one-live-item-per-subject index must survive the rebuild');
-        assert.match(index.sql, /current_state <> 'closed'/, 'the index must keep its partial WHERE clause');
+        // Migration 010 widened the predicate: a superseded item has a
+        // successor that IS the live occupant of the subject, so it no longer
+        // occupies it either. The invariant the index states is unchanged.
+        assert.ok(index.sql.includes("WHERE current_state NOT IN ('closed', 'superseded')"), 'the index must keep its partial WHERE clause');
 
         assert.throws(
             () => store.db.prepare('UPDATE workflow_item SET current_state = ? WHERE item_id = ?').run('made-up-state', itemId),

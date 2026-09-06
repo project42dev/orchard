@@ -275,10 +275,49 @@ function evidenceRecordsFor(candidate) {
  * thing the tool is for structurally impossible (remediation plan T17). A
  * subject whose only items are closed is open for a fresh proposal, which
  * enters as a NEW item at observed and earns every gate again.
+ *
+ * Amended 2026-09-06 (migration 010): 'superseded' joins 'closed' here. A
+ * superseded item HAS a successor, and that successor is the live occupant of
+ * the subject, so counting the superseded predecessor as live too would report
+ * two live items for one subject and block the successor from ever existing.
  */
 export function findLiveItem(db, track, semanticIdentity) {
-    return db.prepare("SELECT item_id, current_state, current_revision FROM workflow_item WHERE track = ? AND semantic_identity = ? AND current_state <> 'closed'")
+    return db.prepare("SELECT item_id, current_state, current_revision, outcome FROM workflow_item WHERE track = ? AND semantic_identity = ? AND current_state NOT IN ('closed', 'superseded')")
         .get(track, semanticIdentity) ?? null;
+}
+
+/**
+ * Whether a live item at Gate 1 should be replaced by this candidate.
+ *
+ * THE RULE, and why it is this narrow.
+ *
+ * A currency finding's semantic identity is the canonical item it is about,
+ * deliberately not the classification, so one published file can only have one
+ * currency question in front of a human at a time. That makes a CHANGED
+ * assessment ambiguous: the subject is the same, the question is not. Asking
+ * the owner last week's question about this week's content is wrong, and
+ * putting a second item beside it asks two contradictory questions about one
+ * file. So a changed assessment supersedes.
+ *
+ * Only the classification counts as a change. Evidence prose varies run to
+ * run for reasons that are not a change of assessment (an inspector rewording
+ * itself, a digest line moving), and superseding on that would churn a fresh
+ * item at the gate every cycle for a finding nobody's understanding of has
+ * moved. Same classification, different evidence: the item stays, and the
+ * owner is answering the same question they already have in front of them.
+ *
+ * Only an item still at gate1-pending is superseded. Anything further along
+ * has had real money or a human decision spent on it -- an approved item is
+ * being authored, a denied item is a human's "no" that a machine may not
+ * undo, a deferred item is a human's "not yet". Those keep occupying the
+ * subject and the new observation is skipped and logged, exactly as an
+ * unchanged assessment is.
+ */
+export function supersessionTarget(existing, candidate) {
+    if (!existing) return null;
+    if (existing.current_state !== "gate1-pending") return null;
+    const proposedOutcome = candidate.category ?? OUTCOME_BY_SURFACE[candidate.surface];
+    return existing.outcome === proposedOutcome ? null : existing;
 }
 
 /**
@@ -310,11 +349,12 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
     if (!store) throw new TypeError("persistDiscoveryItems requires an open state store");
     const timestamp = now ?? new Date().toISOString();
     const cost = estimatedItemCostUsd(env);
-    const result = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, items: [], existing: [] };
+    const result = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, superseded: 0, items: [], existing: [] };
 
     for (const candidate of candidates) {
         const existing = findLiveItem(store.db, track, candidate.semanticIdentity);
-        if (existing) {
+        const supersede = supersessionTarget(existing, candidate);
+        if (existing && !supersede) {
             result.skipped += 1;
             result.existing.push({ semanticIdentity: candidate.semanticIdentity, state: existing.current_state });
             log("info", "gate1.item.known", {
@@ -330,7 +370,11 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
         // same demand afterwards. The new item records the lineage and the
         // gate issue says so, because "we published this once already" is
         // material to the decision being asked for.
-        const predecessor = latestClosedItem(store.db, track, candidate.semanticIdentity);
+        // A live item being superseded is itself the predecessor: the lineage
+        // question is "which item does this one replace", and a changed
+        // assessment replaces the stale one it displaces, not some older
+        // closed item behind it.
+        const predecessor = supersede ?? latestClosedItem(store.db, track, candidate.semanticIdentity);
 
         // Building the proposal is inside the try for the same reason the
         // writes are: a probe with a surface nothing can place threw here and
@@ -347,9 +391,11 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
             // is a lie when the candidate is a currency finding about content
             // that already exists.
             const baseRationale = candidate.rationale ?? rationaleFor(candidate);
-            const rationale = predecessor
-                ? `${baseRationale} This subject has been through the lifecycle before: item ${predecessor.item_id} is closed, and this proposal supersedes it as a fresh item with a fresh decision.`
-                : baseRationale;
+            const rationale = supersede
+                ? `${baseRationale} This replaces item ${supersede.item_id}, which was held at this gate proposing "${supersede.outcome}" for the same subject and has been superseded: the assessment changed to "${proposal.category}", so the earlier question is no longer the one to answer.`
+                : predecessor
+                    ? `${baseRationale} This subject has been through the lifecycle before: item ${predecessor.item_id} is closed, and this proposal supersedes it as a fresh item with a fresh decision.`
+                    : baseRationale;
             manifestItem = {
                 item_id: itemId,
                 item_revision: 1,
@@ -367,55 +413,84 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
                 estimated_cost: { currency: "USD", amount: cost },
                 decision_state: "pending",
             };
-            await store.recordItem({
-                schema_version: "1.0.0",
-                item_id: itemId,
-                run_id: runId,
-                track,
-                item_revision: 1,
-                semantic_identity: candidate.semanticIdentity,
-                surface: candidate.surface,
-                outcome: proposal.category,
-                state: "observed",
-                proposal_digest: proposalDigest,
-                artifact_digest: null,
-                target,
-                evidence: evidenceRecordsFor(candidate),
-                supersedes_item_id: predecessor?.item_id ?? null,
-                created_at: timestamp,
-                updated_at: timestamp,
-            });
-            for (const [from, to, cause] of [["observed", "proposed", "observation-recorded"], ["proposed", "gate1-pending", "proposal-ready"]]) {
-                await store.recordTransition({
+            // One unit of work. Displacing the stale item and holding its
+            // replacement are the same decision, and a crash between them
+            // would either leave the subject empty at the gate (superseded
+            // with no successor) or leave an item stranded at 'observed' that
+            // nothing announces and nothing can advance. Both were possible
+            // before this was a single transaction.
+            await store.runLinkedWrites(async () => {
+                // The old item goes first: the partial unique index refuses a
+                // second live item for the subject, so the replacement cannot
+                // exist until the stale one stops occupying it. The forward
+                // foreign key on superseded_by_item_id is what runLinkedWrites
+                // defers to the commit.
+                if (supersede) {
+                    await store.recordTransition({
+                        schema_version: "1.0.0",
+                        transition_id: generateUuidV7(),
+                        run_id: runId,
+                        item_id: supersede.item_id,
+                        item_revision: Number(supersede.current_revision),
+                        from_state: supersede.current_state,
+                        to_state: "superseded",
+                        cause: "superseded",
+                        superseding_item_id: itemId,
+                        actor: `orchard-${track}-controller`,
+                        occurred_at: timestamp,
+                        correlation_id: runId,
+                    });
+                }
+                await store.recordItem({
                     schema_version: "1.0.0",
-                    transition_id: generateUuidV7(),
+                    item_id: itemId,
+                    run_id: runId,
+                    track,
+                    item_revision: 1,
+                    semantic_identity: candidate.semanticIdentity,
+                    surface: candidate.surface,
+                    outcome: proposal.category,
+                    state: "observed",
+                    proposal_digest: proposalDigest,
+                    artifact_digest: null,
+                    target,
+                    evidence: evidenceRecordsFor(candidate),
+                    supersedes_item_id: predecessor?.item_id ?? null,
+                    created_at: timestamp,
+                    updated_at: timestamp,
+                });
+                for (const [from, to, cause] of [["observed", "proposed", "observation-recorded"], ["proposed", "gate1-pending", "proposal-ready"]]) {
+                    await store.recordTransition({
+                        schema_version: "1.0.0",
+                        transition_id: generateUuidV7(),
+                        run_id: runId,
+                        item_id: itemId,
+                        item_revision: 1,
+                        from_state: from,
+                        to_state: to,
+                        cause,
+                        actor: `orchard-${track}-controller`,
+                        occurred_at: timestamp,
+                        correlation_id: runId,
+                    });
+                }
+                // The gate issue needs a title, a rationale, a score and a cost.
+                // None of them fit in the item record, whose schema is closed, and
+                // an item held from an earlier run has to announce itself just as
+                // well as one held from this run. So the manifest entry is recorded
+                // as evidence about the item, which is what it is, and the gate
+                // reads it back from the database rather than from memory.
+                await store.recordObservation({
+                    observation_id: generateUuidV7(),
                     run_id: runId,
                     item_id: itemId,
                     item_revision: 1,
-                    from_state: from,
-                    to_state: to,
-                    cause,
-                    actor: `orchard-${track}-controller`,
-                    occurred_at: timestamp,
-                    correlation_id: runId,
+                    evidence_reference: `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${itemId}`,
+                    evidence_digest: sha256Digest(manifestItem),
+                    observed_at: timestamp,
+                    gate: "gate-1",
+                    manifest_item: manifestItem,
                 });
-            }
-            // The gate issue needs a title, a rationale, a score and a cost.
-            // None of them fit in the item record, whose schema is closed, and
-            // an item held from an earlier run has to announce itself just as
-            // well as one held from this run. So the manifest entry is recorded
-            // as evidence about the item, which is what it is, and the gate
-            // reads it back from the database rather than from memory.
-            await store.recordObservation({
-                observation_id: generateUuidV7(),
-                run_id: runId,
-                item_id: itemId,
-                item_revision: 1,
-                evidence_reference: `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${itemId}`,
-                evidence_digest: sha256Digest(manifestItem),
-                observed_at: timestamp,
-                gate: "gate-1",
-                manifest_item: manifestItem,
             });
         } catch (error) {
             result.failed += 1;
@@ -430,7 +505,17 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
 
         result.persisted += 1;
         result.items.push(manifestItem);
-        if (predecessor) {
+        if (supersede) {
+            result.superseded += 1;
+            log("info", "gate1.item.superseded", {
+                semanticIdentity: candidate.semanticIdentity,
+                itemId: manifestItem.item_id,
+                supersedesItemId: supersede.item_id,
+                priorOutcome: supersede.outcome,
+                outcome: manifestItem.category,
+                effect: "the stale assessment left Gate 1; its replacement is held there instead",
+            });
+        } else if (predecessor) {
             result.reproposed += 1;
             log("info", "gate1.item.reproposed", {
                 semanticIdentity: candidate.semanticIdentity,
@@ -445,6 +530,7 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
         persisted: result.persisted,
         alreadyKnown: result.skipped,
         reproposed: result.reproposed,
+        superseded: result.superseded,
         failed: result.failed,
         candidates: candidates.length,
     });
