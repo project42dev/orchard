@@ -514,8 +514,14 @@ export async function runTrack1(options) {
             reason: entry.reason ?? null,
             status: entry.status ?? null,
         })).sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
+        // The approval is carried, not only the prose reason: "retired",
+        // "rejected" and "pending" are three different stories about why a
+        // source is out of the denominator, and the run summary has to be able
+        // to say which one rather than flattening all three to "disabled".
         disabled: registry.sources.filter((source) => !source.enabled).map((source) => ({
             sourceId: source.id,
+            label: source.label ?? source.id,
+            approval: source.policy?.approval ?? null,
             reason: source.policy?.statusReason ?? null,
         })).sort((left, right) => left.sourceId.localeCompare(right.sourceId)),
         causes: {},

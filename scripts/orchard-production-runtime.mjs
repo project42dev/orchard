@@ -15,7 +15,7 @@ import { openStateStore } from "./lib/state-store.mjs";
 import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
-import { announceZeroDeltaSummary, isZeroDeltaRun } from "./lib/run-summary.mjs";
+import { announceRunSummary, runVerdict } from "./lib/run-summary.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles } from "./lib/job-chain.mjs";
@@ -223,72 +223,91 @@ async function runAzure(track, log) {
         await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
 
         const common = ["--mode", required("ORCHARD_RUN_MODE"), "--state-db", state.path, "--implementation-commit", required("ORCHARD_IMPLEMENTATION_COMMIT"), "--trigger-type", required("ORCHARD_TRIGGER_TYPE"), "--trigger-reference", process.env.ORCHARD_TRIGGER_REFERENCE ?? execution, "--actor-kind", required("ORCHARD_ACTOR_KIND"), "--actor-reference", process.env.ORCHARD_ACTOR_REFERENCE ?? execution, "--out", join(root, `${track}-controller-output.json`)];
-        if (track === "track-1") {
-            const registry = await downloadBoundArtifact(clients.artifacts, required("ORCHARD_SOURCE_REGISTRY_BLOB"), required("ORCHARD_SOURCE_REGISTRY_DIGEST"), join(root, "source-registry.json"), integer("ORCHARD_MAX_SOURCE_REGISTRY_BYTES", 4_194_304));
-            loadApprovedSourceRegistry(JSON.parse(readFileSync(registry, "utf8")), { allowLegacyMetadata: false, requirePolicyReview: true, expectedDigest: required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST") });
-            // Probes ship in the image rather than the artifacts container:
-            // they say what to measure, not what is approved to be fetched, so
-            // they are not a governed input and do not need a bound digest.
-            // Absent, the controller surveys and records but proposes nothing,
-            // and says so rather than reporting zero candidates in silence.
-            const probes = process.env.ORCHARD_PROBES_PATH && existsSync(process.env.ORCHARD_PROBES_PATH)
-                ? ["--probes", process.env.ORCHARD_PROBES_PATH]
-                : [];
-            await runController(track, ["--track", track, ...common, "--source-registry", registry, "--registry-digest", required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST"), "--content-commit", required("ORCHARD_CONTENT_COMMIT"), "--max-sources", process.env.ORCHARD_MAX_SOURCES ?? "100", "--max-failures", process.env.ORCHARD_MAX_FAILURES ?? "5", ...probes], log);
-        } else {
-            const commit = required("ORCHARD_CONTENT_COMMIT");
-            const platformRoot = await materializeCorpusSnapshot({ containerClient: clients.artifacts, archiveBlob: required("ORCHARD_CORPUS_ARCHIVE_BLOB"), manifestBlob: required("ORCHARD_CORPUS_MANIFEST_BLOB"), expectedCommit: commit, destination: join(root, "platform"), maxArchiveBytes: integer("ORCHARD_MAX_CORPUS_ARCHIVE_BYTES", 268_435_456) });
-            const items = enumerateCanonicalCorpus(platformRoot, commit);
-            if (items.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`production Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${items.length}`);
-            const runId = generateUuidV7();
-            const startedAt = new Date().toISOString();
-            const concurrency = integer("ORCHARD_INSPECTION_CONCURRENCY", 4);
-            const runOptions = {
-                mode: required("ORCHARD_RUN_MODE"), partitionSize: 50, concurrency, subsetIds: [], runId,
-                contentCommit: commit, implementationCommit: required("ORCHARD_IMPLEMENTATION_COMMIT"),
-                triggerType: required("ORCHARD_TRIGGER_TYPE"), triggerReference: process.env.ORCHARD_TRIGGER_REFERENCE ?? execution,
-                actorKind: required("ORCHARD_ACTOR_KIND"), actorReference: process.env.ORCHARD_ACTOR_REFERENCE ?? execution,
-            };
-            const preflightStore = openStateStore(state.path);
-            try {
-                log("info", "track2.state.preflight-recording");
-                const coverage = { expected: items.length, enumerated: items.length, inspected: 0, gaps: items.length };
-                await preflightStore.recordRun(createTrack2RunRecord(runOptions, coverage, "running", startedAt, null), {
-                    onStage: (stage, details) => log("info", `track2.state.preflight.${stage}`, details),
+        // THE FAILING RUN MUST ANNOUNCE TOO.
+        //
+        // runController throws on any non-zero controller exit code, and exit
+        // 4 is precisely the below-coverage-threshold verdict. So the run that
+        // most needs to reach the owner -- a third of the approved sources
+        // silent -- died here and posted nothing, while a clean run posted a
+        // cheerful summary. That is the loud-path-louder, quiet-path-silent
+        // failure this whole change exists to remove.
+        //
+        // The controller writes its output file BEFORE it sets the exit code,
+        // so the coverage verdict is on disk either way. The error is captured,
+        // the summary is posted with the failure named at the top, and only
+        // then is it rethrown so the job still fails.
+        let controllerError = null;
+        try {
+            if (track === "track-1") {
+                const registry = await downloadBoundArtifact(clients.artifacts, required("ORCHARD_SOURCE_REGISTRY_BLOB"), required("ORCHARD_SOURCE_REGISTRY_DIGEST"), join(root, "source-registry.json"), integer("ORCHARD_MAX_SOURCE_REGISTRY_BYTES", 4_194_304));
+                loadApprovedSourceRegistry(JSON.parse(readFileSync(registry, "utf8")), { allowLegacyMetadata: false, requirePolicyReview: true, expectedDigest: required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST") });
+                // Probes ship in the image rather than the artifacts container:
+                // they say what to measure, not what is approved to be fetched, so
+                // they are not a governed input and do not need a bound digest.
+                // Absent, the controller surveys and records but proposes nothing,
+                // and says so rather than reporting zero candidates in silence.
+                const probes = process.env.ORCHARD_PROBES_PATH && existsSync(process.env.ORCHARD_PROBES_PATH)
+                    ? ["--probes", process.env.ORCHARD_PROBES_PATH]
+                    : [];
+                await runController(track, ["--track", track, ...common, "--source-registry", registry, "--registry-digest", required("ORCHARD_SOURCE_REGISTRY_CANONICAL_DIGEST"), "--content-commit", required("ORCHARD_CONTENT_COMMIT"), "--max-sources", process.env.ORCHARD_MAX_SOURCES ?? "100", "--max-failures", process.env.ORCHARD_MAX_FAILURES ?? "5", ...probes], log);
+            } else {
+                const commit = required("ORCHARD_CONTENT_COMMIT");
+                const platformRoot = await materializeCorpusSnapshot({ containerClient: clients.artifacts, archiveBlob: required("ORCHARD_CORPUS_ARCHIVE_BLOB"), manifestBlob: required("ORCHARD_CORPUS_MANIFEST_BLOB"), expectedCommit: commit, destination: join(root, "platform"), maxArchiveBytes: integer("ORCHARD_MAX_CORPUS_ARCHIVE_BYTES", 268_435_456) });
+                const items = enumerateCanonicalCorpus(platformRoot, commit);
+                if (items.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`production Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${items.length}`);
+                const runId = generateUuidV7();
+                const startedAt = new Date().toISOString();
+                const concurrency = integer("ORCHARD_INSPECTION_CONCURRENCY", 4);
+                const runOptions = {
+                    mode: required("ORCHARD_RUN_MODE"), partitionSize: 50, concurrency, subsetIds: [], runId,
+                    contentCommit: commit, implementationCommit: required("ORCHARD_IMPLEMENTATION_COMMIT"),
+                    triggerType: required("ORCHARD_TRIGGER_TYPE"), triggerReference: process.env.ORCHARD_TRIGGER_REFERENCE ?? execution,
+                    actorKind: required("ORCHARD_ACTOR_KIND"), actorReference: process.env.ORCHARD_ACTOR_REFERENCE ?? execution,
+                };
+                const preflightStore = openStateStore(state.path);
+                try {
+                    log("info", "track2.state.preflight-recording");
+                    const coverage = { expected: items.length, enumerated: items.length, inspected: 0, gaps: items.length };
+                    await preflightStore.recordRun(createTrack2RunRecord(runOptions, coverage, "running", startedAt, null), {
+                        onStage: (stage, details) => log("info", `track2.state.preflight.${stage}`, details),
+                    });
+                    log("info", "track2.state.preflight-recorded");
+                } finally {
+                    preflightStore.close();
+                }
+                const policy = verifyInspectionPolicy(required("ORCHARD_INSPECTION_POLICY"), required("ORCHARD_INSPECTION_POLICY_DIGEST"));
+                const maxOutputTokens = integer("ORCHARD_MAX_OUTPUT_TOKENS", 1200);
+                const maxInputBytes = integer("ORCHARD_MAX_INSPECTION_INPUT_BYTES", 200_000);
+                const maxRequests = integer("ORCHARD_MAX_FOUNDRY_REQUESTS", 1000);
+                const inputRate = positiveNumber("ORCHARD_FOUNDRY_INPUT_USD_PER_MILLION_TOKENS");
+                const outputRate = positiveNumber("ORCHARD_FOUNDRY_OUTPUT_USD_PER_MILLION_TOKENS");
+                const requestOverheadTokens = integer("ORCHARD_FOUNDRY_REQUEST_OVERHEAD_TOKENS", 4000);
+                const estimate = estimateFoundryInspectionCost({ items, platformRoot, policy, maxInputBytes, maxOutputTokens, maxRequests, requestOverheadTokens, inputUsdPerMillionTokens: inputRate, outputUsdPerMillionTokens: outputRate });
+                const spendCap = positiveNumber("ORCHARD_MAX_FOUNDRY_SPEND_USD");
+                if (estimate.estimatedUsd > spendCap) throw new Error(`Foundry pessimistic cost estimate ${estimate.estimatedUsd.toFixed(4)} exceeds run cap ${spendCap.toFixed(4)}`);
+                log("info", "foundry.budget.accepted", { requestCount: estimate.requestCount, inputTokenUpperBound: estimate.inputTokenUpperBound, outputTokenUpperBound: estimate.outputTokenUpperBound, estimatedUsd: Number(estimate.estimatedUsd.toFixed(6)), spendCapUsd: spendCap });
+                const producer = createFoundryInspectionProducer({ endpoint: required("ORCHARD_FOUNDRY_ENDPOINT"), deployment: required("ORCHARD_FOUNDRY_DEPLOYMENT"), managedIdentityClientId: required("AZURE_CLIENT_ID"), policy, maxInputBytes, maxOutputTokens, maxRequests, maxTotalInputTokens: estimate.inputTokenUpperBound, maxTotalOutputTokens: estimate.outputTokenUpperBound, maxSpendUsd: spendCap, requestOverheadTokens, inputUsdPerMillionTokens: inputRate, outputUsdPerMillionTokens: outputRate });
+                const results = join(root, "inspection-results.json");
+                const inspectionResults = await produceInspectionResultFile({
+                    items,
+                    platformRoot,
+                    producer,
+                    outputPath: results,
+                    concurrency,
+                    onProgress: ({ completed, total }) => log("info", "foundry.inspection.progress", { completed, total }),
                 });
-                log("info", "track2.state.preflight-recorded");
-            } finally {
-                preflightStore.close();
+                const usage = summarizeFoundryInspectionUsage(inspectionResults, inputRate, outputRate);
+                log("info", "foundry.usage.completed", {
+                    requestCount: usage.requestCount,
+                    inputTokens: usage.inputTokens,
+                    outputTokens: usage.outputTokens,
+                    actualUsd: Number(usage.actualUsd.toFixed(6)),
+                });
+                await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--run-id", runId, "--started-at", startedAt, "--partition-size", "50", "--concurrency", String(concurrency)], log);
             }
-            const policy = verifyInspectionPolicy(required("ORCHARD_INSPECTION_POLICY"), required("ORCHARD_INSPECTION_POLICY_DIGEST"));
-            const maxOutputTokens = integer("ORCHARD_MAX_OUTPUT_TOKENS", 1200);
-            const maxInputBytes = integer("ORCHARD_MAX_INSPECTION_INPUT_BYTES", 200_000);
-            const maxRequests = integer("ORCHARD_MAX_FOUNDRY_REQUESTS", 1000);
-            const inputRate = positiveNumber("ORCHARD_FOUNDRY_INPUT_USD_PER_MILLION_TOKENS");
-            const outputRate = positiveNumber("ORCHARD_FOUNDRY_OUTPUT_USD_PER_MILLION_TOKENS");
-            const requestOverheadTokens = integer("ORCHARD_FOUNDRY_REQUEST_OVERHEAD_TOKENS", 4000);
-            const estimate = estimateFoundryInspectionCost({ items, platformRoot, policy, maxInputBytes, maxOutputTokens, maxRequests, requestOverheadTokens, inputUsdPerMillionTokens: inputRate, outputUsdPerMillionTokens: outputRate });
-            const spendCap = positiveNumber("ORCHARD_MAX_FOUNDRY_SPEND_USD");
-            if (estimate.estimatedUsd > spendCap) throw new Error(`Foundry pessimistic cost estimate ${estimate.estimatedUsd.toFixed(4)} exceeds run cap ${spendCap.toFixed(4)}`);
-            log("info", "foundry.budget.accepted", { requestCount: estimate.requestCount, inputTokenUpperBound: estimate.inputTokenUpperBound, outputTokenUpperBound: estimate.outputTokenUpperBound, estimatedUsd: Number(estimate.estimatedUsd.toFixed(6)), spendCapUsd: spendCap });
-            const producer = createFoundryInspectionProducer({ endpoint: required("ORCHARD_FOUNDRY_ENDPOINT"), deployment: required("ORCHARD_FOUNDRY_DEPLOYMENT"), managedIdentityClientId: required("AZURE_CLIENT_ID"), policy, maxInputBytes, maxOutputTokens, maxRequests, maxTotalInputTokens: estimate.inputTokenUpperBound, maxTotalOutputTokens: estimate.outputTokenUpperBound, maxSpendUsd: spendCap, requestOverheadTokens, inputUsdPerMillionTokens: inputRate, outputUsdPerMillionTokens: outputRate });
-            const results = join(root, "inspection-results.json");
-            const inspectionResults = await produceInspectionResultFile({
-                items,
-                platformRoot,
-                producer,
-                outputPath: results,
-                concurrency,
-                onProgress: ({ completed, total }) => log("info", "foundry.inspection.progress", { completed, total }),
-            });
-            const usage = summarizeFoundryInspectionUsage(inspectionResults, inputRate, outputRate);
-            log("info", "foundry.usage.completed", {
-                requestCount: usage.requestCount,
-                inputTokens: usage.inputTokens,
-                outputTokens: usage.outputTokens,
-                actualUsd: Number(usage.actualUsd.toFixed(6)),
-            });
-            await runController(track, ["--track", track, ...common, "--platform-root", platformRoot, "--content-commit", commit, "--inspection-results", results, "--run-id", runId, "--started-at", startedAt, "--partition-size", "50", "--concurrency", String(concurrency)], log);
+        } catch (error) {
+            controllerError = error;
+            log("error", "controller.failed", { track, reason: error.message, effect: "the run summary is still announced, naming the failure, and the job still fails" });
         }
         await assertCurrent();
         // Tell someone. Both gates hold work by state machine, which is
@@ -301,31 +320,39 @@ async function runAzure(track, log) {
         // this run wrote. It cannot throw: a run that did its work must not be
         // failed by a GitHub outage.
         const announced = await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
-        if (isZeroDeltaRun(announced)) {
-            let sourcesSurveyed = null;
-            let probesChecked = null;
-            try {
-                const outPath = join(root, `${track}-controller-output.json`);
-                if (existsSync(outPath)) {
-                    const outData = JSON.parse(readFileSync(outPath, "utf8"));
-                    sourcesSurveyed = outData.sources?.length ?? outData.outcomes?.length ?? null;
-                    probesChecked = outData.probes ?? outData.candidates?.length ?? null;
-                }
-            } catch { /* non-fatal */ }
 
-            const assignees = (process.env.ORCHARD_GATE_ACTORS ?? "13710532").split(",").map((s) => s.trim()).filter(Boolean);
-            await announceZeroDeltaSummary({
-                repo: process.env.ORCHARD_GITHUB_REPO ?? "project42dev/orchard",
-                track,
-                runId: execution,
-                executionName: execution,
-                sourcesSurveyed,
-                probesChecked,
-                token: gateToken,
-                assigneeIds: assignees,
-                log,
-            });
+        // The run summary, on EVERY run, carrying the whole verdict.
+        //
+        // It used to fire only on a zero-delta run, and it carried two numbers
+        // read out of the wrong fields: `sources` for a track whose output has
+        // none, `candidates` for a track that produces findings. So Track 2's
+        // summary said "Approved Sources Surveyed" about canonical items, or
+        // nothing at all, and neither track ever named a source that had gone
+        // silent. Coverage is now the same measurement the exit code is taken
+        // from, read out of the controller's own output file.
+        let verdict = null;
+        try {
+            const outPath = join(root, `${track}-controller-output.json`);
+            if (existsSync(outPath)) verdict = runVerdict({ track, output: JSON.parse(readFileSync(outPath, "utf8")) });
+            else log("warn", "summary.no-controller-output", { track, path: outPath, effect: "the summary is posted without coverage, and says so" });
+        } catch (error) {
+            log("warn", "summary.controller-output-unreadable", { track, reason: error.message });
         }
+        const assignees = (process.env.ORCHARD_GATE_ACTORS ?? "13710532").split(",").map((s) => s.trim()).filter(Boolean);
+        const repo = process.env.ORCHARD_GITHUB_REPO ?? "project42dev/orchard";
+        await announceRunSummary({
+            repo,
+            track,
+            runId: execution,
+            executionName: execution,
+            verdict,
+            announced,
+            controllerError: controllerError ? controllerError.message : null,
+            token: gateToken,
+            assigneeIds: assignees,
+            log,
+        });
+        if (controllerError) throw controllerError;
         return { statePath: state.path, value: { track } };
     });
     // This is the survey path, and specifically the one the instant

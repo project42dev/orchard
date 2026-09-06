@@ -9,7 +9,7 @@ This runbook describes standard operational procedures for Orchard in production
 Orchard runs on scheduled timers (1st of month for Track 1, 15th for Track 2), but either track can be triggered manually on demand via Azure CLI or Azure Portal.
 
 ### **Manual Track 1 (Discovery Survey)**
-To survey all enabled sources in `seed-inputs/approved-source-registry.json` and create Gate 1 opportunities or zero-delta summaries:
+To survey all enabled sources in `seed-inputs/approved-source-registry.json`, create Gate 1 opportunities, and post the run summary (every run posts one, carrying coverage, every silent source by name, and anything retired out of scope):
 
 ```bash
 az containerapp job start \
