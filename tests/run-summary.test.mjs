@@ -16,6 +16,7 @@ import {
 } from "../scripts/lib/run-summary.mjs";
 import { loadApprovedSourceRegistry, runTrack1 } from "../scripts/lib/track-1-controller.mjs";
 import { runTrack2 } from "../scripts/lib/track-2-controller.mjs";
+import { explainControllerError } from "../scripts/orchard-production-runtime.mjs";
 
 // WHAT THESE TESTS HOLD.
 //
@@ -175,6 +176,42 @@ test("a gate announcement that failed is named in the summary, not swallowed", (
     assert.ok(body.includes("issues/42"), "the gate issue is linked");
     assert.ok(body.includes("the announcement FAILED: GitHub returned 502"));
     assert.ok(body.includes("no issue was opened for it"));
+});
+
+// THE CASE THE RUNTIME ACTUALLY SENDS. Exit 4 IS the below-threshold verdict,
+// and runController turns any non-zero exit into a throw, so a real
+// below-coverage run arrives here with a controllerError AND a met:false
+// verdict. If the failure branch wins, the owner reads "RUN FAILED" and the
+// coverage statement is demoted into the detail -- the exact burial this change
+// exists to prevent.
+test("a below-threshold run leads with the coverage verdict even though it also failed", async () => {
+    const output = await track1Output({ plan: SILENT_PLAN });
+    const verdict = runVerdict({ track: "track-1", output });
+    const controllerError = "the run surveyed less of its approved list than the coverage threshold allows (exit code 4).";
+
+    assert.match(runSummaryTitle({ track: "track-1", verdict, announced: [], controllerError }), /BELOW/);
+
+    const body = renderRunSummary({
+        track: "track-1", runId: "run-below", verdict, announced: [], controllerError,
+        now: "2026-09-06T00:00:00.000Z",
+    });
+    const coverage = body.indexOf("is BELOW the");
+    const failure = body.indexOf("did not complete");
+    assert.notEqual(coverage, -1);
+    assert.notEqual(failure, -1);
+    assert.ok(coverage < failure, "the coverage verdict leads; the raw failure follows it as detail");
+    assert.ok(failure < body.indexOf("### What this run covered"), "both are above the detail");
+    assert.ok(body.includes("`source-000`"), "a failed run still names its silent sources");
+    assert.equal(body.includes("exit code 4"), true, "the raw cause is still there, as detail");
+});
+
+test("the exit code the runtime throws is translated into something a reader can act on", () => {
+    assert.equal(
+        explainControllerError(new Error("controller set exit code 4")),
+        "the run surveyed less of its approved list than the coverage threshold allows (exit code 4).",
+    );
+    assert.equal(explainControllerError(null), null);
+    assert.equal(explainControllerError(new Error("ENOENT")), "ENOENT", "an unmapped failure is passed through unchanged");
 });
 
 test("a run that died before finishing still announces, with the failure at the top", () => {

@@ -224,27 +224,37 @@ function gateSection({ announced, repo }) {
  * A below-threshold run reading like a quiet week is the failure this whole
  * change exists to stop, so the first line under the heading says so.
  */
+// THE COVERAGE VERDICT OUTRANKS THE RAW FAILURE, because in the case that
+// matters they are the same event described twice. Exit 4 IS below-threshold,
+// runController turns it into a throw, so a real below-coverage run arrives
+// here with BOTH set. Reporting "RUN FAILED: controller set exit code 4" and
+// demoting the coverage line into the detail is the same burial the plain
+// statement is supposed to prevent -- and "exit code 4" tells the owner
+// nothing. So the verdict leads and the raw error follows it as detail.
 export function verdictBanner({ verdict, controllerError }) {
-    if (controllerError) {
-        return `> ❌ **This run did not complete.** ${controllerError}`;
-    }
+    const lines = [];
     if (verdict && verdict.met === false) {
         const threshold = verdict.threshold === null ? "the configured threshold" : percent(verdict.threshold);
-        return `> ❌ **Coverage ${percent(verdict.ratio)} is BELOW the ${threshold} threshold.** The run ${verdict.measure} \`${verdict.evaluated}\` of \`${verdict.expected}\` ${verdict.unitPlural}. Everything below is measured against a run that did not see its whole scope, so a quiet result here is not evidence of a quiet week.`;
+        lines.push(`> ❌ **Coverage ${percent(verdict.ratio)} is BELOW the ${threshold} threshold.** The run ${verdict.measure} \`${verdict.evaluated}\` of \`${verdict.expected}\` ${verdict.unitPlural}. Everything below is measured against a run that did not see its whole scope, so a quiet result here is not evidence of a quiet week.`);
+    } else if (verdict && verdict.drift) {
+        lines.push("> ⚠️ **The corpus changed under the inspection.** Findings from this run were not persisted; the next clean run re-derives them.");
     }
-    if (verdict && verdict.drift) {
-        return "> ⚠️ **The corpus changed under the inspection.** Findings from this run were not persisted; the next clean run re-derives them.";
+    if (controllerError) {
+        lines.push(`> ❌ **This run did not complete.** ${controllerError}`);
     }
-    return null;
+    return lines.length === 0 ? null : lines.join("\n>\n");
 }
 
 export function runSummaryTitle({ track, verdict, announced, controllerError }) {
     const label = trackLabel(track);
     const prefix = `Orchard Run Summary: ${label} (${track})`;
-    if (controllerError) return `${prefix} — RUN FAILED`;
+    // Same precedence as the banner: when the verdict explains the failure, the
+    // verdict is the headline. "RUN FAILED" alone is only for a run that died
+    // with nothing measured.
     if (verdict && verdict.met === false) {
         return `${prefix} — coverage ${percent(verdict.ratio)}, BELOW the ${verdict.threshold === null ? "configured" : percent(verdict.threshold)} threshold`;
     }
+    if (controllerError) return `${prefix} — RUN FAILED`;
     const coverage = `coverage ${percent(verdict?.ratio)}`;
     // isZeroDeltaRun is the contract with announceGates() own return shape.
     // It is asserted here rather than re-derived, because the last time this

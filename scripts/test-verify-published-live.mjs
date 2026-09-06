@@ -316,6 +316,16 @@ const PATH_PAGE_STILL_LINKING = `${PATH_PAGE_WITHOUT}<a href="/learn/ai-foundati
      "a file deleted while the catalogue still links it is a listing that 404s, which is the defect the removal record calls worse than the stale content");
   ok(stillListed.reasons.some((r) => r.includes("still links")), "and the reason names the surviving link");
 
+  // A sibling whose id merely STARTS with the removed one is not a surviving
+  // link. Matching on substring would read it as one and fail a clean removal.
+  const siblingPrefix = await verifyOne(REMOVED_MODULE, CONFIG, {
+    fetchImpl: routed({
+      "/learn/ai-foundations/agents-and-guardrails": { status: 404, body: "not found" },
+      "/learn/ai-foundations": { body: PATH_PAGE_WITHOUT + `<a href="/learn/ai-foundations/agents-and-guardrails-advanced">More</a>` },
+    }),
+  });
+  ok(siblingPrefix.verified === true, "a sibling module whose id extends the removed one is not a surviving link to it");
+
   const listingBroken = await verifyOne(REMOVED_MODULE, CONFIG, {
     fetchImpl: routed({
       "/learn/ai-foundations/agents-and-guardrails": { status: 404, body: "not found" },

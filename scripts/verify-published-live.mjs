@@ -273,7 +273,11 @@ export async function verifyRemoved(item, surfaceConfig, { fetchImpl = fetch, ti
     return res;
   }
   const listingBody = decodeEntities(await listing.response.text());
-  if (listingBody.includes(route.path)) {
+  // The exact href, not a substring: /learn/x/agents-and-guardrails is a
+  // prefix of /learn/x/agents-and-guardrails-advanced, and a sibling module
+  // whose id starts with this one's would otherwise read as a surviving link.
+  // The `href="<path>"` form was confirmed live on the path pages 2026-09-06.
+  if (new RegExp(`href="${route.path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[/?#][^"]*)?"`).test(listingBody)) {
     res.verified = false;
     res.reasons.push(`the learning path ${route.listing} still links ${route.path}, so the catalogue entry outlived the file and that listing now 404s`);
   }

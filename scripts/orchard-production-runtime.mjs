@@ -160,6 +160,22 @@ export async function downloadBoundArtifact(container, blobName, expectedDigest,
     return destination;
 }
 
+// "controller set exit code 4" says nothing to the person reading the issue.
+// The exit codes are a documented vocabulary (discover-approved-sources.mjs
+// exitCodeFor), so they are translated once, here, on the way into the summary.
+const CONTROLLER_EXIT_MEANING = Object.freeze({
+    "2": "the controller failed outright",
+    "3": "the run did not complete the scope it was asked for",
+    "4": "the run surveyed less of its approved list than the coverage threshold allows",
+});
+
+export function explainControllerError(error) {
+    if (!error) return null;
+    const match = /^controller set exit code (\d+)$/.exec(error.message ?? "");
+    const meaning = match ? CONTROLLER_EXIT_MEANING[match[1]] : null;
+    return meaning ? `${meaning} (exit code ${match[1]}).` : error.message;
+}
+
 export async function runController(track, args, log) {
     log("info", "controller.loading");
     const module = await import(TRACK_ENTRY_POINTS[track] ?? ROLE_ENTRY_POINTS[track]);
@@ -347,7 +363,7 @@ async function runAzure(track, log) {
             executionName: execution,
             verdict,
             announced,
-            controllerError: controllerError ? controllerError.message : null,
+            controllerError: explainControllerError(controllerError),
             token: gateToken,
             assigneeIds: assignees,
             log,
