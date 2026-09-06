@@ -1,0 +1,262 @@
+name: Deploy runtime
+
+# WHAT THIS CLOSES. Until this workflow existed, nothing committed to this
+# repository ever reached production. The container images were rebuilt and the
+# Container Apps jobs re-pointed only by an operator running
+# project42dev-ops/deployment/Deploy-Orchard.ps1 from a workstation. Every
+# correctness fix merged here was inert until someone remembered to do that,
+# including for a scheduled run, which uses whatever image is deployed when the
+# cron fires.
+#
+# WHAT IT DOES. Builds both runtime images from this exact commit, tags them
+# with the commit SHA (never a floating tag: the estate was deliberately pinned
+# off :latest after a prior incident), resolves each tag to exactly one
+# immutable manifest digest, re-points every runtime job at that digest by
+# digest reference, and then reads every job back and fails unless it carries
+# the expected digest and commit. A half-applied rollout reports failure and
+# names each job it could not move.
+#
+# WHAT IT DELIBERATELY DOES NOT DO.
+#   * It deploys no infrastructure. The Bicep template, budget, alerts, role
+#     assignments and seeding remain Deploy-Orchard.ps1's job. This workflow
+#     only changes which image the existing jobs run.
+#   * It does not touch the SEED job. The seeding image carries staged
+#     artifacts (the corpus snapshot, its manifest, the approved source
+#     registry, seed-manifest.json) that Deploy-Orchard.ps1 stages into
+#     seed-inputs/ from the operator's own content checkout at release time.
+#     Those files are gitignored, so an image built from a repository checkout
+#     alone carries an empty seed-inputs/ and the seed job would fail its own
+#     bound-digest verification. Seeding stays a release action.
+#
+# HOW IT IS ARMED. The rollout job runs only when the repository variable
+# ORCHARD_DEPLOY_ENABLED is exactly 'true'. Unset, the job is skipped and
+# visible as skipped, not failed. This exists so merging this workflow does not
+# itself deploy, and so the owner arms production deliberately.
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+        inputs:
+            reason:
+                description: Why this rollout is being run by hand.
+                required: false
+                type: string
+
+# Two rollouts of the same estate must never interleave: the second would race
+# the first's job updates and the verification would read a mixture.
+concurrency:
+    group: orchard-deploy-runtime
+    cancel-in-progress: false
+
+permissions:
+    id-token: write
+    contents: read
+
+jobs:
+    rollout:
+        name: Build and roll out the runtime image
+        # Armed by the owner, never by a merge. See "HOW IT IS ARMED" above.
+        if: vars.ORCHARD_DEPLOY_ENABLED == 'true'
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+
+        env:
+            # Every estate-specific value is a repository variable with this
+            # operator's deployed value as the fallback, so an adopter re-points
+            # the workflow without editing it. They match
+            # project42dev-ops/deployment/orchard.deploy.jsonc and the naming
+            # scheme in infra/orchard.bicep.
+            RESOURCE_GROUP: ${{ vars.ORCHARD_RESOURCE_GROUP || 'rg-p42-orchard-prod-eus-01' }}
+            REGISTRY: ${{ vars.ORCHARD_REGISTRY_NAME || 'crp42orchprodeus01' }}
+            IMAGE_REPOSITORY: ${{ vars.ORCHARD_IMAGE_REPOSITORY || 'orchard-two-track' }}
+            AUTHORING_IMAGE_REPOSITORY: ${{ vars.ORCHARD_AUTHORING_IMAGE_REPOSITORY || 'orchard' }}
+            NAME_PREFIX: ${{ vars.ORCHARD_NAME_PREFIX || 'p42orch' }}
+            ENVIRONMENT_NAME: ${{ vars.ORCHARD_ENVIRONMENT_NAME || 'prod' }}
+            REGION_SHORT: ${{ vars.ORCHARD_REGION_SHORT || 'eus' }}
+            INSTANCE: ${{ vars.ORCHARD_INSTANCE || '01' }}
+            DEPLOY_TRACK_1: ${{ vars.ORCHARD_DEPLOY_TRACK_1 || 'true' }}
+
+        steps:
+            - name: Checkout the exact commit being deployed
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  persist-credentials: false
+
+            - name: Resolve the immutable release tag
+              id: release
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  # The tag IS the commit, exactly as Deploy-Orchard.ps1 uses
+                  # $implementationCommit. Never :latest: the estate was pinned
+                  # off floating tags deliberately, and a floating tag makes the
+                  # question "what is running" unanswerable after the fact.
+                  tag="${GITHUB_SHA}"
+                  if [[ ! "$tag" =~ ^[a-f0-9]{40}$ ]]; then
+                    echo "::error::refusing to tag an image with '$tag'; an exact lowercase 40-character commit is required"
+                    exit 1
+                  fi
+                  echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+            - name: Azure login (OIDC, no stored secret)
+              uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - name: Build and resolve both runtime images
+              id: images
+              shell: bash
+              env:
+                  TAG: ${{ steps.release.outputs.tag }}
+              run: |
+                  set -euo pipefail
+                  az config set extension.use_dynamic_install=yes_without_prompt --only-show-errors
+
+                  # Resolve a just-built tag to exactly ONE immutable manifest
+                  # digest. Rebuilding an existing tag leaves the previous
+                  # manifest in place untagged, so more or fewer than one match
+                  # means the registry is not in the state this rollout assumes
+                  # and nothing may be re-pointed at a guess.
+                  resolve_digest() {
+                    local repository="$1"
+                    local digest
+                    digest="$(az acr manifest list-metadata \
+                      --registry "$REGISTRY" --name "$repository" -o json \
+                      | jq -r --arg tag "$TAG" '[.[] | select(.tags != null and (.tags | index($tag)))] | if length == 1 then .[0].digest else "" end')"
+                    if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                      echo "::error::${repository}:${TAG} did not resolve to exactly one immutable image digest"
+                      exit 1
+                    fi
+                    printf '%s' "$digest"
+                  }
+
+                  az acr build \
+                    --resource-group "$RESOURCE_GROUP" --registry "$REGISTRY" \
+                    --image "${IMAGE_REPOSITORY}:${TAG}" \
+                    --file delivery/Dockerfile.two-track . --only-show-errors
+                  runtime_digest="$(resolve_digest "$IMAGE_REPOSITORY")"
+                  echo "runtime_digest=$runtime_digest" >> "$GITHUB_OUTPUT"
+                  echo "two-track image: ${IMAGE_REPOSITORY}:${TAG} -> ${runtime_digest}"
+
+                  # The authoring engine image is a different Dockerfile and a
+                  # different repository, so the survey and gate jobs never carry
+                  # pwsh's weight. Only the two authoring jobs run it. With
+                  # Track 1 undeployed the template collapses the authoring
+                  # image onto the two-track image, exactly as
+                  # infra/orchard.bicep's authoringEngineImage does, so this
+                  # collapses it the same way rather than building it twice.
+                  authoring_repository="$AUTHORING_IMAGE_REPOSITORY"
+                  if [[ "$DEPLOY_TRACK_1" == "true" ]]; then
+                    az acr build \
+                      --resource-group "$RESOURCE_GROUP" --registry "$REGISTRY" \
+                      --image "${authoring_repository}:${TAG}" \
+                      --file delivery/Dockerfile . --only-show-errors
+                    authoring_digest="$(resolve_digest "$authoring_repository")"
+                  else
+                    authoring_repository="$IMAGE_REPOSITORY"
+                    authoring_digest="$runtime_digest"
+                  fi
+                  echo "authoring_repository=$authoring_repository" >> "$GITHUB_OUTPUT"
+                  echo "authoring_digest=$authoring_digest" >> "$GITHUB_OUTPUT"
+                  echo "authoring image: ${authoring_repository}:${TAG} -> ${authoring_digest}"
+
+                  login_server="$(az acr show --name "$REGISTRY" --query loginServer -o tsv)"
+                  if [[ -z "$login_server" ]]; then
+                    echo "::error::could not read the registry login server"
+                    exit 1
+                  fi
+                  echo "login_server=$login_server" >> "$GITHUB_OUTPUT"
+
+            - name: Re-point every runtime job, then read every job back
+              shell: bash
+              env:
+                  TAG: ${{ steps.release.outputs.tag }}
+                  LOGIN_SERVER: ${{ steps.images.outputs.login_server }}
+                  RUNTIME_DIGEST: ${{ steps.images.outputs.runtime_digest }}
+                  AUTHORING_REPOSITORY: ${{ steps.images.outputs.authoring_repository }}
+                  AUTHORING_DIGEST: ${{ steps.images.outputs.authoring_digest }}
+              run: |
+                  set -euo pipefail
+
+                  job() { printf 'caj-%s-%s-%s-%s-%s' "$NAME_PREFIX" "$1" "$ENVIRONMENT_NAME" "$REGION_SHORT" "$INSTANCE"; }
+
+                  # The job -> image mapping is infra/orchard.bicep's, read off
+                  # the resources themselves: authoringJob and authoringJobTrack2
+                  # run authoringEngineImage, everything else runs jobImage.
+                  #
+                  # The SEED job is absent on purpose. See the header: its image
+                  # must carry release-staged artifacts that are not in this
+                  # repository, so CI must never re-point it.
+                  runtime_jobs=(t2-sch t2-man t2-g2p t2-pub t2-ver g2p pub ver)
+                  authoring_jobs=(t2-auth)
+                  if [[ "$DEPLOY_TRACK_1" == "true" ]]; then
+                    runtime_jobs+=(t1-sch t1-man)
+                    authoring_jobs+=(auth)
+                  fi
+
+                  declare -A expected=()
+                  for suffix in "${runtime_jobs[@]}"; do
+                    expected["$(job "$suffix")"]="${LOGIN_SERVER}/${IMAGE_REPOSITORY}@${RUNTIME_DIGEST}"
+                  done
+                  for suffix in "${authoring_jobs[@]}"; do
+                    expected["$(job "$suffix")"]="${LOGIN_SERVER}/${AUTHORING_REPOSITORY}@${AUTHORING_DIGEST}"
+                  done
+
+                  # Attempt EVERY job before failing. Aborting on the first
+                  # refusal would hide how much of the estate is stranded, and
+                  # the operator needs the whole list to decide what to do.
+                  failed=()
+                  for name in "${!expected[@]}"; do
+                    echo "::group::update ${name}"
+                    if az containerapp job update \
+                         --resource-group "$RESOURCE_GROUP" --name "$name" \
+                         --image "${expected[$name]}" \
+                         --set-env-vars "ORCHARD_IMPLEMENTATION_COMMIT=${TAG}" \
+                         --only-show-errors -o none; then
+                      echo "requested ${name} -> ${expected[$name]}"
+                    else
+                      echo "::error::could not update ${name}"
+                      failed+=("${name} (update refused)")
+                    fi
+                    echo "::endgroup::"
+                  done
+
+                  # Verification is separate from the request and reads the
+                  # deployed resource back, because "the command exited 0" is
+                  # not evidence the job runs the new image.
+                  {
+                    echo "| job | image | commit |"
+                    echo "| --- | --- | --- |"
+                  } >> "$GITHUB_STEP_SUMMARY"
+                  for name in "${!expected[@]}"; do
+                    observed="$(az containerapp job show --resource-group "$RESOURCE_GROUP" --name "$name" \
+                      --query 'properties.template.containers[0].image' -o tsv --only-show-errors || true)"
+                    observed_commit="$(az containerapp job show --resource-group "$RESOURCE_GROUP" --name "$name" \
+                      --query "properties.template.containers[0].env[?name=='ORCHARD_IMPLEMENTATION_COMMIT'].value | [0]" -o tsv --only-show-errors || true)"
+                    echo "| ${name} | ${observed:-unreadable} | ${observed_commit:-unset} |" >> "$GITHUB_STEP_SUMMARY"
+                    if [[ "$observed" != "${expected[$name]}" ]]; then
+                      echo "::error::${name} runs ${observed:-unreadable}, expected ${expected[$name]}"
+                      failed+=("${name} (image ${observed:-unreadable})")
+                    elif [[ "$observed_commit" != "$TAG" ]]; then
+                      echo "::error::${name} reports commit ${observed_commit:-unset}, expected ${TAG}"
+                      failed+=("${name} (commit ${observed_commit:-unset})")
+                    fi
+                  done
+
+                  if (( ${#failed[@]} > 0 )); then
+                    echo "::error::rollout of ${TAG} did not complete: ${#failed[@]} job(s) are not on the new image"
+                    printf '  - %s\n' "${failed[@]}"
+                    exit 1
+                  fi
+                  echo "every runtime job runs ${TAG}"
+
+            - name: State what this rollout did not do
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  echo 'This workflow re-points existing Container Apps jobs at a new image digest.'
+                  echo 'It deploys no infrastructure and it does not re-seed: the Bicep template, the budget, the alerts, the role assignments and the seeding job remain Deploy-Orchard.ps1 in project42dev-ops.'
+                  echo 'The seed job was deliberately not touched; its image must carry release-staged artifacts that are not in this repository.'

@@ -101,18 +101,25 @@ ContainerAppConsoleLogs_CL
 
 ## 4. Building & Deploying Updated Container Images
 
-When code or configuration is updated in the `orchard` repository, rebuild and push the production container image to Azure Container Registry:
+A merge to `main` builds both runtime images and re-points every runtime Container Apps job at the new image, through `.github/workflows/deploy-runtime.yml`. Nothing has to be run by hand for a code change to reach production.
+
+This section previously told an operator to build an `orchard:latest` tag and said the jobs pull that tag on each execution. Both statements were wrong and dangerous: the estate was deliberately pinned off floating tags after an incident, and every job is referenced by immutable manifest digest. There is no floating tag in this estate.
+
+**Arming the rollout.** The workflow's job runs only when the repository variable `ORCHARD_DEPLOY_ENABLED` is exactly `true`. Unset, it is skipped and shows as skipped, not failed, so merging never deploys by accident.
 
 ```bash
-# Run Azure Container Registry cloud build from repository root
-az acr build \
-  --registry crp42orchprodeus01 \
-  --image orchard:latest \
-  --file delivery/Dockerfile.two-track . \
-  --subscription be069ae1-fc96-4a07-9f8e-5994d83a137d
+gh variable set ORCHARD_DEPLOY_ENABLED --repo project42dev/orchard --body true
+gh workflow run "Deploy runtime" --repo project42dev/orchard
 ```
 
-The Container App Jobs pull `crp42orchprodeus01.azurecr.io/orchard:latest` on each execution.
+**What one rollout does.** Builds `orchard-two-track` (from `delivery/Dockerfile.two-track`) and `orchard` (from `delivery/Dockerfile`), both tagged with the exact commit; resolves each tag to exactly one manifest digest; updates each job's image to that digest and its `ORCHARD_IMPLEMENTATION_COMMIT` to the same commit; then reads every job back and fails, naming each stranded job, unless all of them carry the expected digest and commit.
+
+**What it deliberately does not do.**
+
+- No infrastructure. The Bicep template, budget, alerts and role assignments stay with `Deploy-Orchard.ps1` in `project42dev-ops/deployment`.
+- No seeding, and the **seed job is never re-pointed**. Its image must carry release-staged artifacts (`corpus.tar.gz`, `manifest.json`, `approved-source-registry.json`, `seed-manifest.json`) that `Deploy-Orchard.ps1` stages into `seed-inputs/` from the operator's own content checkout. Those files are gitignored, so a CI-built image carries an empty `seed-inputs/` and the seed job would fail its own bound-digest verification. Re-seed with `Deploy-Orchard.ps1`.
+
+**Identity and permissions.** The workflow authenticates with the repository's `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` / `AZURE_SUBSCRIPTION_ID` secrets over OIDC federation, with no stored credential. That principal needs a federated credential for subject `repo:project42dev/orchard:ref:refs/heads/main`, rights to schedule a registry build (`Microsoft.ContainerRegistry/registries/scheduleRun/action`, `listBuildSourceUploadUrl/action`, and image push), and `Microsoft.App/jobs/write` plus read on the runtime jobs. It is a different, more capable principal than the gate-comment starter, whose custom role carries only `Microsoft.App/jobs/start/action`.
 
 ---
 

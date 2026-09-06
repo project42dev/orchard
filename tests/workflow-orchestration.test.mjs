@@ -101,3 +101,59 @@ test("the curriculum request ingest is wired to run, and only reads", () => {
     // A partial conversion must not read as a clean run.
     assert.match(ingest, /Fail the run if any request was rejected/);
 });
+
+test("the deploy workflow rebuilds and re-points the runtime, immutably and loudly", () => {
+    // The gap this closes: nothing committed here reached production. There was
+    // no build on merge, no image push, and no job re-point, so every fix sat
+    // inert until an operator remembered to run Deploy-Orchard.ps1 by hand --
+    // including for a scheduled run, which uses whatever image is deployed when
+    // the cron fires.
+    const deploy = read("../.github/workflows/deploy-runtime.yml");
+    const document = parseDocument(deploy, { prettyErrors: true, uniqueKeys: true });
+    assert.deepEqual(document.errors, [], "the deploy workflow must be valid YAML");
+    const parsed = document.toJS();
+
+    // It runs on merge to main, and by hand.
+    assert.deepEqual(parsed.on.push.branches, ["main"]);
+    assert.equal(typeof parsed.on.workflow_dispatch, "object");
+    assert.equal(parsed.concurrency["cancel-in-progress"], false,
+        "two rollouts of one estate must never interleave");
+
+    // OIDC federation against the existing repository secrets, no stored
+    // credential, and every action pinned by commit like the others here.
+    assert.equal(parsed.permissions["id-token"], "write");
+    assert.equal(parsed.permissions.contents, "read");
+    for (const secret of ["AZURE_CLIENT_ID", "AZURE_TENANT_ID", "AZURE_SUBSCRIPTION_ID"]) {
+        assert.match(deploy, new RegExp(`secrets\.${secret}`), `${secret} must come from the repository secret`);
+    }
+    assert.doesNotMatch(deploy, /uses: [^\s]+@v\d/, "every action is pinned by commit");
+    assert.match(deploy, /persist-credentials: false/);
+
+    // Armed by the owner, not by a merge: an unset variable skips the job
+    // rather than failing it, and merging this workflow deploys nothing.
+    assert.equal(parsed.jobs.rollout.if, "vars.ORCHARD_DEPLOY_ENABLED == 'true'");
+
+    // Immutable by construction. The estate was pinned off floating tags after
+    // a prior incident; the tag is the commit and the jobs are re-pointed by
+    // digest, never by tag.
+    const deployCode = deploy.split(/\r?\n/).filter((line) => !/^\s*#/.test(line)).join("\n");
+    assert.doesNotMatch(deployCode, /:latest/, "no floating tag, ever");
+    assert.match(deploy, /tag="\$\{GITHUB_SHA\}"/);
+    assert.match(deploy, /\^\[a-f0-9\]\{40\}\$/, "the release tag is checked to be an exact commit");
+    assert.match(deploy, /\^sha256:\[a-f0-9\]\{64\}\$/, "each tag must resolve to exactly one immutable digest");
+    assert.match(deploy, /--image "\$\{expected\[\$name\]\}"/);
+    assert.match(deploy, /ORCHARD_IMPLEMENTATION_COMMIT=\$\{TAG\}/,
+        "a job re-pointed without its commit would report provenance it does not have");
+
+    // Fails loudly. Every job is attempted, every job is read back, and a
+    // partial rollout exits non-zero naming what is stranded.
+    assert.match(deploy, /az containerapp job show/, "the deployed resource is read back, not assumed");
+    assert.match(deploy, /exit 1/);
+    assert.doesNotMatch(deploy, /continue-on-error/);
+
+    // The seed job's image carries release-staged artifacts that are gitignored
+    // here, so a CI-built image would fail its own bound-digest verification.
+    // It must never appear in the rollout list.
+    assert.doesNotMatch(deploy, /runtime_jobs=\([^)]*seed/, "the seed job is never re-pointed by CI");
+    assert.match(deploy, /does not touch the SEED job/i, "and the reason is stated, not implied");
+});
