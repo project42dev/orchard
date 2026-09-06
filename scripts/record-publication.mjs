@@ -35,11 +35,13 @@
 //   - It refuses an item at 'denied'. Reversing that is a decision, not a
 //     bookkeeping step.
 
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { openStateStore } from './lib/state-store.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { readProposals, matchToWorkItem } from './ingest-proposals.mjs';
+import { announcePublishedRequest } from './ingest-curriculum-requests.mjs';
 
 export class PublicationError extends Error {
   constructor(detail, fix) {
@@ -60,6 +62,40 @@ export function findProposalFor(subjectId, runRecordDir) {
     if (match?.subjectId === subjectId) found = p;
   }
   return found;
+}
+
+/**
+ * The GitHub issue a learner filed that this publication answers, if any.
+ *
+ * WHY IT IS LOOKED UP HERE AND NOT CARRIED. `originatingIssue` is written onto
+ * the opportunity proposal by the curriculum-request ingest and survives into
+ * the opportunity registry, because merge-opportunity-proposals spreads the
+ * whole proposal. It does NOT survive further: briefs and authoring proposals
+ * are generated from workflow_item rows in the state database, which has no
+ * column for it. Rather than change the state schema (owned elsewhere), the
+ * registry is re-read at acceptance time and matched back by target path.
+ *
+ * Matching on the target path, not the id: the module file a request asks for
+ * is the same file the publication transaction writes, and that path is the
+ * one fact both sides genuinely share.
+ */
+export function findOriginatingIssue({ registryPath, targetPath, subjectId }) {
+  if (!registryPath || !existsSync(registryPath)) return null;
+  let registry;
+  try {
+    registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  const entries = (registry?.opportunities ?? []).filter(
+    (entry) => entry?.source === 'direct-curriculum-request' && entry?.originatingIssue,
+  );
+  const byPath = targetPath
+    ? entries.find((entry) => entry.targetPath === targetPath || String(targetPath).endsWith(String(entry.targetPath)))
+    : null;
+  if (byPath) return { entry: byPath, issue: byPath.originatingIssue };
+  const byId = subjectId ? entries.find((entry) => entry.id === subjectId || entry.id === `req-${subjectId}`) : null;
+  return byId ? { entry: byId, issue: byId.originatingIssue } : null;
 }
 
 export async function recordPublication({
@@ -165,7 +201,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args.db || !args.subject || !args['accepted-by']) {
     console.error('usage: record-publication.mjs --db <state.db> --subject <item-id-or-semantic-identity> --accepted-by <name>');
-    console.error('       [--run-records <dir>] [--note <text>] [--apply]');
+    console.error('       [--run-records <dir>] [--note <text>] [--opportunity-registry <file>] [--apply]');
     process.exit(2);
   }
 
@@ -209,6 +245,37 @@ async function main() {
     console.log('anyway. That is allowed and it is recorded. The disposition is kept as it was.');
   }
   if (!args.apply) console.log('\nDRY RUN. Nothing written. Pass --apply.');
+
+  // CLOSE THE LOOP. Someone asked for this module. Telling them it exists is
+  // part of publishing it, not an optional courtesy: a request fulfilled in
+  // silence reads exactly like a request ignored, and the second time that
+  // happens they stop asking.
+  const registryPath = args['opportunity-registry'] && args['opportunity-registry'] !== true
+    ? resolve(args['opportunity-registry'])
+    : null;
+  const origin = findOriginatingIssue({
+    registryPath,
+    targetPath: r.transaction?.target_path ?? null,
+    subjectId: r.workItem.item_id,
+  });
+  if (origin) {
+    console.log(`\n  requested by ${origin.issue.repo}#${origin.issue.number}`);
+    if (!args.apply) {
+      console.log('  DRY RUN: the originating issue would be commented on and closed.');
+    } else {
+      const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      const announced = await announcePublishedRequest({
+        proposal: { title: origin.entry.title, targetPath: origin.entry.targetPath, originatingIssue: origin.issue },
+        publishedPath: r.transaction?.target_path ?? null,
+        token,
+      });
+      if (announced.announced) console.log(`  announced    commented on and closed ${origin.issue.repo}#${origin.issue.number}`);
+      // Loud, because an unannounced fulfilment is the exact failure this closes.
+      else console.error(`  NOT ANNOUNCED ${origin.issue.repo}#${origin.issue.number}: ${announced.reason}`);
+    }
+  } else if (registryPath) {
+    console.log('\n  requested by no content-request issue matched this publication.');
+  }
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

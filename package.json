@@ -15,7 +15,8 @@
     "inspect:track-2": "node scripts/inspect-canonical-corpus.mjs --help",
     "publish:approved": "node scripts/publish-approved-item.mjs",
     "publish:record": "node scripts/record-publication.mjs",
-    "curriculum:ingest": "node scripts/ingest-curriculum-requests.mjs"
+    "curriculum:ingest": "node scripts/ingest-curriculum-requests.mjs",
+    "curriculum:ingest:issues": "node scripts/ingest-curriculum-requests.mjs --from-issues"
   },
   "dependencies": {
     "@azure/identity": "4.13.1",

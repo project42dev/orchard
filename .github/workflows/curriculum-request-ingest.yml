@@ -1,0 +1,130 @@
+# curriculum-request-ingest.yml — reads the learner's request and turns it
+# into an authoring proposal, with nobody retyping anything.
+#
+# WHY THIS EXISTS. ingest-curriculum-requests.mjs was written, tested, and then
+# wired to nothing: grepping .github/ and scripts/ for it returned only the
+# script and its own test. It had never run except by hand, which meant the
+# support page's "request new content" button led nowhere at all.
+#
+# WHERE THE ISSUES LIVE, AND WHAT THAT COSTS. A learner files on
+# project42dev/project42-content, because that is the public curriculum
+# repository and the one they can reach. This workflow runs in Orchard. Two
+# consequences follow and neither is hidden:
+#
+#   1. `issues: labeled` below fires only for issues on THIS repository. It is
+#      kept because an operator may mirror or file a request here, but it is
+#      NOT the path a learner's issue takes. The learner's issue is picked up
+#      by the schedule, or immediately by `repository_dispatch` if
+#      project42-content is ever given a sender workflow that dispatches
+#      `content-request-labeled` here.
+#   2. The default GITHUB_TOKEN is scoped to this repository. Reading public
+#      issues on another public repository works with it, but any write back
+#      (the comment-and-close on publication) needs a cross-repository
+#      credential: ORCHARD_CONTENT_REQUEST_TOKEN, falling back to
+#      ORCHARD_PUBLISH_TOKEN, which orchard-human-review.yml already uses.
+#
+# This workflow only READS and reports. It writes no content, moves no
+# lifecycle state, and pushes nothing: the proposals it produces are uploaded
+# as a run artifact for the merge step to take, exactly as the other GitHub
+# Actions entry points here stay read-only while production work happens in the
+# Container Apps jobs.
+
+name: Curriculum Request Ingest
+
+on:
+    schedule:
+        # Hourly. A learner should not wait a day to be picked up, and a poll
+        # of one labelled-issue listing costs one API call.
+        - cron: "17 * * * *"
+    issues:
+        types: [labeled]
+    repository_dispatch:
+        types: [content-request-labeled]
+    workflow_dispatch:
+        inputs:
+            issues_repository:
+                description: Repository whose labelled issues are read. Defaults to the curriculum repository.
+                required: false
+                type: string
+            request_label:
+                description: The label that marks a content request.
+                required: false
+                type: string
+
+concurrency:
+    group: orchard-curriculum-request-ingest
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    NODE_VERSION: "22"
+    REQUEST_REPOSITORY: ${{ inputs.issues_repository || vars.ORCHARD_CONTENT_REQUEST_REPOSITORY || 'project42dev/project42-content' }}
+    REQUEST_LABEL: ${{ inputs.request_label || vars.ORCHARD_CONTENT_REQUEST_LABEL || 'content-request' }}
+
+jobs:
+    ingest:
+        name: Convert labelled content requests into proposals
+        # An `issues: labeled` event on this repository is only interesting
+        # when the label is the request label; every other labelling here is
+        # somebody triaging an unrelated issue.
+        if: >
+            github.event_name != 'issues' ||
+            github.event.label.name == 'content-request'
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout Orchard
+              uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+              with:
+                  persist-credentials: false
+
+            - name: Set up Node.js
+              uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Install locked dependencies
+              run: npm ci --ignore-scripts
+
+            - name: Read labelled content requests
+              id: ingest
+              env:
+                  GITHUB_TOKEN: ${{ secrets.ORCHARD_CONTENT_REQUEST_TOKEN || secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  # Exit 2 means "some requests were malformed and were skipped".
+                  # That is reported, not swallowed: the step below fails the run
+                  # so a partial conversion never reads as a clean one.
+                  status=0
+                  node scripts/ingest-curriculum-requests.mjs \
+                    --from-issues \
+                    --issues-repo "$REQUEST_REPOSITORY" \
+                    --label "$REQUEST_LABEL" \
+                    --out proposals-direct-requests.json || status=$?
+                  echo "status=$status" >> "$GITHUB_OUTPUT"
+                  if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
+                  echo "count=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("proposals-direct-requests.json","utf8")).opportunities.length)')" >> "$GITHUB_OUTPUT"
+
+            - name: Upload the proposals for the merge step
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              with:
+                  name: curriculum-request-proposals
+                  path: proposals-direct-requests.json
+                  if-no-files-found: error
+
+            - name: Fail the run if any request was rejected
+              if: steps.ingest.outputs.status == '2'
+              run: |
+                  echo "::error::One or more content requests could not be converted. See the ingest step log for the issue numbers and reasons."
+                  exit 1
+
+            - name: State the boundary
+              run: |
+                  echo "Converted ${{ steps.ingest.outputs.count }} content request(s) from $REQUEST_REPOSITORY."
+                  echo "This workflow only reads issues and produces proposals. Authoring, gating, and publication"
+                  echo "are performed by the fixed Container Apps Job runtime, not by GitHub Actions."

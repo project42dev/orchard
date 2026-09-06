@@ -74,3 +74,30 @@ test("unsafe legacy workflow entry points are removed", () => {
     assert.match(humanReview, /\/orchard gate2 approve item=<id> digest=<sha256>/);
     assert.match(humanReview, /gate2-review\.mjs/);
 });
+
+test("the curriculum request ingest is wired to run, and only reads", () => {
+    const ingest = read("../.github/workflows/curriculum-request-ingest.yml");
+    const document = parseDocument(ingest, { prettyErrors: true, uniqueKeys: true });
+    assert.deepEqual(document.errors, [], "the curriculum request ingest must be valid YAML");
+    const parsed = document.toJS();
+
+    // The defect this closes: the script existed and no workflow called it.
+    assert.match(ingest, /ingest-curriculum-requests\.mjs/);
+
+    // A schedule AND an issue-labelled trigger, because a learner should not
+    // wait for the next poll when the event is reachable.
+    assert.ok(Array.isArray(parsed.on.schedule) && parsed.on.schedule[0].cron, "must run on a schedule");
+    assert.deepEqual(parsed.on.issues.types, ["labeled"]);
+    assert.deepEqual(parsed.on.repository_dispatch.types, ["content-request-labeled"]);
+    assert.equal(typeof parsed.on.workflow_dispatch, "object");
+
+    // Read-only, like every other GitHub Actions entry point here.
+    assert.equal(parsed.permissions.contents, "read");
+    assert.doesNotMatch(ingest, /contents: write|issues: write|id-token: write/);
+    assert.doesNotMatch(ingest, /git push|record-publication/);
+    assert.match(ingest, /persist-credentials: false/);
+    assert.doesNotMatch(ingest, /uses: [^\s]+@v\d/);
+
+    // A partial conversion must not read as a clean run.
+    assert.match(ingest, /Fail the run if any request was rejected/);
+});
