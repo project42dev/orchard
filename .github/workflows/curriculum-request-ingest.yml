@@ -100,6 +100,23 @@ jobs:
                   # Exit 2 means "some requests were malformed and were skipped".
                   # That is reported, not swallowed: the step below fails the run
                   # so a partial conversion never reads as a clean one.
+                  #
+                  # Exit 3 means "rate limited; nothing was read and nothing was
+                  # written" — see the exit-code contract above main() in
+                  # scripts/ingest-curriculum-requests.mjs. It is NOT a failure of
+                  # this workflow and it is deliberately not treated as one: this
+                  # is an hourly poll, no request is lost by not being read this
+                  # hour, and the next run picks up exactly the same issues. A
+                  # scheduled job that turns the repository red every hour because
+                  # a shared quota was busy teaches the owner to ignore the alert,
+                  # which is worse than not running at all.
+                  #
+                  # The line that separates the two 403s is drawn in
+                  # scripts/lib/github-issues.mjs: only a 403 whose GitHub message
+                  # says "rate limit" becomes exit 3. A permission refusal — the
+                  # credential genuinely cannot read that repository — is exit 1
+                  # and still fails this run loudly, which is the case that needs
+                  # a human.
                   status=0
                   node scripts/ingest-curriculum-requests.mjs \
                     --from-issues \
@@ -107,10 +124,41 @@ jobs:
                     --label "$REQUEST_LABEL" \
                     --out proposals-direct-requests.json || status=$?
                   echo "status=$status" >> "$GITHUB_OUTPUT"
-                  if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
+                  if [ "$status" -ne 0 ] && [ "$status" -ne 2 ] && [ "$status" -ne 3 ]; then exit "$status"; fi
+                  if [ "$status" -eq 3 ]; then
+                    echo "count=0" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
                   echo "count=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("proposals-direct-requests.json","utf8")).opportunities.length)')" >> "$GITHUB_OUTPUT"
 
+            - name: Say plainly that the quota, not the request, stopped this run
+              if: steps.ingest.outputs.status == '3'
+              run: |
+                  echo "::warning title=Content request ingest was rate limited::No content requests were read this hour. Nothing was lost; the next hourly run reads the same issues. This recurs because the credential in use has no quota of its own — see the job summary."
+                  {
+                    echo "## Content request ingest: rate limited, nothing read"
+                    echo
+                    echo "The ingest reached GitHub and was refused with a rate limit, not a permission error."
+                    echo "No proposals were written and no request was dropped: the next hourly run reads the"
+                    echo "same labelled issues on \`$REQUEST_REPOSITORY\`."
+                    echo
+                    echo "**This will keep happening until the credential is changed.** The token chain on this"
+                    echo "step currently falls through to the organisation secret \`ORG_PAT\`, which is a personal"
+                    echo "access token. A personal PAT has one 5,000-requests-per-hour bucket shared across"
+                    echo "everything that identity does — every other repository in the organisation that falls"
+                    echo "back to the same secret, and the owner's own interactive use. This job's single"
+                    echo "listing call is not what exhausts it."
+                    echo
+                    echo "The fix is a credential with its own bucket. Install a GitHub App on"
+                    echo "\`project42dev\` with **Issues: Read-only** on \`$REQUEST_REPOSITORY\` (add"
+                    echo "**Issues: Read and write** if the publication comment-and-close path is ever wired"
+                    echo "up), and store its installation token as the repository secret"
+                    echo "\`ORCHARD_CONTENT_REQUEST_TOKEN\` on this repository. The token chain above already"
+                    echo "prefers that secret, so no workflow change is needed once it exists."
+                  } >> "$GITHUB_STEP_SUMMARY"
+
             - name: Upload the proposals for the merge step
+              if: steps.ingest.outputs.status != '3'
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
               with:
                   name: curriculum-request-proposals
@@ -124,6 +172,7 @@ jobs:
                   exit 1
 
             - name: State the boundary
+              if: steps.ingest.outputs.status != '3'
               run: |
                   echo "Converted ${{ steps.ingest.outputs.count }} content request(s) from $REQUEST_REPOSITORY."
                   echo "This workflow only reads issues and produces proposals. Authoring, gating, and publication"
