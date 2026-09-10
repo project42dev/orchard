@@ -21,12 +21,41 @@ name: Deploy runtime
 #     assignments and seeding remain Deploy-Orchard.ps1's job. This workflow
 #     only changes which image the existing jobs run.
 #   * It does not touch the SEED job. The seeding image carries staged
-#     artifacts (the corpus snapshot, its manifest, the approved source
-#     registry, seed-manifest.json) that Deploy-Orchard.ps1 stages into
-#     seed-inputs/ from the operator's own content checkout at release time.
-#     Those files are gitignored, so an image built from a repository checkout
-#     alone carries an empty seed-inputs/ and the seed job would fail its own
+#     artifacts (the corpus snapshot corpus.tar.gz, its manifest.json, the
+#     approved-source-registry.json and seed-manifest.json) that
+#     Deploy-Orchard.ps1 stages into seed-inputs/ from the operator's own
+#     content checkout at release time. Those four ARE gitignored, so a CI
+#     checkout does not carry them and the seed job would fail its own
 #     bound-digest verification. Seeding stays a release action.
+#
+#     CORRECTION, 2026-09-10 (AB#6167). This block used to claim that the
+#     seed-inputs files are gitignored and that "an image built from a
+#     repository checkout alone carries an empty seed-inputs/". Both halves are
+#     false. .gitignore ignores seed-inputs/* and then negates three entries
+#     back into tracking: .gitkeep, curriculum-requests.json and probes.json.
+#     Those are genuine source inputs that happen to live in the staging
+#     directory, and both delivery/Dockerfile and delivery/Dockerfile.two-track
+#     COPY the whole of seed-inputs/, so every image this workflow builds
+#     carries the TRACKED curriculum-requests.json and probes.json. That is
+#     intended -- they are source -- but seed-inputs/ is not empty, and
+#     believing it was is what let the contradiction survive unnoticed.
+#
+#     THE SAME CONTRADICTION DEADLOCKED RELEASES ELSEWHERE. Because those two
+#     files are tracked AND are files Deploy-Orchard.ps1 rewrites while
+#     staging, that script dirtied its own tree and then refused to build on
+#     the dirt it had just made. Production stayed at b487e88 from 2026-09-04
+#     until project42dev-ops commit f0b9dd0 excluded seed-inputs/ from its
+#     cleanliness check.
+#
+#     THIS WORKFLOW DOES NOT DEADLOCK THAT WAY, and must not be allowed to
+#     start. It runs on a fresh actions/checkout, clean by construction, and it
+#     has no worktree-cleanliness gate: release identity here is the commit SHA
+#     the images are tagged with and verified against, which is a stronger
+#     check than tree cleanliness. If a cleanliness gate is ever added below it
+#     MUST exclude the staging directory the same way f0b9dd0 does:
+#         git status --porcelain -- . ':(exclude)seed-inputs'
+#     The "Verify the seed-inputs tracking contract" step below asserts the
+#     tracked/ignored split, so this comment cannot silently go stale again.
 #
 # HOW IT IS ARMED. The rollout job runs only when the repository variable
 # ORCHARD_DEPLOY_ENABLED is exactly 'true'. Unset, the job is skipped and
@@ -87,6 +116,55 @@ jobs:
               uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
               with:
                   persist-credentials: false
+
+            - name: Verify the seed-inputs tracking contract
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  # The header above states exactly which seed-inputs entries
+                  # are tracked source and which are operator-staged artifacts.
+                  # That statement was wrong for months and nothing caught it,
+                  # so it is now executable. Both directions are checked.
+                  #
+                  # This step also proves the checkout is clean with the
+                  # staging directory excluded, which is the precise condition
+                  # that deadlocked Deploy-Orchard.ps1 (see the header). If it
+                  # ever reports dirt, a build step above has started writing
+                  # into the tree and the exclusion rule must be applied to
+                  # whatever gate is added, not the writing removed.
+                  failed=0
+
+                  for source in .gitkeep curriculum-requests.json probes.json; do
+                    if ! git ls-files --error-unmatch "seed-inputs/${source}" >/dev/null 2>&1; then
+                      echo "::error::seed-inputs/${source} is documented as tracked source but git does not track it"
+                      failed=1
+                    fi
+                  done
+
+                  for staged in corpus.tar.gz manifest.json approved-source-registry.json seed-manifest.json; do
+                    if git ls-files --error-unmatch "seed-inputs/${staged}" >/dev/null 2>&1; then
+                      echo "::error::seed-inputs/${staged} is an operator-staged release artifact and must never be committed"
+                      failed=1
+                    fi
+                    if [ -e "seed-inputs/${staged}" ]; then
+                      echo "::error::seed-inputs/${staged} is present in a CI checkout; a staged artifact has leaked into the repository"
+                      failed=1
+                    fi
+                  done
+
+                  dirt="$(git status --porcelain -- . ':(exclude)seed-inputs')"
+                  if [ -n "${dirt}" ]; then
+                    echo "::error::the checkout is not clean outside seed-inputs/ before any image is built"
+                    echo "${dirt}"
+                    failed=1
+                  fi
+
+                  if [ "${failed}" -ne 0 ]; then
+                    echo "::error::seed-inputs tracking contract violated; refusing to build a release image"
+                    exit 1
+                  fi
+
+                  echo "seed-inputs tracking contract holds: 3 tracked source files, 4 staged artifacts absent."
 
             - name: Resolve the immutable release tag
               id: release
