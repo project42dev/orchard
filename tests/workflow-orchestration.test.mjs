@@ -75,6 +75,32 @@ test("unsafe legacy workflow entry points are removed", () => {
     assert.match(humanReview, /gate2-review\.mjs/);
 });
 
+test("a Gate 2 decision can only be made by a comment that was CREATED, never an edited one", () => {
+    // gate2-review.mjs sees only the comment body; it has no way to know the
+    // text on screen is not the text that was posted. The refusal therefore
+    // lives HERE, in the trigger, and it is the only thing holding it on this
+    // path -- so it is pinned rather than left to a reading of the YAML.
+    // Adding 'edited' to this list would make every prior refused approval
+    // re-approvable by quietly rewriting the comment that was refused.
+    const parsed = parseDocument(read("../.github/workflows/orchard-human-review.yml"), { prettyErrors: true, uniqueKeys: true }).toJS();
+    assert.deepEqual(parsed.on.issue_comment.types, ["created"]);
+    const trigger = parseDocument(read("../.github/workflows/gate-comment-trigger.yml"), { prettyErrors: true, uniqueKeys: true }).toJS();
+    assert.deepEqual(trigger.on.issue_comment.types, ["created"]);
+});
+
+test("the Gate 2 reviewer's several-decisions-per-comment contract is what the workflow actually consumes", () => {
+    const humanReview = read("../.github/workflows/orchard-human-review.yml");
+    // decisions_json pairs each reason with the item it was written about.
+    // The rework step must read THAT, not re-scrape the comment body: a
+    // body-scrape takes the first reason in the comment and would hand item
+    // two the reason written about item one.
+    assert.match(humanReview, /ORCHARD_DECISIONS_JSON: \$\{\{ steps\.decision\.outputs\.decisions_json \}\}/);
+    assert.doesNotMatch(humanReview, /sed -n 's\/\.\*reason=/);
+    // The help text on a refused comment has to say the rule the script
+    // enforces, or the owner cannot tell a refusal from a bug.
+    assert.match(humanReview, /if any line is wrong, NONE of them is applied/);
+});
+
 test("the curriculum request ingest is wired to run, and only reads", () => {
     const ingest = read("../.github/workflows/curriculum-request-ingest.yml");
     const document = parseDocument(ingest, { prettyErrors: true, uniqueKeys: true });

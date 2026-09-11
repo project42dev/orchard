@@ -1,15 +1,21 @@
 # orchard-human-review.yml — closes the loop when a human reviews a proposal
 #
-# Triggered when someone comments on an Orchard proposal issue.
-# Reads the comment for a decision ("Approved" or "Denied"),
-# records the publication or rejection, commits content to the CONTENT repo
-# (on Approve), syncs ADO state, posts a confirmation, and closes the issue.
+# Triggered when someone comments on an Orchard proposal issue. Only on a
+# comment that was CREATED: an edited comment cannot decide anything, because
+# the text on screen would not be the text that was posted, and the whole gate
+# rests on the decision being the thing the owner actually wrote.
+#
+# Reads the comment for one or more bound Gate 2 decisions (see
+# scripts/gate2-review.mjs for the grammar and for why a comment carrying a bad
+# line is refused whole rather than in part), records the publication or
+# rejection, commits content to the CONTENT repo (on Approve), syncs ADO state,
+# posts a confirmation, and closes the issue.
 #
 # CONTENT_REPOSITORY is the WRITE target. It is deliberately a separate variable
 # from the track workflows' PLATFORM_REPOSITORY, which is a read-only context pin
 # on the product repository and must never be used as a publication target.
 #
-# The human's ONLY action is commenting "Approved" or "Denied".
+# The human's ONLY action is commenting the bound decision command(s).
 # Everything else is automated.
 
 name: Orchard Human Review
@@ -86,20 +92,33 @@ jobs:
       # authoring pass is told what was wrong before it writes anything. Before
       # this, request-changes recorded a generic rejection and passed nothing
       # back, so a returned item was either abandoned or rewritten blind.
-      - name: Return the item for rework
+      #
+      # One comment may return several items, each with its OWN reason. The
+      # reasons are read from decisions_json, which pairs each reason with the
+      # item it was written about. The old `sed ... | head -1` took the first
+      # reason in the body and applied it to one item; with several lines in a
+      # comment that would have handed item two the reason written for item one,
+      # which is worse than no reason at all. decisions_json is emitted only
+      # when every line in the comment was authorised, so this loop can never
+      # touch a refused line.
+      - name: Return the items for rework
         if: steps.decision.outputs.decision == 'changes-requested'
         working-directory: orchard
         env:
-          ORCHARD_COMMENT_BODY: ${{ github.event.comment.body }}
+          ORCHARD_DECISIONS_JSON: ${{ steps.decision.outputs.decisions_json }}
         run: |
           set -euo pipefail
-          REASON=$(printf '%s' "$ORCHARD_COMMENT_BODY" | sed -n 's/.*reason="\([^"]*\)".*/\1/p' | head -1)
-          ORCHARD_DECISION_REASON="$REASON" node scripts/apply-gate2-rework.mjs \
-            --db content.db --item "${{ steps.decision.outputs.item }}" --decision request-changes
+          SUMMARY=""
+          while IFS=$'\t' read -r ITEM REASON; do
+            [ -n "$ITEM" ] || continue
+            ORCHARD_DECISION_REASON="$REASON" node scripts/apply-gate2-rework.mjs \
+              --db content.db --item "$ITEM" --decision request-changes
+            SUMMARY="${SUMMARY}> - \`${ITEM}\`: ${REASON}"$'\n'
+          done < <(printf '%s' "$ORCHARD_DECISIONS_JSON" | jq -r '.[] | [.item, (.reason // "")] | @tsv')
           gh issue comment ${{ github.event.issue.number }} --repo project42dev/orchard --body "> [!NOTE]
-          > **Returned for rework.** \`${{ steps.decision.outputs.item }}\` is queued again and the next authoring pass will be given your reason verbatim:
+          > **Returned for rework.** Each item below is queued again, and the next authoring pass will be given its reason verbatim:
           >
-          > $REASON"
+          ${SUMMARY}"
 
       - name: Explain a refused decision
         if: steps.decision.outputs.authorised != 'true'
@@ -123,7 +142,9 @@ jobs:
           > Gate 2 approval must name the item and the exact artifact digest:
           > \`/orchard gate2 approve item=<id> digest=<sha256>\`
           > Deny or request changes with a reason:
-          > \`/orchard gate2 deny item=<id> reason=\"...\"\`"
+          > \`/orchard gate2 deny item=<id> reason=\"...\"\`
+          >
+          > One comment may carry up to 20 decisions, one per line, all of the same kind, each naming a different item and its own digest. Every line is checked on its own; if any line is wrong, NONE of them is applied, so fix the line named above and post the comment again."
           fi
         continue-on-error: true
 

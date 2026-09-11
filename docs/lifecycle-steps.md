@@ -528,6 +528,29 @@ bound to the exact artifact digest.** If the artifact changes, the approval
 stops applying. This is what makes "approved" mean something specific rather
 than something general.
 
+**One comment may carry several decisions (2026-09-11).** `gate2-review.mjs`
+accepts up to `MAX_GATE_BATCH_SIZE` (20, from `scripts/lib/gates.mjs`)
+decisions in one comment, one per line, all of the same kind, each naming a
+different item and — for an approval — that item's own digest. The cap is the
+gate batch size because a Gate 2 issue is one batch, so a comment with more
+decisions than that cannot be answering the issue it was posted on. The design
+rule above is untouched: nothing is approved that does not name its own
+artifact digest. What changed is only that the owner no longer posts one
+comment per item, which mattered once the re-authoring sent 114 Track 2 items
+back through this gate.
+
+**A comment containing a bad line approves nothing.** Every line is validated
+and reported on its own, but the comment is refused whole if any line fails
+(wrong digest, unknown item, an item this gate is not holding, a duplicated
+item, a mixture of decision kinds, or a line the grammar does not accept). The
+reason is this path's consumer, not squeamishness:
+`.github/workflows/orchard-human-review.yml` branches on one scalar decision
+and then publishes every subject it can find in the issue body, so a partial
+approval would green-light the item that failed along with the ones that
+passed. The engine-side path is different —
+`scripts/apply-gate-decisions.mjs` records each item through its own evidence
+chain, so a per-item failure there leaves the other items' records intact.
+
 ---
 
 ## Step 13: Publish
