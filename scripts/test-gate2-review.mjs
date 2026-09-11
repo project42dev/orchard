@@ -56,6 +56,12 @@ const approveLine = (i) => `/orchard gate2 approve item=${i.id} digest=${i.diges
   for (const word of ["Approved", "approved", "  APPROVED  ", "Denied"]) {
     const r = evaluate({ text: word, proposalDir: dir });
     ok(!r.authorised, `a bare "${word.trim()}" must never authorise`);
+    // Not merely "it authorised nothing" -- it must be REFUSED, by name. A
+    // bare word that falls through to "no command found" silently would still
+    // authorise nothing today and would tell the owner nothing about why, so
+    // the specific refusal is the property, not the absence of authorisation.
+    ok(r.errors.some((e) => e.includes("is not a Gate 2 decision")),
+       `a bare "${word.trim()}" is refused by name, not ignored`);
   }
   ok(isBareApproval("Approved"), "isBareApproval recognises the old shape");
   ok(!isBareApproval("/orchard gate2 approve item=create-thing digest=" + digest),
