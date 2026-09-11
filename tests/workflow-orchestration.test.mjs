@@ -91,15 +91,73 @@ test("the curriculum request ingest is wired to run, and only reads", () => {
     assert.deepEqual(parsed.on.repository_dispatch.types, ["content-request-labeled"]);
     assert.equal(typeof parsed.on.workflow_dispatch, "object");
 
-    // Read-only, like every other GitHub Actions entry point here.
+    // Read-only, like every other GitHub Actions entry point here. id-token
+    // is not a GitHub write scope: it is the OIDC exchange the Azure login
+    // step below uses to reach Key Vault, so it stays permitted here even
+    // though contents/issues write do not.
     assert.equal(parsed.permissions.contents, "read");
-    assert.doesNotMatch(ingest, /contents: write|issues: write|id-token: write/);
+    assert.equal(parsed.permissions["id-token"], "write");
+    assert.doesNotMatch(ingest, /contents: write|issues: write/);
     assert.doesNotMatch(ingest, /git push|record-publication/);
     assert.match(ingest, /persist-credentials: false/);
     assert.doesNotMatch(ingest, /uses: [^\s]+@v\d/);
 
     // A partial conversion must not read as a clean run.
     assert.match(ingest, /Fail the run if any request was rejected/);
+});
+
+test("the three App-token mints read the GitHub App credential from Key Vault via OIDC, not repository secrets (T-08)", () => {
+    const ingest = read("../.github/workflows/curriculum-request-ingest.yml");
+    const humanReview = read("../.github/workflows/orchard-human-review.yml");
+    const verifyCredential = read("../.github/workflows/verify-publish-credential.yml");
+
+    for (const [name, workflow] of [
+        ["curriculum-request-ingest.yml", ingest],
+        ["orchard-human-review.yml", humanReview],
+        ["verify-publish-credential.yml", verifyCredential],
+    ]) {
+        const document = parseDocument(workflow, { prettyErrors: true, uniqueKeys: true });
+        assert.deepEqual(document.errors, [], `${name} must be valid YAML`);
+        const parsed = document.toJS();
+
+        // The job exchanges GitHub's OIDC token for an Azure token as the
+        // dedicated content-request managed identity, never the deploy
+        // identity deploy-runtime.yml signs in as.
+        assert.match(workflow, /client-id: \$\{\{ vars\.ORCHARD_CONTENT_REQUEST_CLIENT_ID \}\}/, `${name} must sign in as the content-request identity`);
+        assert.doesNotMatch(workflow, /vars\.ORCHARD_DEPLOY_CLIENT_ID/, `${name} must not reuse the deploy identity`);
+
+        // Some job in the workflow carries id-token: write for that login.
+        const jobPermissions = Object.values(parsed.jobs ?? {})
+            .map((job) => job?.permissions)
+            .filter(Boolean);
+        const topLevelHasIdToken = parsed.permissions?.["id-token"] === "write";
+        const someJobHasIdToken = jobPermissions.some((p) => p["id-token"] === "write");
+        assert.ok(topLevelHasIdToken || someJobHasIdToken, `${name} must grant id-token: write for the Azure login`);
+
+        // The private key is a multiline PEM: tsv silently truncates it, so
+        // it must be read as json and unwrapped with jq, never tsv.
+        assert.match(workflow, /hcs-platform-github-app-private-key[^\n]*-o json/, `${name} must read the private key as json`);
+        assert.doesNotMatch(workflow, /hcs-platform-github-app-private-key[^\n]*-o tsv/, `${name} must not read the private key as tsv (it truncates multiline values)`);
+        assert.match(workflow, /jq -r \.value/, `${name} must unwrap the Key Vault json response with jq`);
+
+        // Both secrets are masked before they can reach a log: the app id as
+        // a whole, and the PEM private key line-by-line (a single mask on
+        // the whole multiline value would not match it split across log
+        // lines).
+        assert.match(workflow, /::add-mask::\$app_id/, `${name} must mask the app id`);
+        assert.match(workflow, /::add-mask::\$line/, `${name} must mask the private key line-by-line`);
+
+        // No repository-secret App credential and no organisation-wide PAT
+        // fallback remain anywhere in these workflows.
+        assert.doesNotMatch(workflow, /ORG_PAT/, `${name} must not reference ORG_PAT`);
+        assert.doesNotMatch(workflow, /secrets\.ORCHARD_CONTENT_REQUEST_APP_/, `${name} must not read the App credential from a repository secret`);
+    }
+
+    // The two production paths fail the run on a bad login/read/mint; only
+    // the diagnostic workflow may swallow that failure.
+    assert.doesNotMatch(ingest, /continue-on-error/, "curriculum-request-ingest.yml must fail loudly on the production path");
+    assert.doesNotMatch(humanReview, /Azure login[\s\S]{0,400}continue-on-error/, "orchard-human-review.yml's mint chain must fail loudly");
+    assert.match(verifyCredential, /Azure login \(OIDC, no stored secret\)\s*\n\s*id: azure-login\s*\n\s*continue-on-error: true/, "verify-publish-credential.yml's mint path stays diagnostic");
 });
 
 test("the deploy workflow rebuilds and re-points the runtime, immutably and loudly", () => {
