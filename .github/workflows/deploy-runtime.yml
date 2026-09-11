@@ -159,7 +159,12 @@ jobs:
             - name: Azure login (OIDC, no stored secret)
               uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
               with:
-                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  # The deploy identity (T-06): user-assigned managed identity
+                  # id-p42orch-deployer-prod-eus-01, federated to this repository's
+                  # main branch, holding only the resource-group-scoped
+                  # 'Orchard Runtime Deployer' role. The gate app's client id stays
+                  # the least-privilege gate identity and is deliberately not reused here.
+                  client-id: ${{ vars.ORCHARD_DEPLOY_CLIENT_ID }}
                   tenant-id: ${{ secrets.AZURE_TENANT_ID }}
                   subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 

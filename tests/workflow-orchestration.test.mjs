@@ -123,9 +123,15 @@ test("the deploy workflow rebuilds and re-points the runtime, immutably and loud
     // credential, and every action pinned by commit like the others here.
     assert.equal(parsed.permissions["id-token"], "write");
     assert.equal(parsed.permissions.contents, "read");
-    for (const secret of ["AZURE_CLIENT_ID", "AZURE_TENANT_ID", "AZURE_SUBSCRIPTION_ID"]) {
+    for (const secret of ["AZURE_TENANT_ID", "AZURE_SUBSCRIPTION_ID"]) {
         assert.match(deploy, new RegExp(`secrets\.${secret}`), `${secret} must come from the repository secret`);
     }
+    // T-06: the rollout signs in as the dedicated deploy identity. It must not
+    // borrow AZURE_CLIENT_ID, which is the least-privilege gate app.
+    assert.match(deploy, /client-id: \$\{\{ vars\.ORCHARD_DEPLOY_CLIENT_ID \}\}/,
+        "the rollout must sign in as the deploy identity");
+    assert.doesNotMatch(deploy, /secrets\.AZURE_CLIENT_ID/,
+        "the rollout must not reuse the gate app's client id");
     assert.doesNotMatch(deploy, /uses: [^\s]+@v\d/, "every action is pinned by commit");
     assert.match(deploy, /persist-credentials: false/);
 
