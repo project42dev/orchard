@@ -20,8 +20,14 @@
 #   2. The default GITHUB_TOKEN is scoped to this repository. Reading public
 #      issues on another public repository works with it, but any write back
 #      (the comment-and-close on publication) needs a cross-repository
-#      credential: ORCHARD_CONTENT_REQUEST_TOKEN, falling back to
-#      ORCHARD_PUBLISH_TOKEN, which orchard-human-review.yml already uses.
+#      credential. This workflow mints a short-lived GitHub App installation
+#      token scoped to project42dev/project42-content via
+#      actions/create-github-app-token, falling back to the static
+#      ORCHARD_CONTENT_REQUEST_TOKEN secret, then ORCHARD_PUBLISH_TOKEN (which
+#      orchard-human-review.yml already uses). There is deliberately no
+#      fallback to the organisation-wide ORG_PAT: that PAT's 5,000/hr bucket
+#      is shared with unrelated infrastructure (see T-09), and a missing App
+#      credential should fail loudly instead of silently spending it.
 #
 # This workflow only READS and reports. It writes no content, moves no
 # lifecycle state, and pushes nothing: the proposals it produces are uploaded
@@ -91,10 +97,20 @@ jobs:
             - name: Install locked dependencies
               run: npm ci --ignore-scripts
 
+            - name: Mint content-request App token
+              id: app-token
+              continue-on-error: true
+              uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+              with:
+                  app-id: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_ID }}
+                  private-key: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_PRIVATE_KEY }}
+                  owner: project42dev
+                  repositories: project42-content
+
             - name: Read labelled content requests
               id: ingest
               env:
-                  GITHUB_TOKEN: ${{ secrets.ORCHARD_CONTENT_REQUEST_TOKEN || secrets.ORCHARD_PUBLISH_TOKEN || secrets.ORG_PAT || secrets.GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.ORCHARD_CONTENT_REQUEST_TOKEN || secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
               run: |
                   set -euo pipefail
                   # Exit 2 means "some requests were malformed and were skipped".
@@ -142,19 +158,21 @@ jobs:
                     echo "No proposals were written and no request was dropped: the next hourly run reads the"
                     echo "same labelled issues on \`$REQUEST_REPOSITORY\`."
                     echo
-                    echo "**This will keep happening until the credential is changed.** The token chain on this"
-                    echo "step currently falls through to the organisation secret \`ORG_PAT\`, which is a personal"
-                    echo "access token. A personal PAT has one 5,000-requests-per-hour bucket shared across"
-                    echo "everything that identity does — every other repository in the organisation that falls"
-                    echo "back to the same secret, and the owner's own interactive use. This job's single"
-                    echo "listing call is not what exhausts it."
+                    echo "**This will keep happening until the App credential exists.** This step already tries"
+                    echo "to mint a GitHub App installation token scoped to \`project42dev/project42-content\`"
+                    echo "before falling back to the static \`ORCHARD_CONTENT_REQUEST_TOKEN\` / \`ORCHARD_PUBLISH_TOKEN\`"
+                    echo "secrets, then the default \`GITHUB_TOKEN\`. There is no fallback to the organisation-wide"
+                    echo "\`ORG_PAT\` — that PAT's 5,000-requests-per-hour bucket is shared with unrelated"
+                    echo "infrastructure (see T-09), so a missing App credential fails loudly here instead of"
+                    echo "silently spending it."
                     echo
-                    echo "The fix is a credential with its own bucket. Install a GitHub App on"
+                    echo "The fix is the App credential this step already prefers. Install a GitHub App on"
                     echo "\`project42dev\` with **Issues: Read-only** on \`$REQUEST_REPOSITORY\` (add"
                     echo "**Issues: Read and write** if the publication comment-and-close path is ever wired"
-                    echo "up), and store its installation token as the repository secret"
-                    echo "\`ORCHARD_CONTENT_REQUEST_TOKEN\` on this repository. The token chain above already"
-                    echo "prefers that secret, so no workflow change is needed once it exists."
+                    echo "up), and store its App ID and private key as the repository secrets"
+                    echo "\`ORCHARD_CONTENT_REQUEST_APP_ID\` and \`ORCHARD_CONTENT_REQUEST_APP_PRIVATE_KEY\` on"
+                    echo "this repository. The token chain above already prefers the minted token, so no"
+                    echo "workflow change is needed once those secrets exist."
                   } >> "$GITHUB_STEP_SUMMARY"
 
             - name: Upload the proposals for the merge step

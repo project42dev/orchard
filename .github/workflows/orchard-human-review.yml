@@ -267,6 +267,17 @@ jobs:
           path: orchard/
         continue-on-error: true
 
+      - name: Mint content-request App token
+        if: steps.decision.outputs.decision == 'approved'
+        id: app-token
+        continue-on-error: true
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_ID }}
+          private-key: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_PRIVATE_KEY }}
+          owner: project42dev
+          repositories: project42-content
+
       - name: Checkout content repo for publishing
         if: steps.decision.outputs.decision == 'approved'
         uses: actions/checkout@v4
@@ -275,9 +286,12 @@ jobs:
           path: content-repo
           # GITHUB_TOKEN cannot reach another repository, so it is a last
           # resort that fails the publish rather than a working fallback.
-          # ORG_PAT is organisation-wide; ORCHARD_PUBLISH_TOKEN is preferred
-          # because it can be scoped to the content repository alone.
-          token: ${{ secrets.ORCHARD_PUBLISH_TOKEN || secrets.ORG_PAT || secrets.GITHUB_TOKEN }}
+          # The minted App token (scoped to project42-content) is preferred;
+          # ORCHARD_PUBLISH_TOKEN is the static fallback. There is
+          # deliberately no fallback to the organisation-wide ORG_PAT: that
+          # PAT's shared 5,000/hr bucket is not this workflow's to spend (see
+          # T-09), so a missing App credential fails loudly instead.
+          token: ${{ steps.app-token.outputs.token || secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Publish content to content repo
         if: steps.decision.outputs.decision == 'approved'
