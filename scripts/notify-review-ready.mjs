@@ -15,6 +15,13 @@
 
 import { readFileSync, readdirSync, existsSync, writeFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
+// The SAME digest function the gate checks against, never a second copy of the
+// formula. This issue prints the command the owner will paste; if the digest
+// here were computed any differently from the one gate2-review.mjs recomputes
+// from the bytes on disk, every printed command would be refused as stale and
+// the issue would be instructing the owner to fail.
+import { artifactDigest } from './gate2-review.mjs';
+import { MAX_GATE_BATCH_SIZE as MAX_DECISIONS_PER_COMMENT } from './lib/gates.mjs';
 import { DatabaseSync } from 'node:sqlite';
 import { parseArgs } from 'node:util';
 import { execSync } from 'node:child_process';
@@ -104,7 +111,19 @@ function matchToWorkItems(db, proposals) {
 // ---------------------------------------------------------------------------
 // issue body builder
 
-function buildIssueBody(matched, localProposalsDir, engineRunId) {
+/**
+ * The exact Gate 2 approve command for one proposal, bound to its bytes.
+ *
+ * The digest is read from the proposal file at the moment the issue is written,
+ * which is the same file and the same bytes gate2-review.mjs re-reads when the
+ * comment arrives. If the artifact is rewritten between the two, the digests
+ * differ and the approval is refused -- which is the whole point, not a defect.
+ */
+export function approveCommandFor(entry) {
+    return `/orchard gate2 approve item=${entry.proposal.id} digest=${artifactDigest(readFileSync(entry.path))}`;
+}
+
+export function buildIssueBody(matched, localProposalsDir, engineRunId) {
     /** Builds a markdown issue body summarizing all proposals ready for review.
      *  When localProposalsDir is provided, includes the actual proposal content
      *  in collapsible sections so reviewers can read it directly in the issue.
@@ -116,7 +135,18 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
         '## Orchard proposals ready for review',
         '',
         '> [!IMPORTANT]',
-        '> @kristopherjturner: please review and comment **`Approved`** or **`Denied`** to trigger publication.',
+        // This used to read "comment Approved or Denied". It was telling the
+        // owner to do the one thing the gate refuses: gate2-review.mjs has
+        // refused a bare "Approved" since ADR-0025, because a bare word
+        // approves nothing in particular -- not an item, not a revision, not
+        // any particular bytes. An issue whose instructions the engine will
+        // reject is worse than an issue with no instructions at all.
+        '> @kristopherjturner: approve or reject each proposal below with the command printed in its section.',
+        '> A bare `Approved` is NOT a decision and will be refused: an approval has to name the item and the exact artifact digest it approves.',
+        '',
+        '> [!TIP]',
+        `> **You can decide several proposals in one comment.** Put each command on its own line, up to ${MAX_DECISIONS_PER_COMMENT} of them, all of the same kind (all approvals, or all denials).`,
+        '> Every line is checked on its own against the artifact it names. If any line is wrong, NONE of them is applied and the reply says which line and why, so you fix that line and post the comment again.',
         '',
         `**${matched.length} proposal(s)** emitted by the delivery ensemble and awaiting human decision.`,
         '',
@@ -227,6 +257,21 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
             }
         }
 
+        // ---- THE DECISION COMMAND ----
+        // Printed for every proposal, right where the reader finishes reading
+        // it, so deciding never means going and constructing a digest by hand.
+        // lib/gates.mjs learned the same lesson on the engine-side issues: a
+        // command a reader can copy is the difference between a gate that gets
+        // answered and one that gets ignored.
+        lines.push('');
+        lines.push('**Approve this proposal:**');
+        lines.push('');
+        lines.push('```');
+        lines.push(approveCommandFor(m));
+        lines.push('```');
+        lines.push('');
+        lines.push(`To reject it instead, replace \`approve\` with \`deny\`, drop the digest, and append \`reason="..."\`.`);
+
         lines.push('');
         lines.push('---');
         lines.push('');
@@ -240,9 +285,12 @@ function buildIssueBody(matched, localProposalsDir, engineRunId) {
     lines.push('3. Verify the deterministic gates');
     lines.push('4. Review the model stages for any red flags');
     lines.push('5. Decide: accept or reject');
-    lines.push('6. Comment exactly **`Approved`** or **`Denied`** (just Comment, not Close):');
-    lines.push('   - **`Approved`**: publishes the content to the live site');
-    lines.push('   - **`Denied`**: rejects the content');
+    lines.push('6. Comment the decision command from each proposal\'s section (just Comment, not Close):');
+    lines.push('   - `/orchard gate2 approve item=<id> digest=<sha256>` publishes that proposal to the live site');
+    lines.push('   - `/orchard gate2 deny item=<id> reason="..."` rejects it');
+    lines.push('   - `/orchard gate2 request-changes item=<id> reason="..."` sends it back to be rewritten, and the next authoring pass is given your reason verbatim');
+    lines.push(`   - Several commands may go in one comment, one per line, up to ${MAX_DECISIONS_PER_COMMENT}, all of the same kind`);
+    lines.push('   - A bare `Approved` is refused. So is a digest that no longer matches the artifact, which is what stops an approval written before an edit from applying after it.');
     lines.push('');
     lines.push('The `orchard-human-review` workflow will:');
     lines.push('1. Reply to confirm it received your decision');

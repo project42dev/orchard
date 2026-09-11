@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { evaluate, parseDecision, isBareApproval, artifactDigest, readProposal } from "./gate2-review.mjs";
 import { MAX_GATE_BATCH_SIZE } from "./lib/gates.mjs";
+import { buildIssueBody } from "./notify-review-ready.mjs";
 
 let assertions = 0;
 let failures = 0;
@@ -266,6 +267,42 @@ const approveLine = (i) => `/orchard gate2 approve item=${i.id} digest=${i.diges
   ok(!unauthorised.authorised && unauthorised.errors.some((e) => e.includes("not authorised")),
      "the actor allowlist applies to a batch comment exactly as to a single one");
   ok(unauthorised.decisions.length === 0, "an unauthorised actor's lines are never even evaluated");
+  rmSync(dir, { recursive: true, force: true });
+}
+
+// --- the command the review issue PRINTS is a command this gate ACCEPTS ---
+//
+// The issue body is the only instruction the owner ever gets, and until
+// 2026-09-11 it said "comment exactly `Approved`" -- the one thing this gate
+// has refused since ADR-0025. A printed instruction the engine rejects is worse
+// than no instruction, so the round trip is asserted rather than eyeballed:
+// render the body, pull the command out of it, and feed it to evaluate().
+{
+  const dir = mkdtempSync(join(tmpdir(), "gate2-notify-"));
+  const id = "p42-create-thing-ab12cd34";
+  const bytes = Buffer.from(JSON.stringify({ id, subjectId: "thing" }), "utf8");
+  writeFileSync(join(dir, `proposal-${id}.json`), bytes);
+  const entry = {
+    path: join(dir, `proposal-${id}.json`),
+    proposal: { id, subjectId: "thing", targets: [], modelStages: [], deterministicGates: [] },
+    packet: { disposition: "accept" },
+    workItem: null,
+  };
+
+  const body = buildIssueBody([entry], null, null);
+  ok(!/comment exactly \*\*`Approved`\*\*/.test(body), "the issue no longer tells the owner to do the thing the gate refuses");
+  ok(body.includes(`/orchard gate2 approve item=${id} digest=`), "the issue prints a bound command for the proposal");
+  ok(body.includes("several proposals in one comment") || body.includes("several") , "the issue says several decisions may share one comment");
+
+  const printed = body.split(/\r?\n/).find((l) => l.startsWith("/orchard gate2 approve"));
+  const r = evaluate({ text: printed, proposalDir: dir });
+  ok(r.authorised && r.item === id, "the command the issue printed is accepted by the gate, digest and all");
+
+  // And it is bound, not decorative: rewrite the artifact and the very same
+  // printed command stops applying.
+  writeFileSync(join(dir, `proposal-${id}.json`), Buffer.from('{"id":"tampered"}', "utf8"));
+  ok(!evaluate({ text: printed, proposalDir: dir }).authorised,
+     "the printed command binds to the bytes that were on disk when it was printed");
   rmSync(dir, { recursive: true, force: true });
 }
 
