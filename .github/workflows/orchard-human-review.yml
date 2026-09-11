@@ -21,6 +21,10 @@ on:
 permissions:
   issues: write
   contents: write # needed to push to the content repo
+  # Needed only by the Azure login step below: exchanges GitHub's OIDC token
+  # for an Azure access token scoped to nothing but reading two Key Vault
+  # secrets (T-08). No GitHub write scope is added by this.
+  id-token: write
 
 env:
   NODE_VERSION: "22"
@@ -39,13 +43,13 @@ jobs:
 
     steps:
       - name: Checkout orchard
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: project42dev/orchard
           path: orchard
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "npm"
@@ -261,25 +265,63 @@ jobs:
 
       - name: Download delivery artifacts
         if: steps.decision.outputs.decision == 'approved' && steps.engine-run.outputs.id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: orchard-delivery-${{ steps.engine-run.outputs.id }}
           path: orchard/
         continue-on-error: true
+
+      - name: Azure login (OIDC, no stored secret)
+        if: steps.decision.outputs.decision == 'approved'
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          # id-p42orch-content-request-prod-eus-01 (T-08): federated to this
+          # repository's main branch, holding Key Vault Secrets User on
+          # exactly the two secrets read below. Never the deploy identity in
+          # deploy-runtime.yml.
+          client-id: ${{ vars.ORCHARD_CONTENT_REQUEST_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read the GitHub App credential from Key Vault
+        if: steps.decision.outputs.decision == 'approved'
+        id: kv
+        shell: bash
+        run: |
+          set -euo pipefail
+          # tsv would silently truncate the multiline PEM private key, so the
+          # app id is read as tsv and the private key as json, each masked
+          # the instant it is in hand and before it is ever written
+          # anywhere, including $GITHUB_OUTPUT.
+          app_id="$(az keyvault secret show --vault-name kv-hcs-vault-01 --name hcs-platform-github-app-id --query value -o tsv)"
+          echo "::add-mask::$app_id"
+
+          private_key="$(az keyvault secret show --vault-name kv-hcs-vault-01 --name hcs-platform-github-app-private-key -o json | jq -r .value)"
+          while IFS= read -r line; do
+            [ -n "$line" ] && echo "::add-mask::$line"
+          done <<< "$private_key"
+
+          delimiter="ghapp_$(date +%s%N)_${RANDOM}"
+          {
+            echo "app-id=$app_id"
+            echo "private-key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Mint content-request App token
         if: steps.decision.outputs.decision == 'approved'
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_ID }}
-          private-key: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_PRIVATE_KEY }}
+          app-id: ${{ steps.kv.outputs.app-id }}
+          private-key: ${{ steps.kv.outputs.private-key }}
           owner: project42dev
           repositories: project42-content
 
       - name: Checkout content repo for publishing
         if: steps.decision.outputs.decision == 'approved'
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: ${{ env.CONTENT_REPOSITORY }}
           path: content-repo
@@ -287,8 +329,8 @@ jobs:
           # resort that fails the publish rather than a working fallback.
           # The minted App token (scoped to project42-content) is preferred;
           # ORCHARD_PUBLISH_TOKEN is the static fallback. There is
-          # deliberately no fallback to the organisation-wide ORG_PAT: that
-          # PAT's shared 5,000/hr bucket is not this workflow's to spend (see
+          # deliberately no fallback to the organisation-wide shared PAT this
+          # replaces: that PAT's shared 5,000/hr bucket is not this workflow's to spend (see
           # T-09), so a missing App credential fails loudly instead.
           token: ${{ steps.app-token.outputs.token || secrets.ORCHARD_PUBLISH_TOKEN || secrets.GITHUB_TOKEN }}
 

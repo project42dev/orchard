@@ -20,14 +20,19 @@
 #   2. The default GITHUB_TOKEN is scoped to this repository. Reading public
 #      issues on another public repository works with it, but any write back
 #      (the comment-and-close on publication) needs a cross-repository
-#      credential. This workflow mints a short-lived GitHub App installation
+#      credential. This workflow signs in to Azure with the dedicated
+#      content-request managed identity (T-08, OIDC — no stored Azure
+#      credential), reads the hcs-platform-app GitHub App's id and private
+#      key from kv-hcs-vault-01, and mints a short-lived App installation
 #      token scoped to project42dev/project42-content via
 #      actions/create-github-app-token, falling back to the static
 #      ORCHARD_CONTENT_REQUEST_TOKEN secret, then ORCHARD_PUBLISH_TOKEN (which
 #      orchard-human-review.yml already uses). There is deliberately no
-#      fallback to the organisation-wide ORG_PAT: that PAT's 5,000/hr bucket
-#      is shared with unrelated infrastructure (see T-09), and a missing App
-#      credential should fail loudly instead of silently spending it.
+#      fallback to the organisation-wide shared PAT that this replaces: that
+#      PAT's 5,000/hr bucket is shared with unrelated infrastructure (see
+#      T-09), and a failed
+#      login, Key Vault read, or mint fails this run loudly instead of
+#      silently spending it.
 #
 # This workflow only READS and reports. It writes no content, moves no
 # lifecycle state, and pushes nothing: the proposals it produces are uploaded
@@ -63,6 +68,10 @@ concurrency:
 
 permissions:
     contents: read
+    # Needed only by the Azure login step below: the job exchanges GitHub's
+    # OIDC token for an Azure access token, scoped to nothing but reading two
+    # Key Vault secrets (T-08). No GitHub write scope is added.
+    id-token: write
 
 env:
     NODE_VERSION: "22"
@@ -97,12 +106,48 @@ jobs:
             - name: Install locked dependencies
               run: npm ci --ignore-scripts
 
+            - name: Azure login (OIDC, no stored secret)
+              uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+              with:
+                  # id-p42orch-content-request-prod-eus-01 (T-08): federated to
+                  # this repository's main branch, holding Key Vault Secrets
+                  # User on exactly the two secrets read below. Never the
+                  # deploy identity in deploy-runtime.yml.
+                  client-id: ${{ vars.ORCHARD_CONTENT_REQUEST_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+            - name: Read the GitHub App credential from Key Vault
+              id: kv
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  # tsv would silently truncate the multiline PEM private key,
+                  # so the app id is read as tsv and the private key as json,
+                  # each masked the instant it is in hand and before it is
+                  # ever written anywhere, including $GITHUB_OUTPUT.
+                  app_id="$(az keyvault secret show --vault-name kv-hcs-vault-01 --name hcs-platform-github-app-id --query value -o tsv)"
+                  echo "::add-mask::$app_id"
+
+                  private_key="$(az keyvault secret show --vault-name kv-hcs-vault-01 --name hcs-platform-github-app-private-key -o json | jq -r .value)"
+                  while IFS= read -r line; do
+                    [ -n "$line" ] && echo "::add-mask::$line"
+                  done <<< "$private_key"
+
+                  delimiter="ghapp_$(date +%s%N)_${RANDOM}"
+                  {
+                    echo "app-id=$app_id"
+                    echo "private-key<<$delimiter"
+                    echo "$private_key"
+                    echo "$delimiter"
+                  } >> "$GITHUB_OUTPUT"
+
             - name: Mint content-request App token
               id: app-token
               uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
               with:
-                  app-id: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_ID }}
-                  private-key: ${{ secrets.ORCHARD_CONTENT_REQUEST_APP_PRIVATE_KEY }}
+                  app-id: ${{ steps.kv.outputs.app-id }}
+                  private-key: ${{ steps.kv.outputs.private-key }}
                   owner: project42dev
                   repositories: project42-content
 
@@ -158,20 +203,22 @@ jobs:
                     echo "same labelled issues on \`$REQUEST_REPOSITORY\`."
                     echo
                     echo "**This will keep happening until the App credential exists.** This step already tries"
-                    echo "to mint a GitHub App installation token scoped to \`project42dev/project42-content\`"
-                    echo "before falling back to the static \`ORCHARD_CONTENT_REQUEST_TOKEN\` / \`ORCHARD_PUBLISH_TOKEN\`"
-                    echo "secrets, then the default \`GITHUB_TOKEN\`. There is no fallback to the organisation-wide"
-                    echo "\`ORG_PAT\` — that PAT's 5,000-requests-per-hour bucket is shared with unrelated"
-                    echo "infrastructure (see T-09), so a missing App credential fails loudly here instead of"
-                    echo "silently spending it."
+                    echo "to sign in as the content-request managed identity (T-08, OIDC), read the"
+                    echo "\`hcs-platform-app\` GitHub App's id and private key from \`kv-hcs-vault-01\`, and mint"
+                    echo "an installation token scoped to \`project42dev/project42-content\`, before falling back"
+                    echo "to the static \`ORCHARD_CONTENT_REQUEST_TOKEN\` / \`ORCHARD_PUBLISH_TOKEN\` secrets, then"
+                    echo "the default \`GITHUB_TOKEN\`. There is no fallback to the organisation-wide shared"
+                    echo "PAT this replaces — that PAT's 5,000-requests-per-hour bucket is shared with unrelated"
+                    echo "infrastructure (see T-09), so a failed login, Key Vault read, or mint fails loudly"
+                    echo "here instead of silently spending it."
                     echo
-                    echo "The fix is the App credential this step already prefers. Install a GitHub App on"
-                    echo "\`project42dev\` with **Issues: Read-only** on \`$REQUEST_REPOSITORY\` (add"
-                    echo "**Issues: Read and write** if the publication comment-and-close path is ever wired"
-                    echo "up), and store its App ID and private key as the repository secrets"
-                    echo "\`ORCHARD_CONTENT_REQUEST_APP_ID\` and \`ORCHARD_CONTENT_REQUEST_APP_PRIVATE_KEY\` on"
-                    echo "this repository. The token chain above already prefers the minted token, so no"
-                    echo "workflow change is needed once those secrets exist."
+                    echo "The fix is the App credential this step already prefers. Confirm the"
+                    echo "\`id-p42orch-content-request-prod-eus-01\` managed identity is federated to this"
+                    echo "repository's \`main\` branch and holds Key Vault Secrets User on exactly"
+                    echo "\`hcs-platform-github-app-id\` and \`hcs-platform-github-app-private-key\` in"
+                    echo "\`kv-hcs-vault-01\`, and that \`vars.ORCHARD_CONTENT_REQUEST_CLIENT_ID\` names its"
+                    echo "client id. The token chain above already prefers the minted token, so no workflow"
+                    echo "change is needed once that identity resolves."
                   } >> "$GITHUB_STEP_SUMMARY"
 
             - name: Upload the proposals for the merge step
