@@ -34,6 +34,29 @@ function sha256Text(text) {
     return `sha256:${createHash("sha256").update(text).digest("hex")}`;
 }
 
+/**
+ * Every checksum a migration could honestly have, newest form first.
+ *
+ * The checksum hashes the migration file's bytes, so the same SQL hashes
+ * differently depending on the line endings of the checkout the image was
+ * built from. Every image until 2026-09-11 was built by an operator's
+ * `az acr build` from a Windows checkout (CRLF); the first image built by
+ * deploy-runtime.yml came from a Linux runner (LF), and every job failed at
+ * startup with "applied migration 2 does not match the vendored migration"
+ * although no migration had changed.
+ *
+ * Rewriting the recorded checksums would mean writing to the production state
+ * database to satisfy a formatting difference, so the comparison accepts the
+ * same SQL in either line ending instead. It still refuses a migration whose
+ * text actually changed, which is what the check is for. `.gitattributes`
+ * pins the files to LF so new records converge on one form.
+ */
+function migrationChecksums(sql) {
+    const lf = sql.replace(/\r\n/g, "\n");
+    const crlf = lf.replace(/\n/g, "\r\n");
+    return new Set([sha256Text(sql), sha256Text(lf), sha256Text(crlf)]);
+}
+
 function configure(db) {
     db.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
 }
@@ -192,7 +215,7 @@ export function migrateContentDb(dbPath, options = {}) {
             throw new Error(`database schema version ${row.version} is newer than this program supports (${CURRENT_SCHEMA_VERSION})`);
         }
         const sql = readFileSync(join(MIGRATIONS_DIRECTORY, known.file), "utf8");
-        if (row.name !== known.name || row.checksum !== sha256Text(sql)) {
+        if (row.name !== known.name || !migrationChecksums(sql).has(row.checksum)) {
             db.close();
             throw new Error(`applied migration ${row.version} does not match the vendored migration`);
         }

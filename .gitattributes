@@ -1,0 +1,2 @@
+* text=auto eol=lf
+schema/migrations/*.sql text eol=lf

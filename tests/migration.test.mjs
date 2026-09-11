@@ -173,3 +173,31 @@ test("integrity verification reports foreign-key violations", (t) => {
     assert.equal(verification.ok, false);
     assert.equal(verification.foreignKeys.length, 1);
 });
+
+test("a migration recorded from a CRLF checkout still matches the same SQL stored with LF", (t) => {
+    // The image deploy-runtime.yml builds comes from a Linux runner (LF); every
+    // image before 2026-09-11 was built from a Windows checkout (CRLF). The
+    // checksum hashes the file's bytes, so identical SQL hashed differently and
+    // every job failed at startup with "does not match the vendored migration".
+    const root = temporary(t);
+    const path = join(root, "content.db");
+    migrateContentDb(path);
+
+    const sql = readFileSync(join(MIGRATIONS_DIRECTORY, "002-two-track-authority.sql"), "utf8");
+    const crlf = sql.replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+    const crlfChecksum = `sha256:${createHash("sha256").update(crlf).digest("hex")}`;
+    const db = new DatabaseSync(path);
+    db.prepare("UPDATE schema_migration SET checksum = ? WHERE version = 2").run(crlfChecksum);
+    db.close();
+
+    // Opening it again must succeed: the SQL is unchanged, only its line endings.
+    assert.doesNotThrow(() => migrateContentDb(path));
+    assert.equal(migrateContentDb(path).toVersion, CURRENT_SCHEMA_VERSION);
+
+    // A migration whose text really changed is still refused.
+    const tampered = new DatabaseSync(path);
+    tampered.prepare("UPDATE schema_migration SET checksum = ? WHERE version = 2")
+        .run(`sha256:${createHash("sha256").update(`${crlf}-- edited\n`).digest("hex")}`);
+    tampered.close();
+    assert.throws(() => migrateContentDb(path), /does not match the vendored migration/);
+});
