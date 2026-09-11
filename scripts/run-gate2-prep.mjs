@@ -22,12 +22,27 @@
 // The runtime then announces Gate 2 exactly as it announces Gate 1.
 //
 // EVIDENCE ARRIVES, IT IS NEVER FABRICATED. The evidence for one item is a
-// JSON document at <evidence root>/gate2-evidence/<item_id>.json carrying the
-// handoff records, the artifact binding, and the manifest fields the authoring
-// stage can attest (diff and tree digests, base commit, review outcomes). An
-// item with no evidence, or evidence the store's contracts reject, is HELD at
-// gate2-ready with the reason logged. Holding honestly beats inventing a
-// review result, which is the defect class Gate 2 exists to prevent.
+// document carrying the handoff records, the artifact binding, and the
+// manifest fields the authoring stage can attest (diff and tree digests, base
+// commit, review outcomes). An item with no evidence, or evidence the store's
+// contracts reject, is HELD at gate2-ready with the reason logged. Holding
+// honestly beats inventing a review result, which is the defect class Gate 2
+// exists to prevent.
+//
+// WHERE THE EVIDENCE LIVES: THE STATE STORE, NEVER A LOCAL DISK. Every
+// Container Apps job has its own ephemeral filesystem and no Orchard job
+// mounts a volume. Until 2026-09-11 the authoring stage wrote the evidence to
+// <evidence root>/gate2-evidence/<item_id>.json on ITS disk, and this role
+// looked for that file on ITS OWN, different, disk -- so the check could only
+// ever fail, and every item that missed the authoring run's one in-process
+// window stranded at gate2-ready for good (project42dev-ops
+// pmo/plans/orchard-gate2-ready-stranding-analysis-2026-09-10.md). The rule
+// now: anything that must survive from one job to another belongs in the
+// state store. persistGate2Evidence records the whole document as an
+// observation (orchard/gate2-evidence/<item>:r<rev>) inside the SQLite file
+// BlobStateAdapter publishes under its fencing lease, and loadGate2Evidence
+// reads it back for the item's CURRENT revision. The file is still read as a
+// fallback, but it is scratch space, not the contract.
 
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -43,6 +58,82 @@ function argOf(argv, name, fallback = null) {
 
 export function evidencePathFor(evidenceRoot, itemId) {
     return join(evidenceRoot, "gate2-evidence", `${itemId}.json`);
+}
+
+export const GATE2_EVIDENCE_REFERENCE_PREFIX = "orchard/gate2-evidence/";
+
+export function gate2EvidenceReference(itemId, revision) {
+    return `${GATE2_EVIDENCE_REFERENCE_PREFIX}${itemId}:r${Number(revision)}`;
+}
+
+/**
+ * Make one item revision's Gate 2 evidence durable, BEFORE anything tries to
+ * prepare the item from it. `extra` is what the inline caller spreads into the
+ * manifest (the artifact content, or an escalation's rejection reason and
+ * draft); it travels with the evidence so a later retry shows the owner exactly
+ * what the inline attempt would have.
+ *
+ * recordObservation validates no payload (there is no observation schema), so
+ * tests/gate2-evidence-store.test.mjs is the guard that this record survives
+ * the store and still satisfies prepareItem and the store's exact-replay
+ * checks on the handoffs and the binding.
+ */
+export function persistGate2Evidence({ store, row, evidence, now, extra = {} }) {
+    const revision = Number(row.current_revision);
+    const payload = { gate2_evidence: evidence, gate2_manifest_extra: extra };
+    store.recordObservation({
+        observation_id: generateUuidV7(),
+        run_id: row.origin_run_id,
+        item_id: row.item_id,
+        item_revision: revision,
+        evidence_reference: gate2EvidenceReference(row.item_id, revision),
+        evidence_digest: sha256Digest(payload),
+        observed_at: now,
+        ...payload,
+    });
+    return gate2EvidenceReference(row.item_id, revision);
+}
+
+function evidenceNamesRevision(evidence, row) {
+    const binding = evidence?.artifact_binding;
+    return Boolean(binding) && binding.item_id === row.item_id
+        && Number(binding.item_revision) === Number(row.current_revision);
+}
+
+/**
+ * Find the evidence for a gate2-ready row: the most recent store observation
+ * for its CURRENT revision first, the legacy file only as a fallback. Returns
+ * null when neither exists.
+ *
+ * Revision-scoped on purpose. A re-authored item has a new revision, and the
+ * previous revision's evidence must never be handed to prepareItem: it records
+ * handoffs and a binding before it checks the revision, so stale evidence would
+ * leave rows behind for a revision that is no longer the item's. The file name
+ * carries no revision at all, so a file that names another revision is refused
+ * here rather than half-applied.
+ */
+export function loadGate2Evidence({ store, row, evidenceRoot }) {
+    const revision = Number(row.current_revision);
+    const observed = store.db.prepare(
+        `SELECT record_json FROM observation_event
+          WHERE item_id = ? AND item_revision = ? AND evidence_reference = ?
+          ORDER BY observed_at DESC, rowid DESC LIMIT 1`,
+    ).get(row.item_id, revision, gate2EvidenceReference(row.item_id, revision));
+    if (observed) {
+        const record = JSON.parse(observed.record_json);
+        return { source: "state-store", evidence: record.gate2_evidence, extra: record.gate2_manifest_extra ?? {} };
+    }
+    if (!evidenceRoot) return null;
+    const path = evidencePathFor(evidenceRoot, row.item_id);
+    if (!existsSync(path)) return null;
+    const evidence = JSON.parse(readFileSync(path, "utf8"));
+    if (!evidenceNamesRevision(evidence, row)) {
+        throw Object.assign(
+            new Error(`evidence file ${path} does not bind item ${row.item_id} revision ${revision}; refusing stale evidence`),
+            { code: "ERR_ORCHARD_STALE_EVIDENCE" },
+        );
+    }
+    return { source: "file", path, evidence, extra: {} };
 }
 
 const MANIFEST_FIELDS = ["displayed_diff_digest", "prepared_tree_digest", "base_commit", "diff_ref", "artifact_ref"];
@@ -149,20 +240,21 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             return summary;
         }
         for (const row of rows) {
-            const path = evidencePathFor(evidenceRoot, row.item_id);
-            if (!existsSync(path)) {
-                summary.held += 1;
-                log("warn", "gate2.prep.no-evidence", {
-                    item: row.item_id, path,
-                    effect: "the item stays gate2-ready; evidence is supplied, never fabricated",
-                });
-                continue;
-            }
             try {
-                const evidence = JSON.parse(readFileSync(path, "utf8"));
-                await prepareItem({ store, row, evidence, now });
+                const found = loadGate2Evidence({ store, row, evidenceRoot });
+                if (!found) {
+                    summary.held += 1;
+                    log("warn", "gate2.prep.no-evidence", {
+                        item: row.item_id,
+                        reference: gate2EvidenceReference(row.item_id, row.current_revision),
+                        path: evidencePathFor(evidenceRoot, row.item_id),
+                        effect: "the item stays gate2-ready; evidence is supplied, never fabricated",
+                    });
+                    continue;
+                }
+                await prepareItem({ store, row, evidence: found.evidence, now, extra: found.extra });
                 summary.prepared += 1;
-                log("info", "gate2.prep.pending", { item: row.item_id, state: "gate2-pending" });
+                log("info", "gate2.prep.pending", { item: row.item_id, state: "gate2-pending", evidenceSource: found.source });
             } catch (error) {
                 summary.held += 1;
                 log("warn", "gate2.prep.refused", {

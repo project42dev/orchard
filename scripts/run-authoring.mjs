@@ -64,7 +64,7 @@ import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage,
 import { inspectArtifactFormat, SKIP_ARTIFACT_FORMAT_CHECK } from "./lib/artifact-format.mjs";
 import { registrationFor, surfaceForTargetPath, RegistrationError } from "./lib/registration.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
-import { prepareItem as prepareGate2Item, evidencePathFor } from "./run-gate2-prep.mjs";
+import { prepareItem as prepareGate2Item, evidencePathFor, persistGate2Evidence } from "./run-gate2-prep.mjs";
 import { recoverStrandedItems } from "./lib/stranded-recovery.mjs";
 import { prepareRemovalCommit } from "./lib/prepare-gate2-evidence.mjs";
 import { buildRemovalEvidence, buildRemovalRecord, deregistrationFor, inboundReferences, redirectFor, removedIdForTarget } from "./lib/removal.mjs";
@@ -163,6 +163,26 @@ export function recordAuthoringEvidence({ store, applied, runRecordDir, now }) {
 }
 
 /**
+ * The local evidence file is a debugging convenience, never the contract: the
+ * state-store observation persistGate2Evidence writes is what another job
+ * reads. So a disk that cannot take the file (read-only, full) is logged and
+ * does not hold an item whose evidence is already durable.
+ */
+function writeEvidenceDebugCopy({ env, itemId, evidence, log }) {
+    const evidenceRoot = env.ORCHARD_EVIDENCE_ROOT ?? env.RUN_RECORD_ROOT ?? process.cwd();
+    const evidencePath = evidencePathFor(evidenceRoot, itemId);
+    try {
+        mkdirSync(join(evidencePath, ".."), { recursive: true });
+        writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+    } catch (error) {
+        log?.("warn", "gate2evidence.debug-copy-failed", {
+            item: itemId, path: evidencePath, reason: error.message,
+            effect: "none; the evidence is already in the state store",
+        });
+    }
+}
+
+/**
  * For each item this run just moved to gate2-ready, try to prepare real
  * Gate 2 evidence NOW, in this same execution, while the winning proposal
  * still exists on local disk and the run that produced it is still in
@@ -172,12 +192,13 @@ export function recordAuthoringEvidence({ store, applied, runRecordDir, now }) {
  * GitHub token configured, no persisted target, a proposal whose final
  * output could not be reconstructed intact) holds that one item at
  * gate2-ready with the reason logged, exactly like run-gate2-prep.mjs's own
- * no-evidence hold -- never a fabricated pass. An item held here is not
- * stuck: it is exactly where every item has always started, and a later
- * gate2-prep run (or a future improvement to this function) can still try
- * again if a real evidence file is ever supplied for it by other means.
+ * no-evidence hold -- never a fabricated pass. Once the evidence document is
+ * built it is persisted to the state store BEFORE the in-process preparation,
+ * so an item whose preparation then fails is not stuck: any later gate2-prep
+ * execution reads that evidence back from the store and prepares it, at no
+ * cost and without re-authoring.
  */
-export async function attemptGate2Evidence({ store, applied, runRecordDir, proposalRoot, now, env = process.env, log, fetchImpl = fetch }) {
+export async function attemptGate2Evidence({ store, applied, runRecordDir, proposalRoot, now, env = process.env, log, fetchImpl = fetch, readGateTokenImpl = readGateToken }) {
     const gate2Ready = applied.filter((entry) => entry.to === "gate2-ready");
     if (gate2Ready.length === 0) return { prepared: 0, held: 0 };
 
@@ -318,7 +339,7 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 continue;
             }
 
-            token ??= await readGateToken({
+            token ??= await readGateTokenImpl({
                 log, env, prefix: "commitprep",
                 vaultUrlVar: "ORCHARD_PUBLICATION_VAULT_URL", repoVar: "ORCHARD_PUBLICATION_GITHUB_REPO",
                 appIdVar: "ORCHARD_PUBLICATION_APP_ID_SECRET", installationIdVar: "ORCHARD_PUBLICATION_INSTALLATION_ID_SECRET",
@@ -383,21 +404,25 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
 
             const handoffs = await buildHandoffsFromProposal({ proposal, binding, runStartedAt: now });
             const evidence = buildEvidenceDocument({ handoffs, binding, target, commit, proposal });
-
-            const evidenceRoot = env.ORCHARD_EVIDENCE_ROOT ?? env.RUN_RECORD_ROOT ?? process.cwd();
-            const evidencePath = evidencePathFor(evidenceRoot, itemId);
-            mkdirSync(join(evidencePath, ".."), { recursive: true });
-            writeFileSync(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
-
             // Found live 2026-08-18, on a CLEAN item this time, not a
             // flagged one: "passed every review" plus a wall of digests is
             // still nothing to actually review -- the owner has never once
             // been shown the artifact itself, only cryptographic proof one
             // exists. Every Gate 2 item now carries its own content, the
             // same way an escalated item's rejected draft already does.
+            const extra = { content: reconstructed.content };
+
+            // DURABLE FIRST. The evidence goes into the state store before
+            // the in-process preparation is attempted, so if that attempt
+            // fails for any reason, a later gate2-prep execution -- a
+            // different container, with a different disk -- can still
+            // prepare this exact revision at no cost instead of the item
+            // stranding at gate2-ready until it is re-authored.
+            persistGate2Evidence({ store, row, evidence, now, extra });
+            writeEvidenceDebugCopy({ env, itemId, evidence, log });
+
             await prepareGate2Item({
-                store, row, evidence, now, actor: "orchard/run-authoring/gate2-evidence",
-                extra: { content: reconstructed.content },
+                store, row, evidence, now, actor: "orchard/run-authoring/gate2-evidence", extra,
             });
             summary.prepared += 1;
             log("info", "gate2evidence.prepared", { item: itemId, state: "gate2-pending", preparedCommit: commit.preparedCommit, target });
@@ -620,11 +645,15 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                 registrationProblem ? `Reachability (${registrationProblem.code}): ${registrationProblem.message}. If this is approved as it stands, the file will be committed and no reader will be able to open it.` : null,
             ].filter(Boolean).join("\n\n") || "(the ensemble blocked this item twice; no finding text could be reconstructed)";
 
+            // The item is at gate2-ready from here on, so its evidence goes
+            // into the state store first, exactly as attemptGate2Evidence
+            // does: a failed preparation below leaves it preparable by a
+            // later gate2-prep execution instead of stranded.
+            const escalatedRow = { item_id: itemId, current_revision: revision, origin_run_id: row.origin_run_id };
+            const escalationExtra = { escalated: true, rejection_reason: rejectionReason, rejected_draft: rejection.draft };
+            persistGate2Evidence({ store, row: escalatedRow, evidence, now, extra: escalationExtra });
             await prepareGate2Item({
-                store,
-                row: { item_id: itemId, current_revision: revision, origin_run_id: row.origin_run_id },
-                evidence, now, actor: "orchard/rejection-gate",
-                extra: { escalated: true, rejection_reason: rejectionReason, rejected_draft: rejection.draft },
+                store, row: escalatedRow, evidence, now, actor: "orchard/rejection-gate", extra: escalationExtra,
             });
             summary.escalated += 1;
             log("info", "rejection.escalated", { item: itemId, state: "gate2-pending", preparedCommit: commit.preparedCommit, target });
@@ -880,11 +909,15 @@ export async function executeRemovals({ store, removals, now, env = process.env,
             const refreshed = store.db.prepare(
                 "SELECT item_id, track, current_revision, origin_run_id FROM workflow_item WHERE item_id = ?",
             ).get(removal.itemId);
+            // The owner reads the removal record itself at Gate 2, not a
+            // wall of digests about a file they cannot see being deleted.
+            const removalExtra = { content: composed.record.content };
+            // Durable before the preparation, as in attemptGate2Evidence: a
+            // removal whose preparation fails is at gate2-ready now, and a
+            // later gate2-prep execution can finish it from the store.
+            persistGate2Evidence({ store, row: refreshed, evidence, now, extra: removalExtra });
             await prepareGate2Item({
-                store, row: refreshed, evidence, now, actor: "orchard/run-authoring/removal",
-                // The owner reads the removal record itself at Gate 2, not a
-                // wall of digests about a file they cannot see being deleted.
-                extra: { content: composed.record.content },
+                store, row: refreshed, evidence, now, actor: "orchard/run-authoring/removal", extra: removalExtra,
             });
             summary.prepared += 1;
             log("info", "removal.prepared", {

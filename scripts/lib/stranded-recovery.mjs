@@ -29,8 +29,18 @@
 // MAX_ATTEMPTS times is never retried again -- it is named, every run, as
 // needing a human. Silent unbounded retrying of an item that cannot succeed is
 // how a budget disappears.
+//
+// WHAT IS NOT STRANDED, SINCE 2026-09-11. The authoring stage now persists each
+// item's Gate 2 evidence to the state store before it tries to prepare the item
+// (run-gate2-prep.mjs persistGate2Evidence), and gate2-prep reads it back from
+// there. A gate2-ready row that HAS that evidence for its current revision is
+// therefore not stranded: gate2-prep prepares it for nothing. Re-authoring it
+// here would spend to throw real, preparable work away, so it is named and
+// left for gate2-prep. The backlog this sweep exists for -- items whose
+// evidence died with a container -- has no such record and is unaffected.
 
 import { applyRetry } from "../apply-blocked-retry.mjs";
+import { gate2EvidenceReference } from "../run-gate2-prep.mjs";
 import { PUBLICATION_REPOSITORY } from "./publication.mjs";
 
 export const STRANDED_ACTOR = "orchard/stranded-recovery";
@@ -67,6 +77,13 @@ function automaticAttempts(db, itemId) {
           WHERE item_id = ? AND to_state = 'executing' AND cause = 'revision-created'
             AND json_extract(record_json, '$.actor') = ?`,
     ).get(itemId, STRANDED_ACTOR).n);
+}
+
+function hasStoredGate2Evidence(db, row) {
+    return Boolean(db.prepare(
+        `SELECT 1 FROM observation_event
+          WHERE item_id = ? AND item_revision = ? AND evidence_reference = ? LIMIT 1`,
+    ).get(row.item_id, Number(row.current_revision), gate2EvidenceReference(row.item_id, row.current_revision)));
 }
 
 /**
@@ -120,6 +137,13 @@ export async function recoverStrandedItems({
         // reported by the target migration's own pass instead.
         if (row.target_repository !== PUBLICATION_REPOSITORY) {
             refuse(row, `the recorded publication target is ${row.target_repository}, not ${PUBLICATION_REPOSITORY}; it must be repointed before it is worth re-authoring`);
+            continue;
+        }
+
+        // Checked before the attempt cap, and it spends nothing: the evidence
+        // for this exact revision is durable, so gate2-prep is the path.
+        if (hasStoredGate2Evidence(store.db, row)) {
+            refuse(row, "its Gate 2 evidence for this revision is in the state store; gate2-prep prepares it without re-authoring, so nothing is spent on it here");
             continue;
         }
 
