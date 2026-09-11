@@ -140,8 +140,12 @@ test("the three App-token mints read the GitHub App credential from Key Vault vi
         assert.doesNotMatch(workflow, /hcs-platform-github-app-private-key[^\n]*-o tsv/, `${name} must not read the private key as tsv (it truncates multiline values)`);
         assert.match(workflow, /jq -r \.value/, `${name} must unwrap the Key Vault json response with jq`);
 
-        // Both secrets are masked before they can reach a log.
-        assert.match(workflow, /::add-mask::/, `${name} must mask the secrets it reads`);
+        // Both secrets are masked before they can reach a log: the app id as
+        // a whole, and the PEM private key line-by-line (a single mask on
+        // the whole multiline value would not match it split across log
+        // lines).
+        assert.match(workflow, /::add-mask::\$app_id/, `${name} must mask the app id`);
+        assert.match(workflow, /::add-mask::\$line/, `${name} must mask the private key line-by-line`);
 
         // No repository-secret App credential and no organisation-wide PAT
         // fallback remain anywhere in these workflows.
