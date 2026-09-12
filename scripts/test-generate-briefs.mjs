@@ -604,6 +604,58 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
     Boolean(creating.brief));
 }
 
+// --- the currency finding has to survive a rework ----------------------------
+//
+// END TO END, through the real store, because the two halves of the fix meet
+// here and a unit test on either one alone proves nothing about production.
+// gate-queue.mjs records the Gate 1 manifest ONCE, with a hardcoded
+// item_revision: 1, and that manifest is where the currency inspector's own
+// findings live. generate-briefs pinned its read of that observation to the
+// item's CURRENT revision, so the moment an item was reworked or retried past
+// revision 1 the lookup silently returned nothing. Of the 49 Track 2 items in
+// Gate 2 issues #190-#216, 46 are at revision 4, two at 3 and one at 2: the
+// finding was unreachable for every one of them, and the title fell back to
+// the raw semantic identity.
+{
+  const { store: s2, runId: r2, dbPath: db2 } = await estate();
+  const finding = 'The cited https://12factor.net/ entry passed its 90-day review cadence on 2026-08-30 and was not re-verified.';
+  const corpusPath = 'content/resources/setup-quick-reference/agent-configuration-layering-reference.json';
+
+  const staleId = await seedItemWithOutcome(s2, r2, 'stale-guide', 'update', {
+    surface: 'guide',
+    evidence: [{ reference: corpusPath, digest: sha256Digest(corpusPath) }],
+  });
+  // The manifest, recorded exactly where gate-queue.mjs puts it: revision 1.
+  await s2.recordObservation({
+    observation_id: generateUuidV7(), run_id: r2, item_id: staleId, item_revision: 1,
+    evidence_reference: `orchard/gate-manifest/gate-1:${staleId}`,
+    evidence_digest: sha256Digest(finding), observed_at: NOW, gate: 'gate-1',
+    manifest_item: { item_id: staleId, item_revision: 1, title: 'Agent Configuration Layering Reference', evidence_refs: [finding], score: { value: 7 } },
+  });
+  await walkTo(s2, r2, staleId, 'ado-linked');
+
+  // Now rework it, the way a Gate 2 request-changes does: a new contiguous
+  // revision, with the manifest observation left where it was.
+  const prior = JSON.parse(s2.db.prepare(
+    'SELECT record_json FROM item_revision WHERE item_id = ? AND item_revision = 1',
+  ).get(staleId).record_json);
+  await s2.recordItem({ ...prior, item_revision: 2, state: 'ado-linked', created_at: NOW, updated_at: NOW });
+  s2.db.prepare('UPDATE workflow_item SET current_revision = 2 WHERE item_id = ?').run(staleId);
+  s2.close();
+
+  const r = await generateBriefs({ ...base, dbPath: db2, limit: 10 });
+  const brief = r.briefs.find((b) => b.subjectId === staleId);
+  check(`a reworked update item is briefed rather than stranded (${JSON.stringify(r.skipped)})`, Boolean(brief));
+  if (brief) {
+    check('the currency finding reaches the drafter even though the item is past revision 1',
+      brief.prompt.includes(finding));
+    check('and the manifest title survives the rework instead of falling back to the semantic identity',
+      brief.title === 'Agent Configuration Layering Reference');
+    check('and the corpus path is still never offered as a cited source',
+      !brief.prompt.includes(`  - ${corpusPath} (`));
+  }
+}
+
 // --- report ------------------------------------------------------------------
 
 cleanupFixtures();

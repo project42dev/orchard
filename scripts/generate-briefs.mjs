@@ -824,16 +824,31 @@ export async function generateBriefs({
         ORDER BY i.created_at, i.item_id`,
     ).all();
 
+    // THE GATE 1 MANIFEST IS RECORDED ONCE, AT REVISION 1, AND DESCRIBES THE
+    // ITEM RATHER THAN A REVISION OF IT (gate-queue.mjs records it with a
+    // hardcoded item_revision: 1, because an item held from an earlier run has
+    // to announce itself just as well as one held from this run). Pinning the
+    // read to the item's CURRENT revision therefore finds nothing the moment
+    // an item is reworked or retried past revision 1 -- and the manifest is
+    // where the item's title, its score, and the currency inspector's own
+    // findings live. Measured 2026-09-12 on the 49 Track 2 items in Gate 2
+    // issues #190-#216: 46 sit at revision 4, two at 3 and one at 2, so this
+    // lookup returned null for every single one of them, silently, and the
+    // brief fell back to titling the work by its raw semantic identity.
+    // apply-blocked-retry.mjs, run-verification.mjs and verify-published-live.mjs
+    // all read the same observation by item id alone, which is the idiom this
+    // one had drifted from; apply-blocked-retry.mjs even carries the comment
+    // describing this exact symptom on its own path.
     const manifestFor = db.prepare(
       `SELECT record_json FROM observation_event
-        WHERE item_id = ? AND item_revision = ? AND evidence_reference = ?
-        ORDER BY observed_at DESC LIMIT 1`,
+        WHERE item_id = ? AND evidence_reference = ?
+        ORDER BY item_revision DESC, observed_at DESC LIMIT 1`,
     );
 
     const queue = rows.map((row) => {
       const record = JSON.parse(row.record_json);
       const observed = manifestFor.get(
-        row.item_id, Number(row.current_revision),
+        row.item_id,
         `${GATE_MANIFEST_REFERENCE_PREFIX}gate-1:${row.item_id}`,
       );
       const manifest = observed ? JSON.parse(observed.record_json).manifest_item ?? null : null;
