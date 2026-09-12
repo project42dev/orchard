@@ -174,7 +174,25 @@ export function registerLearningModule({ registryText, targetPath, artifact }) {
  * must be written rather than generated from node labels. So the entry has to
  * be authored, and an item without one holds.
  */
-export function registerDiagram({ registryText, targetPath, entry }) {
+/**
+ * The catalogue record a drafted entry has to be before anything writes it,
+ * returned in the field order diagrams/catalogue.json is committed in.
+ *
+ * EXTRACTED SO IT CAN RUN EARLIER. registerDiagram is called from inside
+ * prepareRealCommit's `registration.apply`, which is after the publication
+ * token has been minted and after one GitHub read of the registry. Whether the
+ * drafter authored a complete entry is knowable the moment the draft is in
+ * hand, so lib/diagram-deliverable.mjs asks this question there, where it costs
+ * nothing, and registerDiagram asks it again here, where it is the last
+ * possible place to stop a half-registered publication. One rule, one field
+ * list, two choke points -- the same shape assertArtifactFormat and
+ * inspectArtifactFormat already have.
+ *
+ * `id` and `source` are DERIVED from the target path and overwrite whatever the
+ * entry carried: where the file lands is the fact, and an entry that names
+ * itself something else is a second name for one thing.
+ */
+export function validateCatalogueEntry({ entry, targetPath }) {
     const { id, source } = diagramIdForTarget(targetPath);
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
         throw new RegistrationError(
@@ -185,7 +203,12 @@ export function registerDiagram({ registryText, targetPath, entry }) {
     const candidate = { ...entry, id, source };
     const missing = CATALOGUE_ENTRY_FIELDS.filter((field) => {
         const value = candidate[field];
-        if (field === "takeaways") return !Array.isArray(value) || value.length === 0;
+        // A takeaways array of empty strings is an absent takeaways array
+        // wearing a bracket. All 11 published diagrams carry three real ones.
+        if (field === "takeaways") {
+            return !Array.isArray(value) || value.length === 0
+                || value.some((line) => typeof line !== "string" || line.trim() === "");
+        }
         return typeof value !== "string" || value.trim() === "";
     });
     if (missing.length) {
@@ -197,10 +220,15 @@ export function registerDiagram({ registryText, targetPath, entry }) {
             `"${candidate.category}" is not a category any page lists. Use one of: ${DIAGRAM_CATEGORIES.join(", ")}`,
         );
     }
+    return CATALOGUE_ENTRY_FIELDS.reduce((accumulator, field) => ({ ...accumulator, [field]: candidate[field] }), {});
+}
+
+export function registerDiagram({ registryText, targetPath, entry }) {
+    const { id } = diagramIdForTarget(targetPath);
+    const ordered = validateCatalogueEntry({ entry, targetPath });
 
     const catalogue = parseRegistry("diagrams/catalogue.json", registryText);
     const diagrams = Array.isArray(catalogue.diagrams) ? catalogue.diagrams : [];
-    const ordered = CATALOGUE_ENTRY_FIELDS.reduce((accumulator, field) => ({ ...accumulator, [field]: candidate[field] }), {});
     const existing = diagrams.findIndex((diagram) => diagram?.id === id);
     const next = existing >= 0
         ? diagrams.map((diagram, index) => (index === existing ? ordered : diagram))

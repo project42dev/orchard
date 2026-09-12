@@ -37,6 +37,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStateStore } from './lib/state-store.mjs';
 import { GATE_MANIFEST_REFERENCE_PREFIX } from './lib/gate-queue.mjs';
 import { generateUuidV7 } from './lib/identity.mjs';
+// The fence tags the drafter is instructed to emit and the parser splits on are
+// ONE pair of constants, imported here rather than spelled again. An
+// instruction that asks for a tag the parser does not read is the same class of
+// defect as the one this import exists to close: what the brief asks for and
+// what the pipeline can consume have to be the same thing by construction.
+import { MERMAID_FENCE_TAG, CATALOGUE_FENCE_TAG } from './lib/diagram-deliverable.mjs';
+import { DIAGRAM_CATEGORIES } from './lib/registration.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MAP_PATH = resolve(HERE, '..', 'config', 'model-map.json');
@@ -402,14 +409,55 @@ const STANDING_CONSTRAINTS = [
 // the drafter was asked in prose to "write the guide content" for a path
 // ending .json. One defect, one surface, sixty-four items.
 export const FORM_INSTRUCTIONS = {
+  // A DIAGRAM IS TWO DELIVERABLES AND THE PIPELINE HAS ONE CONTENT SLOT, so
+  // the two halves travel in one string as two tagged fenced blocks and
+  // lib/diagram-deliverable.mjs splits them. Until 2026-09-12 this instruction
+  // asked for two things and the pipeline could carry one: the whole blob went
+  // verbatim to diagrams/<id>.mmd and registrationFor was called with no
+  // catalogue entry at all, so a compliant drafter's work died on
+  // artifact-format.mermaid-unrecognized (a .mmd file that opens "## 1. Mermaid
+  // diagram source" is not mermaid) and a non-compliant one's died on
+  // registration.no-catalogue-entry. Four diagram items were held on the first
+  // of those in production and no diagram has ever been published by this
+  // pipeline. Asking for the envelope is what makes the two halves separable;
+  // the parser is the guard for when it is ignored.
+  //
+  // Every catalogue field named below is taken from the 11 entries in
+  // project42dev/project42-content diagrams/catalogue.json, which all carry
+  // exactly the same nine keys and exactly three takeaways, and from
+  // CATALOGUE_ENTRY_FIELDS and DIAGRAM_CATEGORIES in lib/registration.mjs,
+  // which is what refuses an entry that does not. The accessibility directives
+  // are taken from the .mmd files themselves: all 11 open with accTitle and
+  // accDescr. Nothing here is invented, and the category list is imported
+  // rather than retyped so it cannot drift from the one that validates.
   mermaid: [
     '',
-    'FORM. The deliverable is not prose. Produce two things:',
-    '1. A Mermaid diagram source, valid on its own, that renders without a legend explaining it.',
-    '2. A catalogue entry carrying: title, category, summary, description, altText, caption, and takeaways.',
+    'FORM. The deliverable is not prose, and it is not one thing. A published diagram is TWO artifacts: the Mermaid source file, and the catalogue entry that is the only reason any reader can find it. Return them as exactly two fenced blocks, in this order, and nothing else that matters:',
     '',
-    'The altText must describe the flow in words for a reader who cannot see the image, naming the nodes and the direction of travel. It is not a repeat of the caption. The takeaways are what a reader should hold on to after the image is gone, not a list of the boxes in it.',
+    `\`\`\`${MERMAID_FENCE_TAG}`,
+    '<the diagram source, and nothing else>',
+    '```',
+    '',
+    `\`\`\`${CATALOGUE_FENCE_TAG}`,
+    '{ ... one JSON object ... }',
+    '```',
+    '',
+    `The block tagged ${MERMAID_FENCE_TAG} is committed as the .mmd file exactly as you write it, with the fence removed. Put nothing inside it but Mermaid: no heading, no "here is the diagram", no commentary. It must be valid on its own and render without a legend explaining what the shapes mean.`,
+    'Open it with the diagram keyword (flowchart, sequenceDiagram, stateDiagram-v2, and so on), and give it accTitle and accDescr lines immediately after: every published diagram in this estate carries both, and they are what a screen reader reads.',
     'Do not produce an SVG. The rendered image is generated from the source, and hand-authoring one puts the two out of step.',
+    '',
+    `The block tagged ${CATALOGUE_FENCE_TAG} must contain exactly ONE JSON object and nothing else, no comments and no trailing prose. It is the catalogue record, and a diagram absent from the catalogue is published to nobody. Every one of these fields is REQUIRED:`,
+    '  title        one line of plain text, the name a reader sees.',
+    `  category     the heading this diagram is grouped under, exactly as spelled, one of: ${DIAGRAM_CATEGORIES.join(', ')}. A new heading is a product decision, and one invented here files the diagram under a heading no page lists.`,
+    '  summary      one sentence saying what the diagram shows.',
+    '  description  two or three sentences of context: what the reader is looking at and why the flow is shaped that way. It is not a longer summary.',
+    '  altText      the flow described in words for a reader who cannot see the image, naming the nodes and the direction of travel, including where it branches and where it ends. It is not a repeat of the caption, and it is an accessibility obligation rather than a nicety.',
+    '  caption      one sentence printed under the image.',
+    '  takeaways    an array of exactly three non-empty strings: what a reader should still hold after the image is gone. They are not a list of the boxes in it.',
+    '',
+    'Do NOT include "id" or "source". Both are derived from the path this diagram is published to and anything you write there is overwritten.',
+    'If this is an update, still return the COMPLETE envelope: both blocks, in full. Whole files are committed, so a fragment or a description of what changed publishes a fragment.',
+    'An output missing either block, carrying two of either, or whose catalogue block is not one complete JSON object is refused before it reaches a reviewer, and the item is held rather than published half-finished.',
   ],
   // Every field below is taken from the LearningModule interface in
   // project42-platform src/schema.ts and its validateCatalog rules, and
@@ -671,8 +719,9 @@ const SURFACE_CRITERIA = {
     'Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader.',
   ],
   'visual-guide': [
-    'The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean.',
-    'The catalogue entry carries a title, category, summary, description, altText, caption, and at least two takeaways.',
+    `The output is exactly two fenced blocks, one tagged ${MERMAID_FENCE_TAG} carrying only the diagram source and one tagged ${CATALOGUE_FENCE_TAG} carrying only the catalogue entry object. An output that runs the two together, or omits either, cannot be published at all.`,
+    'The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean, and carries accTitle and accDescr.',
+    `The catalogue entry carries a title, a category drawn from the published list (${DIAGRAM_CATEGORIES.join(', ')}), summary, description, altText, caption, and three takeaways, and declares neither id nor source.`,
     'The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.',
     'The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.',
     'No SVG is authored by hand. The rendered image is generated from the source.',

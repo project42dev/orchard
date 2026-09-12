@@ -23,7 +23,8 @@ import {
   isResolvableCitation, evidenceCitations,
 } from './generate-briefs.mjs';
 import { inspectArtifactFormat } from './lib/artifact-format.mjs';
-import { surfaceForTargetPath } from './lib/registration.mjs';
+import { surfaceForTargetPath, registrationFor, DIAGRAM_CATEGORIES } from './lib/registration.mjs';
+import { splitDiagramDeliverable, MERMAID_FENCE_TAG, CATALOGUE_FENCE_TAG } from './lib/diagram-deliverable.mjs';
 import { matchToWorkItem } from './ingest-proposals.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { estate, seedGateItems, walkTo, cleanupFixtures, NOW, candidate } from './test-fixtures.mjs';
@@ -492,6 +493,83 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   }, null, 2);
   const after = inspectArtifactFormat({ path: target, content: shapedDraft });
   check(`a draft in the form the brief now asks for passes the same check (${after.reason ?? 'no reason'})`, after.ok);
+}
+
+// --- the diagram surface: two deliverables, one content slot -------------------
+//
+// Same test, same real config, for the surface where the mismatch was total
+// rather than partial. FORM_INSTRUCTIONS.mermaid asked for "two things" and the
+// pipeline had one content slot, so a compliant drafter's output was held on
+// artifact-format.mermaid-unrecognized (four items in production) and a
+// non-compliant one's on registration.no-catalogue-entry. Nothing is asserted
+// here against a fixture config: the brief is built from the operator's own
+// visual-guide surface and run through the real parser, the real format guard
+// and the real registry writer.
+
+{
+  const real = JSON.parse(readFileSync(DEFAULT_TARGETS_PATH, 'utf8'));
+  const target = 'diagrams/retrieval-pipeline.mmd';
+  equal('a diagrams/ path is the guide-diagram surface, which is what picks the form',
+    surfaceForTargetPath(target), 'guide-diagram');
+
+  // `guide-diagram` is the CONTRACT surface name and what reaches formFor at
+  // runtime; `visual-guide` is the operator's config key. Both are exercised,
+  // because covering one spelling is how the field-guide surface went three
+  // weeks with no form at all.
+  for (const surface of ['guide-diagram', 'visual-guide']) {
+    const prompt = buildPrompt(
+      { subject_id: 'retrieval-pipeline-visual-guide', surface, kind: 'needs-creating', title: 'Retrieval pipeline', level: 'intermediate' },
+      { level: 'intermediate' }, [], surfaceConfigFor(real, surface) ?? real.surfaces[surface],
+    );
+    check(`the ${surface} brief names the source block tag the parser splits on`,
+      prompt.includes('```' + MERMAID_FENCE_TAG));
+    check(`the ${surface} brief names the catalogue block tag the parser splits on`,
+      prompt.includes('```' + CATALOGUE_FENCE_TAG));
+    check(`the ${surface} brief names every category a page actually lists`,
+      DIAGRAM_CATEGORIES.every((category) => prompt.includes(category)));
+    check(`the ${surface} brief says id and source are derived, not authored`,
+      prompt.includes('Do NOT include "id" or "source"'));
+    check(`the ${surface} brief asks for the altText obligation by name`,
+      prompt.includes('altText'));
+  }
+
+  const source = 'flowchart LR\n    accTitle: Retrieval pipeline\n    accDescr: Chunk, embed, index, retrieve, answer.\n\n    S([Source]) --> C[Chunk] --> E[Embed] --> I[(Index)] --> R[Retrieve] --> A[Answer]';
+  const entry = {
+    title: 'Retrieval pipeline, from source to grounded answer',
+    category: 'Research',
+    summary: 'How source material becomes a searchable index and how a question travels through it to a cited answer.',
+    description: 'Preparation is done once per corpus; answering happens per question and reads only the index.',
+    altText: 'A left-to-right flow from Source through Chunk, Embed and Index, joined by Retrieve, ending at Answer.',
+    caption: 'Retrieval separates preparing a corpus from answering from it.',
+    takeaways: ['Preparation and answering meet only at the index.', 'The answering path never reads the raw source.', 'Citations come from retrieved chunks.'],
+  };
+
+  // WHAT THE OLD INSTRUCTION PRODUCED. "Produce two things: 1. ... 2. ..." in
+  // one blob, committed verbatim to a .mmd path. This is the defect, reproduced.
+  const obedient = `## 1. Mermaid diagram source\n\n${source}\n\n## 2. Catalogue entry\n\n${JSON.stringify(entry, null, 2)}`;
+  equal('the blob the OLD instruction produced is held, exactly as production held it',
+    inspectArtifactFormat({ path: target, content: obedient }).code, 'artifact-format.mermaid-unrecognized');
+  equal('and it does not split either, because a heading is not a fence and guessing publishes half a diagram',
+    splitDiagramDeliverable({ path: target, content: obedient }).code, 'diagram-deliverable.no-source-block');
+
+  // WHAT THE NEW INSTRUCTION ASKS FOR, obeyed literally, through the real path.
+  const drafted = ['```' + MERMAID_FENCE_TAG, source, '```', '', '```' + CATALOGUE_FENCE_TAG, JSON.stringify(entry, null, 2), '```', ''].join('\n');
+  const split = splitDiagramDeliverable({ path: target, content: drafted });
+  check(`a draft in the form the brief now asks for splits (${split.reason ?? 'no reason'})`, split.ok);
+  check('and what gets committed is pure mermaid, which is what the guard that held four items checks',
+    inspectArtifactFormat({ path: target, content: split.source }).ok);
+  equal('and the .mmd carries no fence', split.source.includes('```'), false);
+
+  const registryText = JSON.stringify({ $schemaVersion: 1, diagrams: [] }, null, 2) + '\n';
+  const registration = registrationFor({
+    surface: 'guide-diagram', targetPath: target,
+    artifact: split.source, catalogueEntry: split.catalogueEntry,
+  });
+  const written = JSON.parse(registration.apply(registryText)).diagrams[0];
+  equal('and the catalogue entry the drafter authored reaches the registry, which is the whole defect',
+    written.id, 'retrieval-pipeline');
+  equal('carrying the alt text a reader who cannot see the image depends on', written.altText, entry.altText);
+  equal('and the source filename derived from where the file lands', written.source, 'retrieval-pipeline.mmd');
 }
 
 // --- what an update brief is allowed to call a cited source -------------------

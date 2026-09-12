@@ -385,12 +385,18 @@ test("every surface's form resolves even when the operator's surface config decl
     assert.equal(formFor("nonsense", {}), null, "an undeclared surface gets no form instruction rather than a guessed one");
 });
 
-test("the mermaid brief is untouched, and a visual guide still gets its own form", () => {
+test("a visual guide still gets its own form, and it asks for the two-block envelope the parser reads", () => {
     const prompt = buildPrompt(
         { kind: "needs-creating", surface: "guide-diagram", title: "Retrieval pipeline", subject_id: "retrieval-pipeline" },
         null, [], { form: "mermaid" },
     );
-    assert.match(prompt, /A Mermaid diagram source, valid on its own/);
+    // The instruction asked for "two things" and the pipeline could carry one
+    // until 2026-09-12. It now asks for the exact envelope
+    // lib/diagram-deliverable.mjs splits, which is the only reason a diagram
+    // can be published at all. See scripts/test-diagram-deliverable.mjs for
+    // the pair asserted end to end.
+    assert.match(prompt, /```mermaid/, "the source block tag is named");
+    assert.match(prompt, /```orchard-catalogue-entry/, "and so is the catalogue block tag");
     assert.doesNotMatch(prompt, /LearningModule/, "the two form instructions do not bleed into each other");
 });
 
