@@ -20,6 +20,7 @@ import {
   generateBriefs, resolveRoles, loadInventory, normalizeStableId, briefIdFor,
   briefFor, topicSlug, BriefGenerationError, ROLE_JOBS, OUTCOME_KIND, surfaceConfigFor,
   buildPrompt, formFor, FORM_INSTRUCTIONS, SURFACE_DEFAULT_FORM, DEFAULT_TARGETS_PATH,
+  isResolvableCitation, evidenceCitations,
 } from './generate-briefs.mjs';
 import { inspectArtifactFormat } from './lib/artifact-format.mjs';
 import { surfaceForTargetPath } from './lib/registration.mjs';
@@ -491,6 +492,116 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   }, null, 2);
   const after = inspectArtifactFormat({ path: target, content: shapedDraft });
   check(`a draft in the form the brief now asks for passes the same check (${after.reason ?? 'no reason'})`, after.ok);
+}
+
+// --- what an update brief is allowed to call a cited source -------------------
+//
+// Gate 2 issues #190-#216, read 2026-09-12: 49 Track 2 currency items, 33
+// failed the automated factual review, and 15 of the 16 that "passed" are
+// refusal documents rather than resources. One input explains nearly all of
+// it. track-2-controller.mjs records the corpus path of the file being
+// corrected as the item's evidence reference; evidenceCitations turned that
+// into a citation; buildPrompt rendered it as "the cited source on the
+// existing item" -- directly under a standing constraint telling the drafter
+// to cite only what resolves over https. The drafter refused, correctly, and
+// the reviewer failed it for the refusal, also correctly.
+{
+  const corpusPath = 'content/resources/setup-quick-reference/agent-configuration-layering-reference.json';
+
+  check('a corpus path is not a citation, whatever else it is',
+    !isResolvableCitation(corpusPath));
+  check('and neither is a bare slug, a DOI, or an empty reference',
+    !isResolvableCitation('agent-configuration-layering-reference')
+    && !isResolvableCitation('doi:10.1000/182')
+    && !isResolvableCitation(''));
+  check('an https URL still is one', isResolvableCitation('https://12factor.net/'));
+
+  const item = {
+    subject_id: 'agent-configuration-layering-reference-field-guide',
+    id: '01a024de-1b76-723d-ac6c-6c705ea4e8b5',
+    surface: 'guide',
+    kind: 'needs-updating',
+    title: 'Agent Configuration Layering Reference',
+    level: 'intermediate',
+    recordedTarget: {
+      repository: 'project42dev/project42-content',
+      path: 'resources/setup-quick-reference/agent-configuration-layering-reference.json',
+    },
+    // The shape track-2-controller.mjs actually records: the item's own
+    // corpus path, as its one and only evidence reference.
+    record: { evidence: [{ reference: corpusPath, digest: `sha256:${'0'.repeat(64)}` }] },
+    currencyFindings: ['The cited https://12factor.net/ entry passed its 90-day review cadence on 2026-08-30 and was not re-verified.'],
+  };
+  const real = loadInventory(DEFAULT_TARGETS_PATH);
+  const roles = { drafter: 'drafter' };
+
+  // The conversion that produced the defect, driven on the record shape
+  // track-2-controller.mjs actually writes. This is the assertion that bites
+  // if the filter is ever relaxed back to `entry?.reference`.
+  equal('a corpus-path evidence reference produces no citation at all',
+    evidenceCitations(item.record).length, 0);
+  equal('while an https evidence reference still produces one',
+    evidenceCitations({ evidence: [{ reference: 'https://12factor.net/', digest: `sha256:${'0'.repeat(64)}` }] }).length, 1);
+  check('and a record carrying both keeps only the one a reader can open',
+    evidenceCitations({
+      evidence: [
+        { reference: corpusPath, digest: `sha256:${'0'.repeat(64)}` },
+        { reference: 'https://12factor.net/', digest: `sha256:${'1'.repeat(64)}` },
+      ],
+    }).map((c) => c.url).join() === 'https://12factor.net/');
+
+  const built = briefFor({
+    item, roles, targets: real, evidence: null,
+    citations: evidenceCitations(item.record), findings: item.currencyFindings,
+  });
+  check(`an update brief still builds when its only evidence reference is a corpus path (${built.error ?? 'built'})`,
+    Boolean(built.brief));
+
+  const prompt = built.brief.prompt;
+  check('the resource\'s own repository path is never offered to the drafter as a cited source',
+    !prompt.includes(`  - ${corpusPath} (`));
+  check('and the brief says out loud that no resolvable source survives, rather than listing none silently',
+    prompt.includes('carries no cited source that resolves over https'));
+  check('and it names the failure mode the corpus saw: an invented substitute citation',
+    prompt.includes('Do not invent one'));
+  check('the currency inspection\'s own finding reaches the drafter, which is the only thing that says WHAT changed',
+    prompt.includes('What the currency inspection found, verbatim:')
+    && prompt.includes('passed its 90-day review cadence on 2026-08-30'));
+
+  // A resolvable source is still rendered exactly as before. The fix is a
+  // filter on what counts, not a removal of the section.
+  const withSource = buildPrompt(
+    item, null,
+    [{ url: 'https://12factor.net/', publisher: null, last_verified: '2026-05-30' }],
+    surfaceConfigFor(real, 'guide'), item.currencyFindings,
+  );
+  check('a citation that does resolve over https is still listed for the drafter',
+    withSource.includes('Cited sources on the existing item')
+    && withSource.includes('  - https://12factor.net/ (unregistered publisher, last verified 2026-05-30)'));
+  check('and the no-source notice is not also emitted when there IS a source',
+    !withSource.includes('carries no cited source that resolves over https'));
+
+  // REFUSE BEFORE ANYTHING IS SPENT. An update brief naming neither a finding
+  // nor a source names nothing to correct, and the ensemble costs roughly USD
+  // 0.52 to discover that and write it down.
+  const empty = briefFor({
+    item: { ...item, currencyFindings: [] },
+    roles, targets: real, evidence: null, citations: [], findings: [],
+  });
+  check('an update brief with neither a finding nor a resolvable source is refused, not authored',
+    Boolean(empty.error) && !empty.brief);
+  check('and the refusal says what would have to be true to brief it',
+    typeof empty.error === 'string' && empty.error.includes('Re-run the currency inspection'));
+
+  // A needs-creating item is untouched by all of this: it has no existing
+  // content and no cited sources by definition, and refusing one would stop
+  // Track 1 dead.
+  const creating = briefFor({
+    item: { ...item, kind: 'needs-creating', currencyFindings: [] },
+    roles, targets: real, evidence: { level: 'intermediate' }, citations: [], findings: [],
+  });
+  check(`a needs-creating brief is unaffected by the update-brief guard (${creating.error ?? 'built'})`,
+    Boolean(creating.brief));
 }
 
 // --- report ------------------------------------------------------------------

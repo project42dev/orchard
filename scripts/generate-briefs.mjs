@@ -331,15 +331,44 @@ export function loadCandidateEvidence(registryPath) {
   return out;
 }
 
+// A cited source is something a reader can open. Only http(s) qualifies.
+//
+// Found live 2026-09-12, on the 49 Track 2 currency items in Gate 2 issues
+// #190-#216: 33 of them failed the automated factual review and 15 of the 16
+// that "passed" are refusal documents rather than content. The single sentence
+// they keep repeating -- "the existing item identifies only a local content
+// path, labels its publisher unregistered, and says it has never been
+// verified" -- is this function's output, read back. track-2-controller.mjs
+// records `evidenceRefs: [{ reference: item.sourcePath, ... }]`, and
+// item.sourcePath is the corpus path of the file being corrected
+// (content/resources/<pack>/<id>.json). That is the item's own identity, not a
+// source it cites. Rendered through buildPrompt's update branch it reached the
+// drafter as the one and only "cited source on the existing item", under a
+// STANDING_CONSTRAINT that says to cite only what resolves over https -- so
+// the drafter correctly refused to treat it as a source, said so in the
+// artifact, and the factual reviewer correctly failed the artifact for saying
+// it. Three honest stages, one bad input.
+export function isResolvableCitation(url) {
+  if (typeof url !== 'string') return false;
+  try {
+    return ['http:', 'https:'].includes(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
+
 // The evidence recorded ON the item revision itself, in citation shape.
 //
 // The developer-local schema had citation and source tables; the deployed
 // schema records evidence references on the item record (item-record contract,
 // `evidence: [{reference, digest}]`), which is what an update brief hands the
-// drafter. The reference is the URL-shaped thing a reader can follow.
-function evidenceCitations(record) {
+// drafter. The reference is the URL-shaped thing a reader can follow -- and a
+// reference that is NOT one is dropped here rather than dressed up as a source
+// downstream. Dropping it is not information loss: the corpus path is already
+// the item's target, which the brief carries in full.
+export function evidenceCitations(record) {
   return (record?.evidence ?? [])
-    .filter((entry) => entry?.reference)
+    .filter((entry) => isResolvableCitation(entry?.reference))
     .map((entry) => ({ url: entry.reference, title: null, publisher: null, last_verified: null }));
 }
 
@@ -482,7 +511,7 @@ export function formFor(surface, surfaceConfig) {
   return surfaceConfig?.form ?? SURFACE_DEFAULT_FORM[surface] ?? null;
 }
 
-export function buildPrompt(item, evidence, citations, surfaceConfig) {
+export function buildPrompt(item, evidence, citations, surfaceConfig, findings = []) {
   const lines = [];
   const level = evidence?.level ?? item.level ?? 'intermediate';
 
@@ -504,12 +533,33 @@ export function buildPrompt(item, evidence, citations, surfaceConfig) {
       '',
       'This is an update, not a rewrite. The trigger is that a cited source moved or passed its review cadence. State what changed and correct what the change affects. Leave correct material alone: a rewrite destroys review history and makes the diff unreadable.',
     );
+    // WHAT THE CURRENCY PASS ACTUALLY FOUND. The inspector produces one to
+    // eight bounded evidence strings saying why this item is stale
+    // (foundry-inspection-producer.mjs RESPONSE_SCHEMA), and they ride through
+    // to the Gate 1 manifest item as `evidence_refs`. Until 2026-09-12 they
+    // stopped there: buildPrompt read `evidence` only on the needs-creating
+    // branch, so an update brief asserted "a cited source moved or passed its
+    // review cadence" and never said which source or what moved. A drafter
+    // told to correct what a change affects, and not told what changed, has
+    // one honest move left, which is to write UNKNOWN -- and 26 of the 49
+    // items in Gate 2 issues #190-#216 did exactly that.
+    if (findings?.length) {
+      lines.push('', 'What the currency inspection found, verbatim:');
+      for (const f of findings.slice(0, 8)) lines.push(`  - ${f}`);
+    }
     if (citations?.length) {
       lines.push('', 'Cited sources on the existing item, oldest verification first:');
       for (const c of citations.slice(0, 12)) {
         const when = c.last_verified ? `last verified ${c.last_verified}` : 'never verified';
         lines.push(`  - ${c.url} (${c.publisher ?? 'unregistered publisher'}, ${when})`);
       }
+    } else {
+      // Said out loud, not left as an absent section. A brief that names a
+      // source trigger and then silently lists no sources invites the drafter
+      // to go looking for one, and one of the 49 did: bug-from-stack-trace
+      // substituted an unrelated arXiv URL for the corpus path it was handed.
+      // Naming the gap is what stops an invented citation being the fix.
+      lines.push('', 'This item carries no cited source that resolves over https. Do not invent one, and do not cite the resource\'s own repository path as its source: a local path is an identifier, not a source a reader can open. Correct what the finding above establishes and leave every claim you cannot source alone.');
     }
   }
 
@@ -660,10 +710,28 @@ export function buildAcceptanceCriteria(item, evidence) {
 
 // Build one brief for one queue item, and refuse if the link back to that item
 // would not survive the round trip through the delivery platform.
-export function briefFor({ item, roles, targets, evidence, citations }) {
+export function briefFor({ item, roles, targets, evidence, citations, findings = [] }) {
   const briefId = briefIdFor(item.kind, item.subject_id);
   if (!briefId) {
     return { error: `work item kind "${item.kind}" has no brief id form` };
+  }
+
+  // REFUSE BEFORE ANYTHING IS SPENT. An update brief is a correction order: it
+  // says a cited source moved or a review cadence lapsed, and asks for the
+  // affected material to be corrected. With neither the finding nor a
+  // resolvable cited source there is nothing in the brief that names what to
+  // correct, and the ensemble is being paid roughly USD 0.52 an item to
+  // discover that and write it down. Measured on the 49 items in Gate 2
+  // issues #190-#216: every one reached a human holding a document whose own
+  // body says the baseline was never supplied. That is the same class of
+  // defect stranded-recovery.mjs refuses for a deterministically-rejected
+  // target -- spend nothing to reach a hold that is knowable in advance.
+  if (item.kind === 'needs-updating' && !findings.length && !citations?.length) {
+    return {
+      error: 'a currency update brief carries neither an inspection finding nor a cited source that resolves over https, '
+        + 'so it names nothing to correct. Authoring it can only produce a refusal. '
+        + 'Re-run the currency inspection for this item, or record a resolvable cited source on the item revision, before briefing it.',
+    };
   }
 
   const normalized = normalizeStableId(briefId);
@@ -697,7 +765,7 @@ export function briefFor({ item, roles, targets, evidence, citations }) {
       kind: item.kind,
       surface: item.surface,
       title: item.title,
-      prompt: buildPrompt(item, evidence, citations, surfaceConfig),
+      prompt: buildPrompt(item, evidence, citations, surfaceConfig, findings),
       acceptanceCriteria: buildAcceptanceCriteria(item, evidence),
       roles,
       targets: [resolved.target],
@@ -789,6 +857,15 @@ export async function generateBriefs({
         // reviewer's reason on that recorded transition. It reaches the brief
         // or the denial loop burns money without converging.
         note: reworkNoteFor(db, row.item_id) ?? blockedNoteFor(db, row.item_id),
+        // The currency inspector's own words about this item, carried on the
+        // Gate 1 manifest item as `evidence_refs` (gate-queue.mjs builds them
+        // from the candidate's `evidence`, which for a Track 2 currency
+        // candidate IS the inspection finding). Read only for an update,
+        // because a Track 1 discovery candidate's evidence_refs are surveyed
+        // source URLs rather than a finding about published content.
+        currencyFindings: OUTCOME_KIND[row.outcome] === 'needs-updating'
+          ? (manifest?.evidence_refs ?? []).filter((entry) => typeof entry === 'string' && entry.length > 0)
+          : [],
         recordedTarget: record.target ?? null,
         record,
       };
@@ -871,7 +948,8 @@ export async function generateBriefs({
         roles,
         targets,
         evidence: evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity),
-        citations: item.kind === 'needs-updating' ? evidenceCitations(item.record) : (evidenceCitations(item.record).length > 0 ? evidenceCitations(item.record) : ((evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity))?.evidenceRefs?.map(r => ({ url: r.reference, publisher: 'surveyed source' })) ?? [])),
+        citations: item.kind === 'needs-updating' ? evidenceCitations(item.record) : (evidenceCitations(item.record).length > 0 ? evidenceCitations(item.record) : ((evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity))?.evidenceRefs?.map(r => ({ url: r.reference, publisher: 'surveyed source' })).filter((c) => isResolvableCitation(c.url)) ?? [])),
+        findings: item.currencyFindings ?? [],
       });
       if (built.error) {
         skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: built.error });
