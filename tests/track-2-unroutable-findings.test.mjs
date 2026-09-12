@@ -24,7 +24,7 @@
 // which registration code refused the target.
 
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -352,6 +352,25 @@ test("every live item already recorded against an unpublishable target is named 
     assert.ok(logged.some(([level, event]) => level === "warn" && event.endsWith(".held")),
         "it is a warning, every run, until a human acts");
     assert.ok(logged.some(([level, event]) => level === "warn" && event.endsWith(".summary")));
+});
+
+test("the production runtime actually runs the backlog pass, on both of its decision paths", () => {
+    // Asserted on the runtime's source text, the convention
+    // tests/production-contracts.test.mjs set for this file: the runtime's own
+    // call sites are inside a fenced lease and an Azure job and are not
+    // callable from a unit test, and a reporting pass that is written but never
+    // invoked is indistinguishable from one that was never written. Both
+    // decision paths are checked, because a pass wired into one of the two
+    // would go quiet on exactly the runs that took the other.
+    const runtime = readFileSync(new URL("../scripts/orchard-production-runtime.mjs", import.meta.url), "utf8");
+    assert.match(runtime, /import \{ reportUnpublishableTargets \} from "\.\/lib\/publishable-target\.mjs";/);
+    const calls = runtime.match(/reportUnpublishableTargets\(\{ store: decisionStore, log \}\);/g) ?? [];
+    assert.equal(calls.length, 2, "the survey path and the role path each open their own store and each must report");
+    assert.equal(
+        (runtime.match(/reportUnmappedPublicationTargets\(\{ store: decisionStore, log \}\);/g) ?? []).length,
+        calls.length,
+        "the two permanent-unpublishability passes are reported side by side; one without the other is a half-answer",
+    );
 });
 
 test("a closed item is history, not backlog, and is not named", async (t) => {
