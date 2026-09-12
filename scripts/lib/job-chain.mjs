@@ -44,7 +44,15 @@ export async function startJob({ jobResourceId, tokenProvider, fetchImpl = fetch
     });
     if (!response.ok) {
         const body = await response.text().catch(() => "");
-        throw new Error(`failed to start job ${jobResourceId}: HTTP ${response.status} ${body}`);
+        // statusCode carried as a property, not just folded into the message,
+        // so a caller (continueAuthoringChain, chainNextRoles) can log the ARM
+        // status code as its own structured field instead of a caller having
+        // to regex it back out of prose -- found live 2026-09-11/12: a chain
+        // start that fails on a missing Microsoft.App/jobs/start/action grant
+        // must be diagnosable from the log line alone, without a repro.
+        const error = new Error(`failed to start job ${jobResourceId}: HTTP ${response.status} ${body}`);
+        error.statusCode = response.status;
+        throw error;
     }
     return response.json().catch(() => null);
 }
@@ -89,9 +97,60 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
             triggered.push(hop.role);
             log?.("info", "chain.triggered", { role: hop.role, state: hop.state, waiting, execution: started?.name });
         } catch (error) {
-            log?.("error", "chain.trigger-failed", { role: hop.role, state: hop.state, waiting, error: error.message });
+            log?.("error", "chain.trigger-failed", { role: hop.role, state: hop.state, waiting, statusCode: error.statusCode ?? null, error: error.message });
         }
     }
     return triggered;
+}
+
+/**
+ * Authoring's OWN continuation, separate from the cross-role hops above and
+ * for a reason: a stranded item recovered by recoverStrandedItems
+ * (lib/stranded-recovery.mjs) never leaves 'gate2-ready' for a state a
+ * DIFFERENT role's hop watches -- it comes straight back to 'executing' and
+ * is re-drafted inside the SAME authoring run that recovered it. So the
+ * backlog that keeps authoring's stranded sweep busy across many runs is
+ * invisible to chainNextRoles' counts-based hops, and currentRole there
+ * refuses authoring's "ado-linked" hop from re-triggering itself anyway
+ * (correctly, for the reason recorded on that guard -- it exists to stop a
+ * role that HELD without progress from looping forever). Proven live
+ * 2026-09-11/12: authoring's gate2.stranded.summary kept reporting dozens of
+ * items still `remaining`, and nothing ever started the next run for it --
+ * the chain only ever advanced when an UNRELATED trigger (a fresh Gate 1
+ * approval, an operator's manual restart) happened to also see ado-linked
+ * work waiting.
+ *
+ * Bounded the same way the sweep itself is bounded, but on a different
+ * axis: `recovered === 0` means this run's sweep looked at the backlog and
+ * could not move a single item (every candidate refused -- wrong
+ * publication target, already at its automatic-attempt cap, or genuinely
+ * out of candidates), so starting another run would only spend a Container
+ * Apps execution to rediscover the exact same stuck items. That is the
+ * deliberate stop, logged with why, never a silent one.
+ */
+export async function continueAuthoringChain({ strandedRecovery, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log }) {
+    const jobResourceId = env.ORCHARD_CHAIN_AUTHORING_JOB_ID;
+    if (!jobResourceId) return false;
+    if (!strandedRecovery) return false;
+    const { remaining, recovered } = strandedRecovery;
+    if (!remaining || remaining <= 0) {
+        log?.("info", "chain.continue.none", { remaining: remaining ?? 0, effect: "no stranded backlog is waiting on another authoring run" });
+        return false;
+    }
+    if (!recovered || recovered.length === 0) {
+        log?.("warn", "chain.continue.stopped", {
+            remaining,
+            reason: "this run's stranded sweep recovered 0 items; the backlog is not moving, so starting another authoring run would only re-find the same stuck items",
+        });
+        return false;
+    }
+    try {
+        const started = await startJob({ jobResourceId, tokenProvider, fetchImpl });
+        log?.("info", "chain.continue.triggered", { role: "authoring", remaining, recovered: recovered.length, execution: started?.name });
+        return true;
+    } catch (error) {
+        log?.("error", "chain.continue.trigger-failed", { role: "authoring", remaining, recovered: recovered.length, statusCode: error.statusCode ?? null, error: error.message });
+        return false;
+    }
 }
 

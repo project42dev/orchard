@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chainNextRoles, startJob } from "../scripts/lib/job-chain.mjs";
+import { chainNextRoles, continueAuthoringChain, startJob } from "../scripts/lib/job-chain.mjs";
 
 function fakeToken(value = "fake-token") {
     return async () => value;
@@ -30,6 +30,16 @@ test("startJob throws with the response body on a non-ok response", async () => 
         () => startJob({ jobResourceId: "/x", tokenProvider: fakeToken(), fetchImpl }),
         /HTTP 403.*forbidden detail/s,
     );
+});
+
+test("startJob's thrown error carries the ARM status code as a property, not only in the message", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 403, text: async () => "forbidden detail" });
+    try {
+        await startJob({ jobResourceId: "/x", tokenProvider: fakeToken(), fetchImpl });
+        assert.fail("startJob should have thrown");
+    } catch (error) {
+        assert.equal(error.statusCode, 403);
+    }
 });
 
 test("chainNextRoles triggers exactly the hops with waiting work and a configured job id", async () => {
@@ -121,4 +131,100 @@ test("the authoring hop counts ado-linked and authoring-recoverable work togethe
     });
     assert.deepEqual(triggered, ["authoring"]);
     assert.equal(started.length, 1);
+});
+
+test("chainNextRoles logs a failed hop start at error level with the ARM status code, never swallowed", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 403, text: async () => "the identity lacks Microsoft.App/jobs/start/action" });
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    const logs = [];
+    const triggered = await chainNextRoles({
+        counts: { "ado-linked": 1 }, env, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.deepEqual(triggered, []);
+    const failure = logs.find((l) => l.event === "chain.trigger-failed");
+    assert.ok(failure, "a failed start must be logged, not swallowed");
+    assert.equal(failure.level, "error");
+    assert.equal(failure.detail.statusCode, 403);
+});
+
+// continueAuthoringChain: authoring's OWN continuation while its
+// stranded-recovery sweep still has a backlog only THIS role can drain --
+// proven live 2026-09-11/12 to never fire on its own, because chainNextRoles'
+// currentRole guard (tested above) correctly refuses authoring's cross-role
+// "ado-linked" hop from re-triggering itself, and no hop was ever watching
+// the stranded gate2-ready backlog at all.
+
+test("continueAuthoringChain starts another authoring run while stranded work remains and progress was made", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec-2" }) }; };
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    const logs = [];
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 96, recovered: [{ item: "i1" }, { item: "i2" }], refused: [], remaining: 91 },
+        env, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.equal(triggered, true);
+    assert.equal(started.length, 1);
+    assert.match(started[0], /caj-auth\/start/);
+    assert.ok(logs.some((l) => l.event === "chain.continue.triggered" && l.detail.remaining === 91 && l.detail.recovered === 2));
+});
+
+test("continueAuthoringChain stops, and says why, when a run recovers 0 items", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    const logs = [];
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 91, recovered: [], refused: [{ item: "i3", reason: "already recovered automatically 2 time(s)" }], remaining: 91 },
+        env, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.equal(triggered, false);
+    assert.equal(started.length, 0, "a run that made no progress must not spend another execution rediscovering the same backlog");
+    const stop = logs.find((l) => l.event === "chain.continue.stopped");
+    assert.ok(stop, "the deliberate stop must be logged, not silent");
+    assert.equal(stop.level, "warn");
+    assert.equal(stop.detail.remaining, 91);
+    assert.match(stop.detail.reason, /recovered 0 items/);
+});
+
+test("continueAuthoringChain does nothing once the stranded backlog is drained", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 2, recovered: [{ item: "i1" }, { item: "i2" }], refused: [], remaining: 0 },
+        env, tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.equal(triggered, false);
+    assert.equal(started.length, 0);
+});
+
+test("continueAuthoringChain is off by default: no configured job id means no attempt at all", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 5, recovered: [{ item: "i1" }], refused: [], remaining: 4 },
+        env: {}, tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.equal(triggered, false);
+    assert.equal(started.length, 0);
+});
+
+test("continueAuthoringChain logs a failed restart at error level with the ARM status code, never swallowed", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 403, text: async () => "the identity lacks Microsoft.App/jobs/start/action" });
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    const logs = [];
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 91, recovered: [{ item: "i1" }], refused: [], remaining: 90 },
+        env, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.equal(triggered, false);
+    const failure = logs.find((l) => l.event === "chain.continue.trigger-failed");
+    assert.ok(failure, "a failed restart must be logged, not swallowed");
+    assert.equal(failure.level, "error");
+    assert.equal(failure.detail.statusCode, 403);
 });

@@ -18,7 +18,7 @@ import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
 import { announceRunSummary, runVerdict } from "./lib/run-summary.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
-import { chainNextRoles } from "./lib/job-chain.mjs";
+import { chainNextRoles, continueAuthoringChain } from "./lib/job-chain.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { reportUnmappedPublicationTargets } from "./lib/publication-target-migration.mjs";
 import { blockedNoteFor } from "./generate-briefs.mjs";
@@ -183,15 +183,21 @@ export async function runController(track, args, log) {
     const previousExitCode = process.exitCode;
     process.exitCode = undefined;
     let controllerExitCode;
+    let result;
     try {
         log("info", "controller.executing");
-        await module.main(args, { log });
+        result = await module.main(args, { log });
         controllerExitCode = process.exitCode;
     } finally {
         process.exitCode = previousExitCode;
     }
     if (controllerExitCode) throw new Error(`controller set exit code ${controllerExitCode}`);
     log("info", "controller.completed");
+    // Handed back so a caller with role-specific follow-up (runRoleAzure's
+    // authoring continuation, which needs run-authoring.mjs's own
+    // strandedRecovery summary) has it, without every other call site that
+    // ignores the return value having to change.
+    return result;
 }
 
 async function runAzure(track, log) {
@@ -400,6 +406,7 @@ async function runRoleAzure(role, log) {
     const track = process.env.ORCHARD_ROLE_TRACK ?? "track-1";
     if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ROLE_TRACK must be track-1 or track-2");
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    let roleResult;
     const outcome = await withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state, assertCurrent }) => {
         const execution = process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local-execution";
         // Decisions first, exactly as the tracks do: what the owner answered
@@ -423,7 +430,7 @@ async function runRoleAzure(role, log) {
             decisionStore.close();
         }
         await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
-        await runController(role, ["--state-db", state.path, "--track", track], log);
+        roleResult = await runController(role, ["--state-db", state.path, "--track", track], log);
         // The role just moved lifecycle states, so the tracker follows now
         // rather than at the next monthly survey. Never fails the run.
         await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
@@ -448,6 +455,27 @@ async function runRoleAzure(role, log) {
         await chainNextRoles({ counts, log, currentRole: role });
     } catch (error) {
         log("warn", "chain.peek-failed", { error: error.message });
+    }
+    // Authoring's OWN continuation, on a SEPARATE try/catch from the
+    // counts-based hops above: it needs no blob peek at all (roleResult
+    // already carries run-authoring.mjs's strandedRecovery summary), so a
+    // transient peekStateCounts failure must not also take this down.
+    // continueAuthoringChain is itself bounded (job-chain.mjs) -- it refuses
+    // to fire when the sweep recovered nothing, and logs why.
+    if (role === "authoring") {
+        if (roleResult) {
+            try {
+                await continueAuthoringChain({ strandedRecovery: roleResult.strandedRecovery, log });
+            } catch (error) {
+                log("error", "chain.continue.failed", { error: error.message });
+            }
+        } else {
+            // roleResult is unset only when the fenced session above threw
+            // before run-authoring.mjs returned (a failed run, not an empty
+            // one) -- withFencedState's own rejection already surfaces that;
+            // this just says why no continuation decision was made.
+            log("warn", "chain.continue.skipped", { role, reason: "no strandedRecovery summary is available; the run did not complete" });
+        }
     }
     return outcome;
 }
