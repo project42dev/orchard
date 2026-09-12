@@ -60,9 +60,7 @@
 import { applyRetry } from "../apply-blocked-retry.mjs";
 import { gate2EvidenceReference } from "../run-gate2-prep.mjs";
 import { PUBLICATION_REPOSITORY } from "./publication.mjs";
-import {
-    RegistrationError, surfaceForTargetPath, diagramIdForTarget, learningPathIdForTarget,
-} from "./registration.mjs";
+import { publishableTargetRefusal } from "./publishable-target.mjs";
 
 export const STRANDED_ACTOR = "orchard/stranded-recovery";
 export const RECOVERY_EVENT = "gate2.stranded";
@@ -115,25 +113,19 @@ function automaticAttempts(db, itemId) {
  * new revision against the SAME recorded target -- so the next pass reaches the
  * identical hold, every time, for money.
  *
- * The checks are the ones run-authoring.mjs already runs at prepare time
- * (lib/registration.mjs), run here against the recorded target path before
- * anything is spent. They need no network, no draft and no state beyond the row.
- * A path that passes them is not thereby preparable -- registerLearningModule
- * can still refuse a path catalog.json does not declare, and that needs the
- * registry read this sweep deliberately does not do -- so this refuses only
- * what the path decides on its own, exactly like lib/artifact-format.mjs.
+ * The checks themselves moved to lib/publishable-target.mjs on 2026-09-12, so
+ * this sweep and the Track 2 emitter that now refuses to PROPOSE such an item
+ * in the first place ask the identical question. Two copies of the predicate
+ * could disagree, and the disagreement would be invisible: an item Track 2
+ * thought publishable and this sweep thought permanent would be re-authored
+ * forever. The wording below stays here because it is this sweep's reason --
+ * what it costs to retry -- not the path's.
  */
 function permanentTargetRefusal(targetPath) {
-    try {
-        const surface = surfaceForTargetPath(targetPath);
-        if (surface === "guide-diagram") diagramIdForTarget(targetPath);
-        if (surface === "learning") learningPathIdForTarget(targetPath);
-        return null;
-    } catch (error) {
-        if (!(error instanceof RegistrationError)) throw error;
-        return `its recorded target path ${targetPath} is refused before any draft exists (${error.code}: ${error.message}); `
-            + "re-authoring cannot change the target, so every attempt would spend to reach the same hold, and it has to be re-targeted first";
-    }
+    const refusal = publishableTargetRefusal(targetPath);
+    if (!refusal) return null;
+    return `its recorded target path ${targetPath} is refused before any draft exists (${refusal.code}: ${refusal.message}); `
+        + "re-authoring cannot change the target, so every attempt would spend to reach the same hold, and it has to be re-targeted first";
 }
 
 function hasStoredGate2Evidence(db, row) {

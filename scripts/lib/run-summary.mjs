@@ -92,6 +92,11 @@ export function track1Verdict(output) {
         })),
         produced: { label: "Candidates proposed", count: output?.candidates?.length ?? 0 },
         drift: false,
+        // Track 1 proposes new content and derives its own target from the
+        // probe, so it has no equivalent of a finding about an item that has
+        // no publishable artifact. The field is present and empty rather than
+        // absent, so the renderer reads one shape from both tracks.
+        unroutable: [],
     };
 }
 
@@ -134,6 +139,24 @@ export function track2Verdict(output) {
         withheld: [],
         produced: { label: "Currency findings held", count: output?.findings?.persisted ?? 0 },
         drift: Boolean(output?.drift),
+        // A finding with no publishable artifact. It is NOT silent -- the
+        // inspection answered, and the answer was that this catalogue entry or
+        // learning path has gone stale -- so it does not belong in the silent
+        // section. It is also NOT held at a gate, so the gate section will
+        // never mention it. Before this it appeared nowhere at all: Track 2
+        // proposed it, registration refused it, and it sat in the backlog
+        // unpublishable and unreported. This is the only place a reader sees it.
+        unroutable: (Array.isArray(output?.findings?.unroutable) ? output.findings.unroutable : [])
+            .map((entry) => ({
+                id: entry.stableId,
+                classification: entry.classification,
+                targetPath: entry.targetPath,
+                sourcePath: entry.sourcePath ?? null,
+                code: entry.code,
+                reason: entry.reason ?? null,
+                evidence: Array.isArray(entry.evidence) ? entry.evidence : [],
+            }))
+            .sort((left, right) => String(left.id).localeCompare(String(right.id))),
     };
 }
 
@@ -182,6 +205,41 @@ function silentSection(verdict) {
         }
         lines.push("");
     }
+    return lines;
+}
+
+/**
+ * The findings that answered and have nowhere to go.
+ *
+ * THE POINT OF THIS SECTION. Twenty-nine canonical items -- the catalogue
+ * itself, every learning path, and every catalog entry with no backing file --
+ * are declared in `catalog.json` and have no artifact of their own. Until
+ * 2026-09-12 a finding about one of them was proposed at Gate 1 against a
+ * target no surface publishes to, approved, authored at cost, and stuck: it
+ * could never leave the backlog. Track 2 no longer proposes them, and the
+ * whole reason that is safe is that they arrive HERE instead, in the issue the
+ * owner reads, with enough to act on: which item, what the inspection
+ * concluded, the evidence it concluded it on, and why nothing can publish it.
+ *
+ * Losing them quietly would be the worse defect of the two, so this section is
+ * rendered from the controller's own output and says what to do next.
+ */
+function unroutableSection(verdict) {
+    const entries = verdict?.unroutable ?? [];
+    if (entries.length === 0) return [];
+    const lines = [
+        `### Findings with no publishable artifact (${entries.length})`,
+        "",
+        "Each of these is a real currency finding about a real canonical item, and **none of them is held at a gate**: the item is declared in a catalogue rather than published as a file of its own, so there is no artifact for Orchard to author and no surface that publishes to its target. They are reported here because a finding that is dropped silently is worse than one that cannot be actioned automatically. **Acting on one means editing the registry in `project42dev/project42-content` by hand.**",
+        "",
+    ];
+    for (const entry of entries) {
+        lines.push(`- \`${entry.id}\` — **${entry.classification}** — target \`${entry.targetPath}\` is refused (\`${entry.code}\`).`);
+        if (entry.sourcePath) lines.push(`  - Declared in: \`${entry.sourcePath}\` of the inspected corpus.`);
+        for (const item of entry.evidence.slice(0, 5)) lines.push(`  - Evidence: ${item}`);
+        if (entry.evidence.length > 5) lines.push(`  - …and ${entry.evidence.length - 5} further evidence entr${entry.evidence.length - 5 === 1 ? "y" : "ies"} in the controller output.`);
+    }
+    lines.push("");
     return lines;
 }
 
@@ -239,6 +297,14 @@ export function verdictBanner({ verdict, controllerError }) {
     } else if (verdict && verdict.drift) {
         lines.push("> ⚠️ **The corpus changed under the inspection.** Findings from this run were not persisted; the next clean run re-derives them.");
     }
+    // Said in the banner, not only in its own section, because this is work
+    // waiting on the owner that NO gate is holding. Every other queue in this
+    // issue has a gate behind it that keeps asking; this one has only the
+    // summary, so if the summary is quiet about it nothing ever says it again.
+    const unroutable = verdict?.unroutable?.length ?? 0;
+    if (unroutable > 0) {
+        lines.push(`> ⚠️ **${unroutable} currency finding${unroutable === 1 ? " has" : "s have"} no publishable artifact** and ${unroutable === 1 ? "is" : "are"} held at no gate. ${unroutable === 1 ? "It is" : "They are"} named in full below and need a registry edit by hand in \`project42dev/project42-content\`.`);
+    }
     if (controllerError) {
         lines.push(`> ❌ **This run did not complete.** ${controllerError}`);
     }
@@ -256,17 +322,23 @@ export function runSummaryTitle({ track, verdict, announced, controllerError }) 
     }
     if (controllerError) return `${prefix} — RUN FAILED`;
     const coverage = `coverage ${percent(verdict?.ratio)}`;
+    // "0 new opportunities" is a lie on a run that found N findings it cannot
+    // publish, and so is a title that counts only what a gate is holding. No
+    // gate holds these, so the title is the one line that can carry them to a
+    // reader deciding whether to open the issue at all.
+    const unroutable = verdict?.unroutable?.length ?? 0;
+    const unpublishable = unroutable > 0 ? `, ${unroutable} finding${unroutable === 1 ? "" : "s"} with no publishable artifact` : "";
     // isZeroDeltaRun is the contract with announceGates() own return shape.
     // It is asserted here rather than re-derived, because the last time this
     // path invented its own field names the summary never fired at all.
     if (!isZeroDeltaRun(announced)) {
         const held = announced.reduce((total, entry) => total + (entry.count ?? 0), 0);
-        return `${prefix} — ${held} item${held === 1 ? "" : "s"} held for your decision, ${coverage}`;
+        return `${prefix} — ${held} item${held === 1 ? "" : "s"} held for your decision, ${coverage}${unpublishable}`;
     }
     if (verdict && verdict.silent.length > 0) {
-        return `${prefix} — 0 new opportunities, ${coverage} with ${verdict.silent.length} silent ${verdict.silent.length === 1 ? verdict.unit : verdict.unitPlural}`;
+        return `${prefix} — 0 new opportunities, ${coverage} with ${verdict.silent.length} silent ${verdict.silent.length === 1 ? verdict.unit : verdict.unitPlural}${unpublishable}`;
     }
-    return `${prefix} — 0 new opportunities, ${coverage}`;
+    return `${prefix} — 0 new opportunities, ${coverage}${unpublishable}`;
 }
 
 /**
@@ -295,6 +367,7 @@ export function renderRunSummary({
         coverageLine(verdict),
         verdict ? `- **${verdict.produced.label}:** \`${verdict.produced.count}\`` : null,
         "",
+        ...unroutableSection(verdict),
         ...silentSection(verdict),
         ...withheldSection(verdict),
         ...gateSection({ announced, repo }),

@@ -21,6 +21,7 @@ import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles, continueAuthoringChain } from "./lib/job-chain.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { reportUnmappedPublicationTargets } from "./lib/publication-target-migration.mjs";
+import { reportUnpublishableTargets } from "./lib/publishable-target.mjs";
 import { blockedNoteFor } from "./generate-briefs.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
@@ -230,6 +231,14 @@ async function runAzure(track, log) {
             // item still pointing away from the content repository is named
             // here, with the reason, on every single run until a human acts.
             reportUnmappedPublicationTargets({ store: decisionStore, log });
+            // The same shape, for the other way an item can be permanently
+            // unpublishable: a target path no surface publishes to. Track 2
+            // no longer PROPOSES these (lib/publishable-target.mjs), but the
+            // ones already in the backlog were approved by a human at Gate 1,
+            // and neither a migration nor this pass may undo that. So they are
+            // named, with the move that is actually open from the state they
+            // are in, on every run until a human acts.
+            reportUnpublishableTargets({ store: decisionStore, log });
             await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
         } finally {
             decisionStore.close();
@@ -425,6 +434,14 @@ async function runRoleAzure(role, log) {
             // item still pointing away from the content repository is named
             // here, with the reason, on every single run until a human acts.
             reportUnmappedPublicationTargets({ store: decisionStore, log });
+            // The same shape, for the other way an item can be permanently
+            // unpublishable: a target path no surface publishes to. Track 2
+            // no longer PROPOSES these (lib/publishable-target.mjs), but the
+            // ones already in the backlog were approved by a human at Gate 1,
+            // and neither a migration nor this pass may undo that. So they are
+            // named, with the move that is actually open from the state they
+            // are in, on every run until a human acts.
+            reportUnpublishableTargets({ store: decisionStore, log });
             await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
         } finally {
             decisionStore.close();
