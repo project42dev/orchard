@@ -439,7 +439,7 @@ export const FORM_INSTRUCTIONS = {
     '  providers          array of one or more of "provider-neutral", "anthropic", "openai", "google". Use ["provider-neutral"] unless the subject is one named provider.',
     '  prerequisites      array of PLAIN-ENGLISH strings naming what a reader needs in hand before starting, each non-empty and none repeated, and [] when there is nothing. These are not ids and nothing resolves them, which is the opposite of how a learning module declares its prerequisites.',
     '  owner              "project42-editorial". It is the editorial owner of record for every resource in this estate, not the author of the piece.',
-    '  reviewCadenceDays  integer from 1 to 365, how often this resource must be re-checked. The published corpus uses 30 for fast-moving tool and provider material, 90 for stable reference.',
+    '  reviewCadenceDays  integer from 1 to 365, how often this resource must be re-checked. The published corpus uses only 30, 45, 60 and 90: 30 for fast-moving tool and provider material, 90 for stable reference.',
     '  lastVerified       plain YYYY-MM-DD date, the day the sources were checked. It may not be a date in the future: nothing was reviewed on a day that has not happened.',
     '  tags               array of at least one kebab-case tag, no repeats. Four or five is the working range in the published corpus.',
     '  sections           array of at least one object: { "id": kebab-case and unique within this resource, "title": string, "paragraphs": array of at least one non-empty string }. A section may also carry "callout" (one string) and "code" ({ "language", "label", "code" }, all three non-empty), both optional.',
