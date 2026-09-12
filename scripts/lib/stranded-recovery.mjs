@@ -38,10 +38,31 @@
 // here would spend to throw real, preparable work away, so it is named and
 // left for gate2-prep. The backlog this sweep exists for -- items whose
 // evidence died with a container -- has no such record and is unaffected.
+//
+// WHAT WAS NEVER STRANDED EITHER, SINCE 2026-09-12. An item can also be sitting
+// at gate2-ready because its FIRST authoring pass failed structurally: the
+// target path it was recorded against is one no surface publishes to. Those
+// items were misfiled into this backlog, and because a retry opens a new
+// revision against the SAME target, every sweep since has spent to reach the
+// identical hold. permanentTargetRefusal now runs run-authoring's own
+// registration checks against the recorded path BEFORE anything is spent, and
+// refuses with the code, in the same idiom as the target_repository check.
+//
+// WHAT THAT DOES NOT FIX, said out loud. automaticAttempts counts recovery
+// TRANSITIONS, so a permanent failure and a transient GitHub 503 still cost the
+// same attempt against the cap. Making the counter code-aware would need the
+// hold code persisted per revision; today it exists only in the log line
+// run-authoring.mjs emits and in nothing the state store holds, so that is a
+// data-model change and is deliberately not made here. The pre-filter removes
+// the structurally-refused class from the counter going forward, which is the
+// part that needed no new data.
 
 import { applyRetry } from "../apply-blocked-retry.mjs";
 import { gate2EvidenceReference } from "../run-gate2-prep.mjs";
 import { PUBLICATION_REPOSITORY } from "./publication.mjs";
+import {
+    RegistrationError, surfaceForTargetPath, diagramIdForTarget, learningPathIdForTarget,
+} from "./registration.mjs";
 
 export const STRANDED_ACTOR = "orchard/stranded-recovery";
 export const RECOVERY_EVENT = "gate2.stranded";
@@ -79,6 +100,42 @@ function automaticAttempts(db, itemId) {
     ).get(itemId, STRANDED_ACTOR).n);
 }
 
+/**
+ * The reason this item's target path can never be prepared, or null if nothing
+ * about the path alone decides that.
+ *
+ * WHY THIS IS WORTH A CHECK. Not every item in the stranded backlog was
+ * stranded by the container-disk bug this module was written for. Measured over
+ * two days of production logs on 2026-09-12: of 66 Track 2 items that would not
+ * prepare, two held on `registration.unrecognized-target` and
+ * `registration.unrecognized-diagram-path`. Those two failed STRUCTURALLY on
+ * their first authoring pass and were then swept up here, and every recovery
+ * since has spent Foundry credit re-drafting content for a path that has no
+ * legal shape. Re-authoring cannot change a target path -- applyRetry opens a
+ * new revision against the SAME recorded target -- so the next pass reaches the
+ * identical hold, every time, for money.
+ *
+ * The checks are the ones run-authoring.mjs already runs at prepare time
+ * (lib/registration.mjs), run here against the recorded target path before
+ * anything is spent. They need no network, no draft and no state beyond the row.
+ * A path that passes them is not thereby preparable -- registerLearningModule
+ * can still refuse a path catalog.json does not declare, and that needs the
+ * registry read this sweep deliberately does not do -- so this refuses only
+ * what the path decides on its own, exactly like lib/artifact-format.mjs.
+ */
+function permanentTargetRefusal(targetPath) {
+    try {
+        const surface = surfaceForTargetPath(targetPath);
+        if (surface === "guide-diagram") diagramIdForTarget(targetPath);
+        if (surface === "learning") learningPathIdForTarget(targetPath);
+        return null;
+    } catch (error) {
+        if (!(error instanceof RegistrationError)) throw error;
+        return `its recorded target path ${targetPath} is refused before any draft exists (${error.code}: ${error.message}); `
+            + "re-authoring cannot change the target, so every attempt would spend to reach the same hold, and it has to be re-targeted first";
+    }
+}
+
 function hasStoredGate2Evidence(db, row) {
     return Boolean(db.prepare(
         `SELECT 1 FROM observation_event
@@ -105,7 +162,7 @@ export async function recoverStrandedItems({
     const summary = { stranded: 0, recovered: [], refused: [], remaining: 0, maxItems, maxAttempts };
 
     const rows = store.db.prepare(
-        `SELECT w.item_id, w.track, w.current_revision, r.target_repository
+        `SELECT w.item_id, w.track, w.current_revision, r.target_repository, r.target_path
            FROM workflow_item w
            JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
           WHERE w.current_state = 'gate2-ready' AND (? IS NULL OR w.track = ?)
@@ -137,6 +194,15 @@ export async function recoverStrandedItems({
         // reported by the target migration's own pass instead.
         if (row.target_repository !== PUBLICATION_REPOSITORY) {
             refuse(row, `the recorded publication target is ${row.target_repository}, not ${PUBLICATION_REPOSITORY}; it must be repointed before it is worth re-authoring`);
+            continue;
+        }
+
+        // Checked before the attempt cap and before anything is spent, for the
+        // same reason the repository check above is: the outcome is already
+        // decided and re-drafting only pays to rediscover it.
+        const refusal = permanentTargetRefusal(row.target_path);
+        if (refusal) {
+            refuse(row, refusal);
             continue;
         }
 

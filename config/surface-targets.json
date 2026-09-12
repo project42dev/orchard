@@ -26,7 +26,8 @@
         "resources/{topic}/"
       ],
       "suffix": "-field-guide",
-      "why": "Every indexed Field Guide resource lives under resources/<topic>/ in project42dev/project42-content, one directory per resource pack, one JSON file per resource. The reader reaches an individual resource at /guide/resources/<resource-id> on the single portal.",
+      "form": "field-guide-resource-json",
+      "why": "Every indexed Field Guide resource lives under resources/<topic>/ in project42dev/project42-content, one directory per resource pack, one JSON file per resource. The reader reaches an individual resource at /guide/resources/<resource-id> on the single portal. The deliverable is ONE JSON object conforming to the Resource schema the platform validates against (project42-platform src/schema.ts is the schema of record; the content repository is where the 84 instances live), not prose: the catalogue loader JSON.parse's every .json under resources/, so a Markdown file there stops the Field Guide catalogue building. Declared explicitly after 2026-09-12, when 64 of the 66 Track 2 items that would not prepare turned out to be raw Markdown at .json paths, held on artifact-format.json-unparsable, because this surface declared no form -- the same defect the learn surface had on 2026-08-19, on the one surface the fix never reached.",
       "publicRoute": "/guide/resources/<resourceId>, derived from the LEAF of resources/<pack>/<resourceId>.json, never the pack directory"
     },
     "visual-guide": {

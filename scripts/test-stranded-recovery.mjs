@@ -138,6 +138,90 @@ test('an item still pointing at the old repository is refused, not re-drafted in
     assert.equal(stateOf(dbPath, id).current_state, 'gate2-ready');
 });
 
+// Rewrite one item's recorded target path in place. item_revision is
+// append-only by trigger, exactly as the mistargeted-repository test above has
+// to work around, and a second revision would not reproduce the defect: these
+// items carry ONE revision whose target was wrong from the first authoring pass.
+function retarget(store, dbPath, itemId, targetPath) {
+    const revision = Number(stateOf(dbPath, itemId).current_revision);
+    store.db.exec('DROP TRIGGER IF EXISTS no_update_item_revision');
+    store.db.prepare('UPDATE item_revision SET target_path = ? WHERE item_id = ? AND item_revision = ?')
+        .run(targetPath, itemId, revision);
+    store.db.exec("CREATE TRIGGER IF NOT EXISTS no_update_item_revision BEFORE UPDATE ON item_revision BEGIN SELECT RAISE(ABORT, 'item revisions are append-only'); END;");
+}
+
+test('a target path no surface publishes to is refused before a single token is spent', async () => {
+    const { store, runId, dbPath } = await estate();
+    const [id] = await strandItems(store, runId, ['stranded-untargetable']);
+    // `registration.unrecognized-target`, 1 distinct item over two days of
+    // production logs. It never was stranded by the container-disk bug: it
+    // failed structurally on its first authoring pass and was swept up here,
+    // and a retry re-authors against the SAME target, so every recovery since
+    // has paid to reach the identical hold.
+    retarget(store, dbPath, id, 'catalog.json');
+
+    let spent = 0;
+    const events = [];
+    const summary = await recoverStrandedItems({
+        store, now: NOW, log: (_l, event) => events.push(event),
+        retry: async () => { spent += 1; return { retried: 1, revision: 2, errors: [] }; },
+    });
+    store.close();
+
+    assert.equal(spent, 0, 'the drafter is never reached, which is the entire point of the check');
+    assert.equal(summary.recovered.length, 0);
+    assert.equal(summary.refused.length, 1);
+    assert.match(summary.refused[0].reason, /registration\.unrecognized-target/, 'the refusal names the code, so a human can act on it');
+    assert.match(summary.refused[0].reason, /re-authoring cannot change the target/);
+    assert.ok(events.includes('gate2.stranded.refused'));
+    assert.equal(stateOf(dbPath, id).current_state, 'gate2-ready', 'it stays put, visibly, for a human to re-target');
+});
+
+test('a diagram at a path the diagram catalogue cannot key is refused the same way', async () => {
+    const { store, runId, dbPath } = await estate();
+    const [id] = await strandItems(store, runId, ['stranded-misfiled-diagram']);
+    // `registration.unrecognized-diagram-path`, the other permanent hold in the
+    // measured distribution. surfaceForTargetPath accepts it -- it is under
+    // diagrams/ -- so only the per-surface check catches it, which is why the
+    // pre-filter runs both and not just the first.
+    retarget(store, dbPath, id, 'diagrams/agent-loop.md');
+
+    let spent = 0;
+    const summary = await recoverStrandedItems({
+        store, now: NOW, retry: async () => { spent += 1; return { retried: 1, revision: 2, errors: [] }; },
+    });
+
+    assert.equal(spent, 0);
+    assert.equal(summary.refused.length, 1);
+    assert.match(summary.refused[0].reason, /registration\.unrecognized-diagram-path/);
+
+    // And the attempt cap is untouched by a refusal, so nothing is counted
+    // against an item that was never re-drafted.
+    const attempts = store.db.prepare(
+        `SELECT count(*) AS n FROM state_transition_event
+          WHERE item_id = ? AND to_state = 'executing' AND cause = 'revision-created'
+            AND json_extract(record_json, '$.actor') = ?`,
+    ).get(id, STRANDED_ACTOR);
+    store.close();
+    assert.equal(Number(attempts.n), 0);
+});
+
+test('a legal target path is not refused by the pre-filter', async () => {
+    const { store, runId, dbPath } = await estate();
+    const [module_, resource] = await strandItems(store, runId, ['stranded-legal-module', 'stranded-legal-resource']);
+    // The guide surface has no per-surface path rule -- a resource indexes
+    // itself wherever under resources/ it sits -- so the pre-filter must pass
+    // it through rather than inventing one. A check that refuses real work is
+    // worse than no check.
+    retarget(store, dbPath, resource, 'resources/coding-agents/ai-assisted-code-review-checklist.json');
+
+    const summary = await recoverStrandedItems({ store, now: NOW });
+    store.close();
+
+    assert.equal(summary.refused.length, 0, `nothing refused, got: ${summary.refused.map((e) => e.reason).join('; ')}`);
+    assert.deepEqual(summary.recovered.map((entry) => entry.item).sort(), [module_, resource].sort());
+});
+
 test('items this run just moved are left to this run, and the bounds have conservative defaults', async () => {
     const { store, runId, dbPath } = await estate();
     const [fresh, older] = await strandItems(store, runId, ['stranded-fresh', 'stranded-older']);

@@ -19,7 +19,10 @@ import { join } from 'node:path';
 import {
   generateBriefs, resolveRoles, loadInventory, normalizeStableId, briefIdFor,
   briefFor, topicSlug, BriefGenerationError, ROLE_JOBS, OUTCOME_KIND, surfaceConfigFor,
+  buildPrompt, formFor, FORM_INSTRUCTIONS, SURFACE_DEFAULT_FORM, DEFAULT_TARGETS_PATH,
 } from './generate-briefs.mjs';
+import { inspectArtifactFormat } from './lib/artifact-format.mjs';
+import { surfaceForTargetPath } from './lib/registration.mjs';
 import { matchToWorkItem } from './ingest-proposals.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { estate, seedGateItems, walkTo, cleanupFixtures, NOW, candidate } from './test-fixtures.mjs';
@@ -391,6 +394,93 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
     surfaceConfigFor(targets, 'guide-diagram')?.form === 'mermaid');
   check('and a surface with no config resolves to nothing rather than a guess',
     surfaceConfigFor(targets, 'nonsense') === null);
+}
+
+// --- the form every surface's deliverable takes -------------------------------
+//
+// Read against the OPERATOR'S REAL config, not the fixture above. The fixture
+// declares `field-guide` with no form, which is precisely the blind spot that
+// let 64 of 66 held Track 2 items be drafted as Markdown at a .json path: a
+// test carrying its own convenient config can only ever prove the code works
+// on a config nobody runs.
+
+{
+  const real = JSON.parse(readFileSync(DEFAULT_TARGETS_PATH, 'utf8'));
+
+  // A form value and a FORM_INSTRUCTIONS key that differ by one character read
+  // as a declared form and push nothing, silently. Every declared form is
+  // checked, so a new surface cannot be added with a name that resolves to air.
+  for (const [name, config] of Object.entries(real.surfaces)) {
+    if (!config.form) continue;
+    check(`the operator's "${name}" surface declares a form that exists: ${config.form}`,
+      Array.isArray(FORM_INSTRUCTIONS[config.form]));
+  }
+
+  // The three contract surface names, which are what reaches formFor. The
+  // config is keyed by the operator's older spellings, so this is the join that
+  // was missing for `guide`.
+  for (const surface of ['learning', 'guide', 'guide-diagram']) {
+    const form = formFor(surface, surfaceConfigFor(real, surface));
+    check(`the ${surface} surface resolves to a form instruction the drafter can follow`,
+      Boolean(form) && Array.isArray(FORM_INSTRUCTIONS[form]));
+    check(`and ${surface} still resolves to one when an adopter's config predates the fix`,
+      Array.isArray(FORM_INSTRUCTIONS[SURFACE_DEFAULT_FORM[surface]]));
+  }
+
+  // END TO END, against a real published resource path. A Track 2 currency
+  // finding keeps the canonical item's own source path, so
+  // resources/<pack>/<id>.json is exactly what those 64 items carry.
+  const target = 'resources/coding-agents/ai-assisted-code-review-checklist.json';
+  equal('a resources/ path is the guide surface, which is what picks the form',
+    surfaceForTargetPath(target), 'guide');
+
+  const prompt = buildPrompt(
+    { subject_id: 'ai-assisted-code-review-checklist-field-guide', surface: 'guide', kind: 'needs-updating', title: 'AI-Assisted Code Review Checklist', level: 'intermediate' },
+    { level: 'intermediate' }, [], surfaceConfigFor(real, 'guide'),
+  );
+  check('the guide brief now carries a FORM block, where it used to say only "write the guide content"',
+    prompt.includes('FORM. The deliverable is not prose and it is not Markdown.'));
+  check('and it names the schema of record rather than describing a shape of its own',
+    prompt.includes('platform Resource schema'));
+  check('and it says a resource is not a module, because a drafter reading both bleeds them',
+    prompt.includes('A RESOURCE IS NOT A LEARNING MODULE'));
+
+  // What the drafter produced with no FORM block. This is the defect, reproduced.
+  const markdownDraft = '# AI-Assisted Code Review Checklist\n\nReview AI-assisted changes for correctness and scope.\n';
+  const before = inspectArtifactFormat({ path: target, content: markdownDraft });
+  equal('the prose a formless brief produces is held, exactly as production held it',
+    before.code, 'artifact-format.json-unparsable');
+
+  // What the FORM block asks for, with every field taken from the instruction.
+  const shapedDraft = JSON.stringify({
+    id: 'ai-assisted-code-review-checklist',
+    slug: 'ai-assisted-code-review-checklist',
+    title: 'AI-Assisted Code Review Checklist',
+    summary: 'Review AI-assisted changes for correctness, security, evidence, and scope.',
+    category: 'AI coding agents',
+    format: 'checklist',
+    audience: ['developer', 'operator'],
+    level: 'intermediate',
+    providers: ['provider-neutral'],
+    prerequisites: ['A reviewable change set'],
+    owner: 'project42-editorial',
+    reviewCadenceDays: 30,
+    lastVerified: '2026-09-11',
+    tags: ['coding-agents', 'code-review'],
+    sections: [{
+      id: 'verify-review',
+      title: 'Expected evidence and verification',
+      paragraphs: ['An independent review tied to an immutable revision, with reproducible findings and an explicit decision.'],
+    }],
+    sources: [{
+      title: 'Pull request reviews',
+      url: 'https://docs.github.com/en/pull-requests/reference/pull-request-reviews',
+      publisher: 'GitHub',
+      lastVerified: '2026-09-11',
+    }],
+  }, null, 2);
+  const after = inspectArtifactFormat({ path: target, content: shapedDraft });
+  check(`a draft in the form the brief now asks for passes the same check (${after.reason ?? 'no reason'})`, after.ok);
 }
 
 // --- report ------------------------------------------------------------------

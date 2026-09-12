@@ -370,11 +370,19 @@ test("the brief names every required LearningModule field, derived from the plat
         "the optional objects are validated in full when present, so a partial one is worse than none");
 });
 
-test("the learning form resolves even when the operator's surface config declares none", () => {
+test("every surface's form resolves even when the operator's surface config declares none", () => {
     assert.equal(formFor("learning", {}), "learning-module-json", "the contract surface name resolves");
     assert.equal(formFor("learn", undefined), "learning-module-json", "and so does the operator config key");
     assert.equal(formFor("guide-diagram", { form: "mermaid" }), "mermaid", "a declared form always wins");
-    assert.equal(formFor("field-guide", {}), null, "a surface with no form and no default gets no form instruction");
+    // `field-guide` asserted null here until 2026-09-12, and that was this
+    // defect written down as an expectation: the surface had no form, so the
+    // drafter was asked in prose to write a .json file, and 64 of the 66 held
+    // Track 2 items were the result. It resolves now, under both spellings.
+    assert.equal(formFor("guide", {}), "field-guide-resource-json", "the contract surface name resolves");
+    assert.equal(formFor("field-guide", {}), "field-guide-resource-json", "and so does the operator config key");
+    // A surface nothing declares still gets nothing. The default map is a
+    // safety net for the surfaces this estate has, not a guess for any name.
+    assert.equal(formFor("nonsense", {}), null, "an undeclared surface gets no form instruction rather than a guessed one");
 });
 
 test("the mermaid brief is untouched, and a visual guide still gets its own form", () => {

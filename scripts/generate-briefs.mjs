@@ -363,7 +363,16 @@ const STANDING_CONSTRAINTS = [
 // the catalog building and the whole learn surface renders nothing. The
 // refusal that now holds such an artifact is lib/artifact-format.mjs; this is
 // the instruction that means there is nothing to hold.
-const FORM_INSTRUCTIONS = {
+//
+// NOR IS A FIELD GUIDE RESOURCE. Measured 2026-09-12 over two days of
+// production logs: of the 66 Track 2 items that would not prepare, 64 held on
+// artifact-format.json-unparsable against a resources/ target. The 2026-08-19
+// fix above was never wired to this surface -- `field-guide` declared no form
+// and SURFACE_DEFAULT_FORM knew only the two learning spellings, so
+// formFor('guide', ...) returned null, buildPrompt pushed no FORM block, and
+// the drafter was asked in prose to "write the guide content" for a path
+// ending .json. One defect, one surface, sixty-four items.
+export const FORM_INSTRUCTIONS = {
   mermaid: [
     '',
     'FORM. The deliverable is not prose. Produce two things:',
@@ -403,6 +412,42 @@ const FORM_INSTRUCTIONS = {
     'Omit "activity", "comparisonMatrix", "instructorScript" and "capstone" entirely. Each is optional, and the platform validates every one of them in full whenever it is present, so a partial one fails the whole module where an absent one costs nothing.',
     'Do not nest the module under a wrapper key, do not return an array, and do not write Markdown inside the strings either: a paragraph is prose, not a heading, a bullet list, or a fenced block.',
   ],
+  // Every field below is taken from the Resource interface in
+  // project42-platform src/schema.ts and the validateCatalog rules that read
+  // it, and cross-checked against all 84 published resource files in
+  // project42dev/project42-content (resources/<pack>/<id>.json, measured
+  // 2026-09-12). Nothing here is invented. Where the corpus is narrower than
+  // the validator the corpus value is the instruction -- owner is
+  // "project42-editorial" on all 84, and category is one of fifteen headings
+  // the packs already use -- because a record that validates into a heading no
+  // page groups is the reachability defect lib/registration.mjs exists for,
+  // wearing a different hat.
+  'field-guide-resource-json': [
+    '',
+    'FORM. The deliverable is not prose and it is not Markdown. Return exactly ONE JSON object and nothing else: no code fence, no heading, no preamble, no commentary before or after it. The first character of your output must be { and the last must be }.',
+    'The file is committed verbatim to a .json path under resources/, and the Field Guide catalogue loader JSON.parse\'s every .json it finds there. A single character outside the object does not damage one resource, it stops the catalogue from building and takes every other resource down with it.',
+    '',
+    'The object must conform to the platform Resource schema. A RESOURCE IS NOT A LEARNING MODULE: it has no objectives, no estimatedMinutes, no knowledgeCheck, and its prerequisites are prose, not ids. Every one of these fields is REQUIRED, and the schema has no optional ones:',
+    '  id                 kebab-case slug, matching the file name of the target path without its .json extension. It must be unique across the whole catalogue, which resources, modules and learning paths all share.',
+    '  slug               identical to id. The two are separate fields and all 84 published resources set them the same; a slug that differs from the id is a second name for one thing.',
+    '  title              one line of plain text.',
+    '  summary            one or two sentences saying what the resource lets a reader do.',
+    '  category           the reader-facing heading this resource is grouped under. Use the one that already fits, exactly as spelled: "AI coding agents", "AI coding tools", "AI service operations", "Context", "Evaluation and safety", "MCP and orchestration", "Models and providers", "Practical workflows", "Prompting", "Provider workflows", "Research", "Self-hosted model operations", "Setup and quick reference", "Troubleshooting and operations", "Verification". A new heading is a product decision, and one invented here files the resource under a heading no page lists.',
+    '  format             exactly one of "reference", "how-to", "template", "checklist", "command", "decision-path", "playbook", "troubleshooting". It describes the SHAPE of the piece, and the piece has to be that shape: a "checklist" whose body is three essays is mis-declared.',
+    '  audience           array of at least one, with no repeats, of "learner", "practitioner", "developer", "operator", "leader", "educator".',
+    '  level              exactly one of "beginner", "intermediate", "advanced".',
+    '  providers          array of one or more of "provider-neutral", "anthropic", "openai", "google". Use ["provider-neutral"] unless the subject is one named provider.',
+    '  prerequisites      array of PLAIN-ENGLISH strings naming what a reader needs in hand before starting, each non-empty and none repeated, and [] when there is nothing. These are not ids and nothing resolves them, which is the opposite of how a learning module declares its prerequisites.',
+    '  owner              "project42-editorial". It is the editorial owner of record for every resource in this estate, not the author of the piece.',
+    '  reviewCadenceDays  integer from 1 to 365, how often this resource must be re-checked. The published corpus uses 30 for fast-moving tool and provider material, 90 for stable reference.',
+    '  lastVerified       plain YYYY-MM-DD date, the day the sources were checked. It may not be a date in the future: nothing was reviewed on a day that has not happened.',
+    '  tags               array of at least one kebab-case tag, no repeats. Four or five is the working range in the published corpus.',
+    '  sections           array of at least one object: { "id": kebab-case and unique within this resource, "title": string, "paragraphs": array of at least one non-empty string }. A section may also carry "callout" (one string) and "code" ({ "language", "label", "code" }, all three non-empty), both optional.',
+    '  sources            array of at least one { "title", "url", "publisher", "lastVerified" }. Every url must resolve over https, and each lastVerified is a plain YYYY-MM-DD date that is not in the future.',
+    '',
+    'Follow the published shape: all 84 resources carry exactly THREE sections, the last of which states the expected evidence and how a reader verifies they got it ("Expected evidence and verification", or "Expected result and verification" where the piece produces an output). A resource that tells a reader what to do and never says how they would know it worked is half a resource.',
+    'Do not nest the resource under a wrapper key, do not return an array, and do not write Markdown inside the strings either: a paragraph is prose, not a heading, a bullet list, or a fenced block. Fenced code belongs in a section\'s "code" object, where the language and label are carried beside it.',
+  ],
 };
 
 // The form a surface's deliverable takes when the operator's own surface
@@ -414,9 +459,23 @@ const FORM_INSTRUCTIONS = {
 // learning content" for a path ending .json. This default is the safety net
 // for an adopter whose config predates the fix; this operator's own config
 // now declares the form explicitly as well.
+//
+// EVERY SURFACE, IN BOTH SPELLINGS, on purpose. This map is keyed by the value
+// that reaches formFor, which is the CONTRACT surface name (`guide`), while an
+// operator's config key is the older one (`field-guide`). Covering only some of
+// them is how the field-guide surface went three weeks with no form: the
+// 2026-08-19 fix added `learning` and `learn` and stopped there, and nothing
+// keyed `guide` existed at all until 2026-09-12. `guide-diagram` is here for
+// the same reason and not because anything failed on it -- this operator's own
+// config declares form: "mermaid" explicitly, so the entry changes nothing for
+// this estate and closes the same hole for an adopter whose config does not.
 export const SURFACE_DEFAULT_FORM = Object.freeze({
   learning: 'learning-module-json',
   learn: 'learning-module-json',
+  guide: 'field-guide-resource-json',
+  'field-guide': 'field-guide-resource-json',
+  'guide-diagram': 'mermaid',
+  'visual-guide': 'mermaid',
 });
 
 export function formFor(surface, surfaceConfig) {
