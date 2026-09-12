@@ -416,6 +416,16 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
       Array.isArray(FORM_INSTRUCTIONS[config.form]));
   }
 
+  // The operator's own config declares every form EXPLICITLY, and is asserted
+  // to, because SURFACE_DEFAULT_FORM would otherwise cover the deletion
+  // silently: a config line removed here would change nothing a test can see,
+  // and the default is meant to be a net for an adopter's older config, not
+  // this estate's way of declaring a form.
+  for (const [name, config] of Object.entries(real.surfaces)) {
+    check(`the operator's "${name}" surface declares its form rather than leaning on the default`,
+      typeof config.form === 'string' && config.form !== '');
+  }
+
   // The three contract surface names, which are what reaches formFor. The
   // config is keyed by the operator's older spellings, so this is the join that
   // was missing for `guide`.
