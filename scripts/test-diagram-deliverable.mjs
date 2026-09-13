@@ -68,6 +68,10 @@ const SOURCE = [
     "    R --> A[Answer with citations]",
 ].join("\n");
 
+// What actually lands in the repository: the source block's text with exactly
+// one trailing newline, which is how all eleven published .mmd files end.
+const COMMITTED = `${SOURCE}\n`;
+
 // Modelled field-for-field on the eleven entries in
 // project42dev/project42-content diagrams/catalogue.json: the same seven
 // authored keys (id and source are derived), three takeaways, and a category
@@ -148,7 +152,9 @@ test("the OTHER half of the defect: pure mermaid passes the format guard and the
 test("a compliant envelope splits into pure mermaid and a structured catalogue entry", () => {
     const split = splitDiagramDeliverable({ path: DIAGRAM_PATH, content: envelope() });
     assert.equal(split.ok, true);
-    assert.equal(split.source, SOURCE, "the committed bytes are the source block verbatim, fence removed");
+    assert.equal(split.source, COMMITTED, "the committed bytes are the source block verbatim, fence removed");
+    assert.ok(split.source.endsWith("\n") && !split.source.endsWith("\n\n"),
+        "with exactly one trailing newline, like all 11 published .mmd files");
     assert.deepEqual(split.catalogueEntry, ENTRY, "and the entry arrives as an object, not a string to be re-parsed downstream");
 
     // The whole point: what gets committed passes the guard that refused the
@@ -163,7 +169,7 @@ test("a preamble outside the fences is ignored rather than refused, and can neve
         content: envelope({ preamble: "Here is the diagram and its catalogue entry.\n" }),
     });
     assert.equal(split.ok, true);
-    assert.equal(split.source, SOURCE, "the prose is not in the file");
+    assert.equal(split.source, COMMITTED, "the prose is not in the file");
     assert.deepEqual(split.catalogueEntry, ENTRY);
 });
 
@@ -276,7 +282,7 @@ test("the throwing form exists for a choke point that must never let an unsplit 
             return true;
         },
     );
-    assert.equal(assertDiagramDeliverable({ path: DIAGRAM_PATH, content: envelope() }).source, SOURCE);
+    assert.equal(assertDiagramDeliverable({ path: DIAGRAM_PATH, content: envelope() }).source, COMMITTED);
 });
 
 // --- the entry validation runs BEFORE anything is spent ----------------------
@@ -497,7 +503,7 @@ test("THE FIX, END TO END: the .mmd blob is pure mermaid and the catalogue blob 
 
     // THE COMMITTED .mmd. Asserted off the body the API was actually handed,
     // not off a return value the test could have computed itself.
-    assert.equal(artifactBlob, SOURCE, "the .mmd blob is the source block verbatim, with no fence and no prose");
+    assert.equal(artifactBlob, COMMITTED, "the .mmd blob is the source block verbatim, with no fence and no prose");
     assert.equal(inspectArtifactFormat({ path: "diagrams/retrieval-pipeline.mmd", content: artifactBlob }).ok, true);
     assert.ok(!artifactBlob.includes("```"), "no fence survives into the file");
     assert.ok(!artifactBlob.includes("altText"), "and no catalogue entry is smuggled into the diagram source");
@@ -650,7 +656,7 @@ test("an escalated diagram draft that DID comply is escalated as its two real ha
     assert.equal(result.escalated, 1, `the item escalates: ${JSON.stringify(events.filter((e) => e.event.includes("held")))}`);
 
     const [registryBlob, artifactBlob] = blobs;
-    assert.equal(artifactBlob, SOURCE, "the human sees pure mermaid at the .mmd path, not the envelope");
+    assert.equal(artifactBlob, COMMITTED, "the human sees pure mermaid at the .mmd path, not the envelope");
     assert.ok(JSON.parse(registryBlob).diagrams.some((entry) => entry.id === "tool-trust-boundaries"),
         "and the entry the drafter authored is in the catalogue, so an approved escalation is reachable");
     assert.ok(!events.some((entry) => entry.event === "rejection.escalate.deliverable-unsplit"),

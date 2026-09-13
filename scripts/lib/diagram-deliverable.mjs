@@ -182,7 +182,13 @@ export function splitDiagramDeliverable({ path, content }) {
             `${path} is one file and the output carries ${sources.length} \`\`\`${MERMAID_FENCE_TAG} blocks, so which one the reader would see is a guess`,
         );
     }
-    const source = sources[0].body.replace(/^\n+/, "").replace(/\s+$/, "");
+    // Trimmed, then given back exactly one trailing newline. All 11 published
+    // .mmd files in project42dev/project42-content end with one, and a
+    // committed blob that does not would open the first diagram this pipeline
+    // ever prepares with "No newline at end of file" in the Gate 2 diff -- a
+    // reviewer's first impression of the fix being a whitespace complaint.
+    const body = sources[0].body.replace(/^\n+/, "").replace(/\s+$/, "");
+    const source = body === "" ? "" : `${body}\n`;
     if (source === "") {
         return deny(
             "diagram-deliverable.empty-source-block",
