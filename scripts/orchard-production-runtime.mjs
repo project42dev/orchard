@@ -482,7 +482,7 @@ async function runRoleAzure(role, log) {
     if (role === "authoring") {
         if (roleResult) {
             try {
-                await continueAuthoringChain({ strandedRecovery: roleResult.strandedRecovery, log });
+                await continueAuthoringChain({ strandedRecovery: roleResult.strandedRecovery, reworkRecovery: roleResult.reworkRecovery, log });
             } catch (error) {
                 log("error", "chain.continue.failed", { error: error.message });
             }

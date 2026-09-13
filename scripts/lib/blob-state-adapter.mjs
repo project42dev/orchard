@@ -3,6 +3,7 @@ import { createReadStream, mkdirSync, mkdtempSync, readFileSync, rmSync, statSyn
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { openStateStore } from "./state-store.mjs";
+import { countRecoverableRework } from "./rework-recovery.mjs";
 
 const SHA = /^sha256:[a-f0-9]{64}$/;
 
@@ -243,6 +244,12 @@ export class BlobStateAdapter {
                       )`,
                 ).get().n;
                 if (recoverable > 0) counts["authoring-recoverable"] = recoverable;
+                // Gate 2 rework, counted with the SAME classifier the authoring
+                // run's sweep acts on (lib/rework-recovery.mjs), so a Gate 1
+                // return or a permanently unpublishable target -- which that
+                // sweep refuses -- never starts an authoring run for nothing.
+                const rework = countRecoverableRework(store.db);
+                if (rework > 0) counts["rework-recoverable"] = rework;
                 return counts;
             } finally {
                 store.close();

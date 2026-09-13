@@ -17,9 +17,13 @@
 // LIFECYCLE. request-changes and deny are decisions on an item under review,
 // so both apply only at 'gate2-pending'; the state machine allows nothing
 // else. The successor revision that returns a changes-requested item to
-// 'executing' (cause revision-created) is created by the authoring runtime
-// when it picks the rework up, not here: this tool records the decision and
-// its reason, and creating content revisions is not a decision.
+// 'executing' (cause revision-created) is not created here: this tool records
+// the decision and its reason, and creating content revisions is not a
+// decision. It is created by lib/rework-recovery.mjs, which run-authoring.mjs
+// calls before it claims briefs, and which the job chain counts as
+// `rework-recoverable` so a finishing job starts authoring for it. Until
+// 2026-09-13 this comment claimed the authoring runtime did that, and nothing
+// did: a returned item sat at changes-requested forever.
 //
 // Deny is NOT rework. A denial is terminal for that revision and leaves the
 // item in 'denied'. Only request-changes returns work.
