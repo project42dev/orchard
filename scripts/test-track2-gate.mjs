@@ -221,7 +221,9 @@ test('Gate 1 announces for track-2 with the right count, through the same announ
             db: store.db, track: 'track-2', runId: result.run.run_id, repo: 'o/r', token: 't', log: () => { }, fetchImpl: impl,
         });
         assert.deepEqual(results.map((r) => [r.gate, r.action, r.count]), [['gate-1', 'created', 3], ['gate-2', 'empty', 0]]);
-        const posted = JSON.parse(calls.at(-1).body);
+        // The announcement lists the open issues for the other gate after it
+        // writes, so the last call is no longer the write under test.
+        const posted = JSON.parse(calls.filter((call) => (call.method ?? 'GET') !== 'GET').at(-1).body);
         assert.ok(posted.title.includes('3 items awaiting approval (Currency)'), 'the issue title must name the track by what it does and the count');
         assert.ok(posted.body.includes(MODULE_TARGET), 'the issue must name the published file the finding is about');
         assert.ok(posted.body.includes('/orchard gate1 approve item='), 'the issue must carry the exact decision command');

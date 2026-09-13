@@ -35,7 +35,7 @@ export function verifyGateManifestDigests(manifest, allItems) {
 // already allowed to be smaller than 20 before this existed.
 const MAX_MANIFEST_ITEM_BYTES = 30_000;
 
-function sizedBatches(sorted) {
+export function sizedBatches(sorted) {
     const batches = [];
     let current = [];
     let currentSize = 0;
@@ -53,14 +53,41 @@ function sizedBatches(sorted) {
     return batches;
 }
 
-export async function generateGateManifests({ gate, runId, run_id: snakeRunId, track, items, maximumSize = 20 }) {
+// A caller-supplied partition of the same items, used when WHICH issue holds
+// which item is decided elsewhere (lib/gate-issue-plan.mjs) rather than by
+// re-chunking the whole set. Re-chunking is what made a growing item set open a
+// new generation of issues every run: every batch after the insertion point
+// changed digest, so every marker stopped matching. The partition must still be
+// exactly the items, each once, and no batch may exceed the normative maximum.
+function groupedBatches(sorted, groups) {
+    const byId = new Map(sorted.map((item) => [item.item_id, item]));
+    const seen = new Set();
+    const batches = [];
+    for (const group of groups) {
+        if (!Array.isArray(group) || group.length === 0) throw new TypeError('each group must be a non-empty array of item ids');
+        if (group.length > 20) throw new RangeError('Gate issues must use the normative maximum size of 20');
+        const batch = [];
+        for (const itemId of group) {
+            const item = byId.get(itemId);
+            if (!item) throw new Error('a group names an item that is not in this manifest');
+            if (seen.has(itemId)) throw new Error('each item_id must appear in exactly one group');
+            seen.add(itemId);
+            batch.push(item);
+        }
+        batches.push(batch);
+    }
+    if (seen.size !== sorted.length) throw new Error('the groups do not cover every item exactly once');
+    return batches;
+}
+
+export async function generateGateManifests({ gate, runId, run_id: snakeRunId, track, items, groups = null, maximumSize = 20 }) {
     schemaName(gate); runId ??= snakeRunId;
     if (maximumSize !== 20) throw new RangeError('Gate issues must use the normative maximum size of 20');
     if (!Array.isArray(items) || !items.length) throw new TypeError('items must be a non-empty array');
     const sorted = structuredClone(items).sort((a, b) => a.item_id.localeCompare(b.item_id));
     if (new Set(sorted.map((item) => item.item_id)).size !== sorted.length) throw new Error('each item_id must appear exactly once');
     const full = sha256Digest(fullInput(gate, runId, track, sorted));
-    const batches = sizedBatches(sorted);
+    const batches = groups ? groupedBatches(sorted, groups) : sizedBatches(sorted);
     const count = batches.length; const manifests = [];
     for (const batchItems of batches) {
         const manifest = {

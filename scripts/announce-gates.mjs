@@ -24,9 +24,10 @@
 
 import { DatabaseSync } from "node:sqlite";
 import { ManagedIdentityCredential } from "@azure/identity";
-import { gateMarker, openOrUpdateGateIssue, resolveUserLogin } from "./lib/github-issues.mjs";
+import { closeIssue, gateMarker, listOpenGateIssues, openOrUpdateGateIssue, resolveUserLogin } from "./lib/github-issues.mjs";
 import { heldAtGate, heldSetDigest } from "./lib/gate-queue.mjs";
-import { generateGateManifests, renderGateIssueBody } from "./lib/gates.mjs";
+import { announcedTriple, closureComment, markerOf, planGateIssues } from "./lib/gate-issue-plan.mjs";
+import { generateGateManifests, renderGateIssueBody, sizedBatches } from "./lib/gates.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
 import { mintInstallationToken } from "./lib/github-app-auth.mjs";
 
@@ -52,6 +53,23 @@ const GATES = Object.freeze({
 
 export function pendingForGate(db, gate, track = null) {
     return heldAtGate(db, gate, track);
+}
+
+/**
+ * The lifecycle state of one item, for the closure comment only.
+ *
+ * A closure that says "this item is no longer waiting" and cannot say what it
+ * IS leaves the reader to go and find out, which is the same silence this file
+ * exists to end. Read-only, and it never influences what is closed: an item is
+ * out of the announcement because heldAtGate no longer returns it, not because
+ * of anything read here.
+ */
+export function stateOfItem(db, itemId) {
+    try {
+        return db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(itemId)?.current_state ?? null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -152,6 +170,14 @@ export function renderGateIssue({ gate, track, items, marker, runId, manifest })
  * each batch gets its own issue. The batch size is normative, not a display
  * choice: a decision is bound to a batch digest, and one issue per batch is
  * what makes that binding checkable.
+ *
+ * THE ISSUES THAT ARE ALREADY OPEN ARE READ FIRST, ONCE PER GATE, and they --
+ * not a digest of the current membership -- decide which issue announces what.
+ * See lib/gate-issue-plan.mjs for why: keying on membership made a growing item
+ * set open a whole new generation of issues on every single pass, 53 of them in
+ * one evening on 2026-09-12. The same listing is what makes the reconciliation
+ * possible at all, and it replaces the per-batch marker search that used to
+ * page every open issue once PER BATCH.
  */
 export async function announceGates({ db, track, runId, repo, token, log, fetchImpl = fetch, assignees = [] }) {
     const results = [];
@@ -164,48 +190,163 @@ export async function announceGates({ db, track, runId, repo, token, log, fetchI
         // and why: a single catch around both would have reported "announcing
         // failed" for a fault in a gate that was holding nothing.
         try {
-            const items = pendingForGate(db, gate, track);
-            if (items.length === 0) {
+            const items = pendingForGate(db, gate, track).map(({ track: _track, ...entry }) => entry);
+
+            // A failure to LIST is not a failure to announce. Without the
+            // listing there is no plan and nothing can be closed, but the work
+            // still has to be named, so this falls back to exactly the previous
+            // behaviour -- batch the whole set, find each issue by its marker.
+            // That path can still open a duplicate; a duplicate is recoverable
+            // and an unannounced held item is not.
+            let openIssues = null;
+            try {
+                openIssues = await listOpenGateIssues({ repo, gate, track, token, fetchImpl });
+            } catch (error) {
+                log("warn", "gate.reconcile.issues-unreadable", {
+                    gate, track, status: error.status ?? null, reason: error.message,
+                    effect: "nothing is closed this pass and the announcement falls back to matching issues by marker",
+                });
+            }
+
+            if (items.length === 0 && (openIssues === null || openIssues.length === 0)) {
                 log("info", "gate.announce.empty", { gate, track, state: GATES[gate].state });
                 results.push({ gate, action: "empty", count: 0 });
                 continue;
             }
-            const manifests = await generateGateManifests({
-                gate,
-                runId: manifestRun,
-                track,
-                items: items.map(({ track: _track, ...entry }) => entry),
-            });
-            for (const manifest of manifests) {
-                const marker = gateMarker({ track, gate, runId: manifestRun, batchDigest: heldSetDigest(gate, manifest.items) });
-                // Rejection gate (docs/design/rejection-gate.md): a batch
-                // carrying an escalated item is not an ordinary "awaiting
-                // publication" batch -- the title says so, so it is never
-                // mistaken for a routine one before it is even opened.
-                const escalatedCount = manifest.items.filter((item) => item.escalated).length;
-                const title = escalatedCount > 0
-                    ? `Orchard Gate 2: ${escalatedCount} item${escalatedCount === 1 ? "" : "s"} rejected twice, needs your call (${trackLabel(track)}) batch ${manifest.batch.ordinal}/${manifest.batch.count}`
-                    : `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`;
-                const issue = await openOrUpdateGateIssue({
-                    repo,
-                    marker,
-                    title,
-                    body: renderGateIssue({ gate, track, items: manifest.items, marker, runId: manifestRun, manifest }),
-                    labels: ["orchard", `orchard-${gate}`],
-                    assignees,
-                    token,
-                    fetchImpl,
+
+            let plan = null;
+            if (openIssues !== null) {
+                try {
+                    plan = planGateIssues({ gate, openIssues, pendingItems: items, chunk: sizedBatches });
+                } catch (error) {
+                    // The plan refuses itself rather than announce a set it
+                    // cannot prove it has covered. Falling back leaves every
+                    // item announced, which is the property that matters.
+                    log("warn", "gate.reconcile.plan-refused", {
+                        gate, track, reason: error.message,
+                        effect: "nothing is closed this pass and the announcement falls back to batching the whole set",
+                    });
+                }
+            }
+            for (const entry of plan?.unreadable ?? []) {
+                log("warn", "gate.reconcile.issue-unreadable", {
+                    gate, issue: entry.issueNumber, reason: entry.reason,
+                    effect: "left open and untouched; an issue whose contents cannot be read cannot be proven finished",
                 });
-                log("info", "gate.announced", {
-                    gate,
-                    track,
-                    count: manifest.items.length,
-                    batch: `${manifest.batch.ordinal}/${manifest.batch.count}`,
-                    batchDigest: manifest.batch_digest,
-                    action: issue.action,
-                    issue: issue.number,
-                });
-                results.push({ gate, ...issue, count: manifest.items.length, batch: manifest.batch.ordinal });
+            }
+
+            const groups = plan
+                ? plan.groups
+                : sizedBatches([...items].sort((left, right) => left.item_id.localeCompare(right.item_id))).map((batch) => ({ issueNumber: null, marker: null, items: batch }));
+            const manifests = groups.length
+                ? await generateGateManifests({
+                    gate, runId: manifestRun, track, items,
+                    ...(plan ? { groups: groups.map((group) => group.items.map((item) => item.item_id)) } : {}),
+                })
+                : [];
+
+            // An issue that carries a marker but no readable manifest is left
+            // open above, and its items look fresh. Reusing its marker here is
+            // what stops a batch that cannot render its manifest (the body-limit
+            // last resort in renderGateIssue) from opening a new issue for the
+            // same items on every run -- the exact sprawl this change exists to
+            // end, arriving by a different door.
+            const claimed = new Set([...groups.map((group) => group.issueNumber), ...(plan?.close ?? []).map((entry) => entry.issueNumber)].filter((number) => number !== null));
+            const byMarker = new Map();
+            for (const issue of openIssues ?? []) {
+                const marker = markerOf(issue.body);
+                if (marker && !claimed.has(Number(issue.number)) && !byMarker.has(marker)) byMarker.set(marker, Number(issue.number));
+            }
+
+            const announced = new Set();
+            for (const [index, group] of groups.entries()) {
+                const manifest = manifests[index];
+                const marker = group.marker ?? gateMarker({ track, gate, runId: manifestRun, batchDigest: heldSetDigest(gate, manifest.items) });
+                const issueNumber = group.issueNumber ?? byMarker.get(marker) ?? null;
+                try {
+                    // Rejection gate (docs/design/rejection-gate.md): a batch
+                    // carrying an escalated item is not an ordinary "awaiting
+                    // publication" batch -- the title says so, so it is never
+                    // mistaken for a routine one before it is even opened.
+                    const escalatedCount = manifest.items.filter((item) => item.escalated).length;
+                    const title = escalatedCount > 0
+                        ? `Orchard Gate 2: ${escalatedCount} item${escalatedCount === 1 ? "" : "s"} rejected twice, needs your call (${trackLabel(track)}) batch ${manifest.batch.ordinal}/${manifest.batch.count}`
+                        : `${GATES[gate].title(track, items.length)} batch ${manifest.batch.ordinal}/${manifest.batch.count}`;
+                    const issue = await openOrUpdateGateIssue({
+                        repo,
+                        marker,
+                        title,
+                        body: renderGateIssue({ gate, track, items: manifest.items, marker, runId: manifestRun, manifest }),
+                        labels: ["orchard", `orchard-${gate}`],
+                        assignees,
+                        issueNumber,
+                        // When there is a plan, the open issues have already
+                        // been read: a group the plan calls fresh is fresh, and
+                        // searching for its marker would page every open issue
+                        // a second time for an answer already in hand.
+                        search: plan === null,
+                        token,
+                        fetchImpl,
+                    });
+                    for (const item of manifest.items) announced.add(announcedTriple(gate, item));
+                    log("info", "gate.announced", {
+                        gate,
+                        track,
+                        count: manifest.items.length,
+                        batch: `${manifest.batch.ordinal}/${manifest.batch.count}`,
+                        batchDigest: manifest.batch_digest,
+                        action: issue.action,
+                        issue: issue.number,
+                    });
+                    results.push({ gate, ...issue, count: manifest.items.length, batch: manifest.batch.ordinal });
+                } catch (error) {
+                    // One batch that will not write must not silence the other
+                    // twenty-four, and must not let anything be closed on the
+                    // strength of an announcement that did not happen.
+                    log("warn", "gate.announce.batch-failed", {
+                        gate, track, issue: issueNumber, batch: `${manifest.batch.ordinal}/${manifest.batch.count}`,
+                        status: error.status ?? null, reason: error.message,
+                        effect: "these items stay held and are retried next run; nothing is closed on their account",
+                    });
+                    results.push({ gate, action: "failed", count: manifest.items.length, batch: manifest.batch.ordinal, reason: error.message });
+                }
+            }
+
+            for (const entry of plan?.close ?? []) {
+                // THE GUARD. An issue is closed only when everything still
+                // pending on it is, right now, on an issue this pass actually
+                // wrote. A create that failed above means the item is announced
+                // NOWHERE if this closes, so it does not close.
+                const stranded = entry.pendingTriples.filter((triple) => !announced.has(triple));
+                if (stranded.length > 0) {
+                    log("warn", "gate.reconcile.close-held-back", {
+                        gate, issue: entry.issueNumber, stranded: stranded.length,
+                        effect: "kept open: it is still the only live announcement of work that is waiting",
+                    });
+                    results.push({ gate, action: "close-held-back", number: entry.issueNumber, count: 0 });
+                    continue;
+                }
+                try {
+                    const states = Object.fromEntries(entry.settled.map((triple) => {
+                        const itemId = triple.split(":")[0];
+                        return [itemId, stateOfItem(db, itemId)];
+                    }));
+                    await closeIssue({
+                        repo, issueNumber: entry.issueNumber, token, fetchImpl,
+                        comment: closureComment({ ...entry, states }),
+                    });
+                    log("info", "gate.reconcile.closed", {
+                        gate, issue: entry.issueNumber, moved: entry.moved.length, settled: entry.settled.length,
+                        supersededBy: entry.supersededBy,
+                    });
+                    results.push({ gate, action: "closed", number: entry.issueNumber, count: 0 });
+                } catch (error) {
+                    log("warn", "gate.reconcile.close-failed", {
+                        gate, issue: entry.issueNumber, status: error.status ?? null, reason: error.message,
+                        effect: "the duplicate stays open and is retried next run; no item is affected",
+                    });
+                    results.push({ gate, action: "close-failed", number: entry.issueNumber, count: 0, reason: error.message });
+                }
             }
         } catch (error) {
             log("warn", "gate.announce.gate-failed", {

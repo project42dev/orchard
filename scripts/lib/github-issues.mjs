@@ -25,9 +25,22 @@ const REPO = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
  * KEYED ON THE BATCH DIGEST WHEN THERE IS ONE, not on the run. A gate holds
  * work until a human decides, which is deliberately longer than a run: keying
  * on the run id would open a fresh issue every month for the same undecided
- * items and split the conversation across all of them. The batch digest is the
- * exact set of items and revisions on offer, so the same held set updates the
- * same issue, and a changed set correctly gets a new one.
+ * items and split the conversation across all of them.
+ *
+ * THE MARKER IS A NAME, NOT AN INDEX, and since 2026-09-12 it is no longer how
+ * an existing issue is found. It was: the batch digest named the exact items on
+ * offer, so a changed set got a new issue -- which is correct for a set that
+ * changes and catastrophic for one that GROWS. Every newly discovered Track 2
+ * finding re-chunked the whole pending set, so most batch digests changed, most
+ * markers stopped matching, and a whole new generation of issues opened. 53 open
+ * Gate 2 issues in one evening, 24 generations of the same growing set.
+ *
+ * announce-gates.mjs now reconciles against the issues that are already open
+ * (lib/gate-issue-plan.mjs) and updates them BY NUMBER. This function still
+ * mints the marker a NEW issue carries, and the marker is still stable for a
+ * stable set, so it remains the fallback when the listing is unavailable and
+ * the way an issue is recognised as a gate issue at all. It is no longer the
+ * thing that decides whether a second issue is opened.
  */
 export function gateMarker({ track, gate, runId, batchDigest }) {
     if (!["track-1", "track-2"].includes(track)) throw new TypeError("track must be track-1 or track-2");
@@ -191,8 +204,19 @@ export async function closeIssue({ repo, issueNumber, comment, token, fetchImpl 
  * reaches its owner the next time its held set is announced. An empty list
  * sends no field at all: a gate must open its issue whether or not anyone
  * could be resolved to hear about it.
+ *
+ * `issueNumber` names the issue to update directly, and `search: false` says the
+ * caller has already established there is none, so this creates without looking.
+ * A caller that has already listed the open gate issues (announce-gates.mjs
+ * reconciles against them before it writes anything) otherwise pays for a full
+ * paged listing PER BATCH: with 53 open issues and 25 batches that was 25
+ * redundant listings on a token that had already been rate limited once that
+ * day. The marker still goes in the body, because the marker is how a later
+ * reader recognises this as a gate issue at all; it is simply not searched for
+ * when the caller can already say which issue this is. `search` defaults to
+ * true, so a caller that knows nothing still behaves exactly as before.
  */
-export async function openOrUpdateGateIssue({ repo, marker, title, body, labels = [], assignees = [], token, fetchImpl = fetch }) {
+export async function openOrUpdateGateIssue({ repo, marker, title, body, labels = [], assignees = [], issueNumber = null, search = true, token, fetchImpl = fetch }) {
     if (!REPO.test(repo ?? "")) throw new TypeError("repo must be owner/name");
     if (typeof token !== "string" || token.length === 0) throw new TypeError("a GitHub token is required");
     if (typeof title !== "string" || title.length === 0) throw new TypeError("title is required");
@@ -202,7 +226,14 @@ export async function openOrUpdateGateIssue({ repo, marker, title, body, labels 
     }
 
     const withAssignees = assignees.length > 0 ? { assignees } : {};
-    const existing = await findIssueByMarker({ repo, marker, token, fetchImpl });
+    if (issueNumber !== null && issueNumber !== undefined) {
+        if (!Number.isSafeInteger(Number(issueNumber)) || Number(issueNumber) < 1) throw new TypeError("issueNumber must be a positive integer when supplied");
+        const patched = await call(`/repos/${repo}/issues/${Number(issueNumber)}`, {
+            token, fetchImpl, method: "PATCH", body: { title, body, ...withAssignees },
+        });
+        return { action: "updated", number: patched.number, url: patched.html_url };
+    }
+    const existing = search ? await findIssueByMarker({ repo, marker, token, fetchImpl }) : null;
     if (existing) {
         const updated = await call(`/repos/${repo}/issues/${existing.number}`, {
             token, fetchImpl, method: "PATCH", body: { title, body, ...withAssignees },

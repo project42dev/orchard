@@ -101,15 +101,23 @@ function recordingFetch(responses) {
   };
 }
 
-test('a gate holding nothing is reported empty, not skipped in silence', async () => {
+// The announcement reads the open issues once per gate before it writes
+// anything, so the LAST call is now a listing for the other gate, not the write
+// under test. Assertions about what was written have to name the write.
+const writes = (calls) => calls.filter((call) => call.method !== 'GET');
+const lastWrite = (calls) => writes(calls).at(-1);
+
+test('a gate holding nothing and holding no open issue is reported empty, not skipped in silence', async () => {
   const { store, runId } = await estate();
   const events = [];
+  const { impl, calls } = recordingFetch([]);
   const results = await announceGates({
     db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't',
-    log: (_l, e) => events.push(e), fetchImpl: async () => { throw new Error('must not call GitHub'); },
+    log: (_l, e) => events.push(e), fetchImpl: impl,
   });
   assert.deepEqual(results.map((r) => r.action), ['empty', 'empty']);
   assert.deepEqual(events, ['gate.announce.empty', 'gate.announce.empty']);
+  assert.deepEqual(writes(calls), [], 'an empty gate with no open issue must write nothing at all');
   store.close();
 });
 
@@ -124,8 +132,8 @@ test('a candidate persisted by discovery is what Gate 1 announces', async () => 
     db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't', log: () => { }, fetchImpl: impl,
   });
   assert.deepEqual(results.map((r) => [r.gate, r.action]), [['gate-1', 'created'], ['gate-2', 'empty']]);
-  assert.equal(calls.at(-1).method, 'POST');
-  const posted = JSON.parse(calls.at(-1).body);
+  assert.equal(lastWrite(calls).method, 'POST');
+  const posted = JSON.parse(lastWrite(calls).body);
   assert.ok(posted.body.includes('How to teach vector-search'), 'the issue must name what is being decided');
   assert.ok(posted.body.includes('/orchard gate1 approve item='), 'the issue must carry the exact decision command');
   assert.ok(posted.body.includes('project42dev/project42-content'), 'the issue must show where the content would land');
@@ -467,7 +475,7 @@ test('a created gate issue assigns the owner, because assignment is what makes G
     fetchImpl: impl, assignees: ['countrycloudboy'],
   });
   assert.equal(results[0].action, 'created');
-  const posted = JSON.parse(calls.at(-1).body);
+  const posted = JSON.parse(lastWrite(calls).body);
   assert.deepEqual(posted.assignees, ['countrycloudboy'], 'the create request must carry the assignee or no notification ever fires');
   store.close();
 });
@@ -488,8 +496,8 @@ test('an update carries the assignee too, so issues opened before assignment exi
     fetchImpl: impl, assignees: ['countrycloudboy'],
   });
   assert.equal(results[0].action, 'updated');
-  assert.equal(calls.at(-1).method, 'PATCH');
-  assert.deepEqual(JSON.parse(calls.at(-1).body).assignees, ['countrycloudboy']);
+  assert.equal(lastWrite(calls).method, 'PATCH');
+  assert.deepEqual(JSON.parse(lastWrite(calls).body).assignees, ['countrycloudboy']);
   store.close();
 });
 
@@ -503,7 +511,7 @@ test('no assignee still creates the issue, and sends no assignees field at all',
     db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't', log: () => { }, fetchImpl: impl,
   });
   assert.equal(results[0].action, 'created', 'notification config must never block the gate issue');
-  assert.ok(!('assignees' in JSON.parse(calls.at(-1).body)), 'an empty list must not send an empty field');
+  assert.ok(!('assignees' in JSON.parse(lastWrite(calls).body)), 'an empty list must not send an empty field');
   store.close();
 });
 
@@ -558,13 +566,16 @@ test('pendingForGate reads the lifecycle table, and only the state it was asked 
 test('a GitHub failure names the gate it happened to and leaves the other alone', async () => {
   const { store, runId } = await estate([candidate('tool-use-safety')]);
   const events = [];
-  const { impl } = recordingFetch([{ ok: false, status: 503, body: 'down' }]);
+  const { impl } = recordingFetch([
+    { ok: true, status: 200, body: '[]' },
+    { ok: false, status: 503, body: 'down' },
+  ]);
   const results = await announceGates({
     db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't',
     log: (_l, event, detail) => events.push([event, detail?.gate]), fetchImpl: impl,
   });
   assert.deepEqual(results.map((r) => [r.gate, r.action]), [['gate-1', 'failed'], ['gate-2', 'empty']]);
-  assert.deepEqual(events, [['gate.announce.gate-failed', 'gate-1'], ['gate.announce.empty', 'gate-2']]);
+  assert.deepEqual(events, [['gate.announce.batch-failed', 'gate-1'], ['gate.announce.empty', 'gate-2']]);
   store.close();
 });
 
