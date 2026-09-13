@@ -4,6 +4,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { canonicalJson, generateUuidV7, sha256Digest } from "./identity.mjs";
 import { verifyCorpusSnapshot } from "./corpus-snapshot.mjs";
 import { persistDiscoveryItems } from "./gate-queue.mjs";
+import { assertPublishableTarget, UNPUBLISHABLE_TARGET_CODE } from "./publishable-target.mjs";
 import { semanticCandidateIdentity } from "./track-1-controller.mjs";
 
 export const TRACK_2_CLASSIFICATIONS = Object.freeze([
@@ -205,6 +206,22 @@ export function currencyCandidateFor(item, inspection, observedAt) {
     if (!TRACK_2_ACTIONABLE_CLASSIFICATIONS.includes(inspection?.classification)) {
         throw new TypeError(`not an actionable Track 2 classification: ${inspection?.classification}`);
     }
+    // THE TARGET IS CHECKED HERE, WHERE IT IS DECIDED.
+    //
+    // A candidate IS a proposal to publish, and a proposal to publish to a path
+    // no surface publishes to is not a proposal at all. Twenty-nine canonical
+    // items -- the catalogue itself, all fourteen learning paths, and every
+    // catalog entry with no backing file -- map to `catalog.json` or
+    // `diagrams/catalogue.json`, and both are refused by lib/registration.mjs.
+    // Before 2026-09-12 they became Gate 1 items anyway, were approved, were
+    // authored at cost, and stopped dead at the registration hold with no way
+    // out of the backlog.
+    //
+    // The finding is not lost by this throw: currencyFindingCandidates catches
+    // exactly this code and carries it out of the run as an unroutable finding,
+    // which the run summary issue names for the owner. See
+    // lib/publishable-target.mjs.
+    const targetPath = assertPublishableTarget(contentRepositoryPathFor(item.sourcePath));
     // The gate manifest contract caps evidence entries at 1000 characters.
     // Long inspector prose is truncated rather than allowed to fail the whole
     // item's persistence at announce time.
@@ -219,11 +236,11 @@ export function currencyCandidateFor(item, inspection, observedAt) {
         title: `${inspection.classification}: ${item.stableId}`.slice(0, 200),
         term: item.canonicalId,
         level: null,
-        targetPath: contentRepositoryPathFor(item.sourcePath),
+        targetPath,
         evidence,
         evidenceRefs: [{ reference: item.sourcePath, digest: item.sourceDigest }],
         rationale: [
-            `The currency inspection of ${item.stableId} (${item.sourcePath} in the inspected corpus, ${contentRepositoryPathFor(item.sourcePath)} in ${"project42dev/project42-content"}) classified the published content as needing ${inspection.classification},`,
+            `The currency inspection of ${item.stableId} (${item.sourcePath} in the inspected corpus, ${targetPath} in ${"project42dev/project42-content"}) classified the published content as needing ${inspection.classification},`,
             `on ${evidence.length} recorded evidence entr${evidence.length === 1 ? "y" : "ies"}.`,
             `The content digest at inspection time was ${item.digest}.`,
             "The classification and its evidence are in the proposal this decision binds to; nothing changes until a human approves it here.",
@@ -234,17 +251,48 @@ export function currencyCandidateFor(item, inspection, observedAt) {
     return candidate;
 }
 
-/** Every actionable finding from a run's outcomes, in enumeration order. */
+/**
+ * Every actionable finding from a run's outcomes, in enumeration order, split
+ * by whether it has anywhere to be published.
+ *
+ * Returns `{ candidates, unroutable }`. A candidate is a proposal bound for
+ * Gate 1. An unroutable entry is a real finding about a real canonical item
+ * that no surface can publish -- the full assessment, its evidence, the target
+ * that was refused and the code that refused it -- carried out of the
+ * controller so the run summary can put it in front of the owner.
+ *
+ * Only UNPUBLISHABLE_TARGET_CODE is caught. Anything else thrown while building
+ * a candidate is a defect in the builder, not a property of the finding, and is
+ * rethrown: swallowing it here would turn a broken emitter into a silently
+ * empty gate, which is the exact failure this whole subsystem exists to end.
+ */
 export function currencyFindingCandidates(items, outcomes, observedAt) {
     const byId = new Map(items.map((item) => [item.stableId, item]));
     const candidates = [];
+    const unroutable = [];
     for (const outcome of outcomes) {
         if (!TRACK_2_ACTIONABLE_CLASSIFICATIONS.includes(outcome.classification)) continue;
         const item = byId.get(outcome.stableId);
         if (!item) continue;
-        candidates.push(currencyCandidateFor(item, outcome, observedAt));
+        try {
+            candidates.push(currencyCandidateFor(item, outcome, observedAt));
+        } catch (error) {
+            if (error?.code !== UNPUBLISHABLE_TARGET_CODE) throw error;
+            unroutable.push({
+                stableId: item.stableId,
+                canonicalId: item.canonicalId,
+                surface: item.surface,
+                classification: outcome.classification,
+                sourcePath: item.sourcePath,
+                targetPath: error.targetPath,
+                code: error.registrationCode,
+                reason: error.detail,
+                evidence: [...new Set((outcome.evidence ?? []).map((entry) => String(entry).slice(0, 1000)))].sort(),
+                observedAt,
+            });
+        }
     }
-    return candidates;
+    return { candidates, unroutable };
 }
 
 export function verifyPinnedCommit(platformRoot, commit) {
@@ -384,9 +432,29 @@ export async function runTrack2(options) {
     // failure stopped the run ARE persisted, exactly as a Track 1 survey keeps
     // the candidates it validated before a later fetch failed.
     let findings = { persisted: 0, skipped: 0, failed: 0, reproposed: 0, superseded: 0, items: [], existing: [] };
+    // Held apart from `findings` because persistDiscoveryItems REPLACES that
+    // object wholesale, and a field assigned onto it before that call would be
+    // silently dropped on exactly the runs that have candidates to persist --
+    // which is to say, on every run that matters.
+    let unroutableFindings = [];
     if (options.mode !== "dry-run" && options.stateStore) {
         const observedAt = (options.now?.() ?? new Date()).toISOString();
-        const candidates = currencyFindingCandidates(items, outcomes, observedAt);
+        const { candidates, unroutable } = currencyFindingCandidates(items, outcomes, observedAt);
+        // Reported whatever else the run did, INCLUDING under drift. An
+        // unroutable entry is not a proposal held against a corpus that moved;
+        // it is the observation that this canonical item has no publishable
+        // artifact, which is a property of the corpus layout and not of the
+        // bytes that drifted. The summary's drift banner already tells the
+        // reader how much to trust the assessment. Suppressing them here is how
+        // a finding disappears for a month because an unrelated file changed.
+        unroutableFindings = unroutable;
+        if (unroutable.length) {
+            options.onStage?.("track2.findings.unroutable", {
+                count: unroutable.length,
+                items: unroutable.map((entry) => `${entry.stableId} (${entry.classification}) -> ${entry.targetPath}: ${entry.code}`),
+                effect: "these findings are real and are NOT held at Gate 1, because no surface publishes to their target; the run summary names each one for the owner",
+            });
+        }
         if (candidates.length && drift) {
             options.onStage?.("track2.findings.skipped-drift", { candidates: candidates.length });
         } else if (candidates.length) {
@@ -408,6 +476,7 @@ export async function runTrack2(options) {
             });
         }
     }
+    findings = { ...findings, unroutable: unroutableFindings };
 
     const fullSuccess = options.mode === "full" && !drift && !stopped && !inspectionFailed && reconciliation.ok && coverage.expected === allItems.length && coverage.expected === coverage.enumerated && coverage.enumerated === coverage.inspected && coverage.gaps === 0;
     const status = drift || stopped || inspectionFailed || !reconciliation.ok ? "failed" : fullSuccess ? "completed" : "incomplete";

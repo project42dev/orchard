@@ -45,11 +45,22 @@ const temporaries = [];
 
 function writeJson(path, value) { writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); }
 
-/** The same seven-item canonical corpus the track-2 coverage tests use. */
+/**
+ * The same seven-item canonical corpus the track-2 coverage tests use.
+ *
+ * The module sits under `content/modules/path-a/`, not directly under
+ * `content/modules/`, because that is the only layout the content repository
+ * has: a module is reachable at /learn/<pathId>/<moduleId> and all 88 module
+ * files in project42dev/project42-content sit in a directory named for the
+ * path that lists them (lib/registration.mjs learningPathIdForTarget). The flat
+ * fixture this replaced on 2026-09-12 proposed a target registerLearningModule
+ * would have refused at publication, so it was asserting that Orchard holds a
+ * finding it can never publish -- the very defect this file now proves is gone.
+ */
 function platformFixture() {
     const root = mkdtempSync(join(tmpdir(), 'orchard-t6-platform-'));
     temporaries.push(root);
-    for (const directory of ['content/modules', 'content/resources', 'content/diagrams']) mkdirSync(join(root, directory), { recursive: true });
+    for (const directory of ['content/modules/path-a', 'content/resources', 'content/diagrams']) mkdirSync(join(root, directory), { recursive: true });
     writeJson(join(root, 'content/catalog.json'), {
         schemaVersion: '1.0.0',
         contentVersion: 'test',
@@ -57,7 +68,7 @@ function platformFixture() {
         modules: [{ id: 'module-a', title: 'Module' }],
         resources: [{ id: 'resource-a', title: 'Resource' }],
     });
-    writeJson(join(root, 'content/modules/module-a.json'), { id: 'module-a', body: 'canonical module' });
+    writeJson(join(root, 'content/modules/path-a/module-a.json'), { id: 'module-a', body: 'canonical module' });
     writeJson(join(root, 'content/resources/resource-a.json'), { id: 'resource-a', body: 'canonical resource' });
     writeJson(join(root, 'content/diagrams/catalogue.json'), {
         $schemaVersion: '1.0.0',
@@ -77,6 +88,13 @@ function stateEstate() {
 // The mix: four of the five actionable classifications plus no-change, so one
 // run exercises both directions at once. The fifth actionable classification,
 // replacement, is covered by the unit test on the candidate builder below.
+//
+// `catalogue:content` is deliberately kept in this mix and deliberately NOT in
+// the expected-gate map below. It is the canonical corpus item with no artifact
+// of its own -- its source path is catalog.json, which no surface publishes to
+// -- so it is a real finding that is reported rather than held. Three of the
+// four actionable classifications reach the gate; the fourth reaches the owner
+// through the run summary instead. See lib/publishable-target.mjs.
 const CLASSIFICATION_BY_ID = {
     'learning-module:module-a': 'update',
     'guide:resource-a': 'correction',
@@ -85,11 +103,12 @@ const CLASSIFICATION_BY_ID = {
 };
 
 const EXPECTED_CATEGORY_BY_PATH = {
-    'modules/module-a.json': 'update',
+    'modules/path-a/module-a.json': 'update',
     'resources/resource-a.json': 'correction',
     'diagrams/diagram-a.mmd': 'removal',
-    'catalog.json': 'addition',
 };
+
+const MODULE_TARGET = 'modules/path-a/module-a.json';
 
 function mixedInspector(item) {
     return {
@@ -140,7 +159,9 @@ test('the candidate builder covers every actionable classification and refuses n
         'the subject is the canonical item, so two kinds of finding cannot both be live for one file');
     assert.throws(() => currencyCandidateFor(item, { classification: 'evidence-backed-no-change', evidence: ['e:1'] }, '2026-08-16T00:00:00.000Z'),
         /not an actionable/, 'confirmed-current content is not a finding');
-    assert.equal(currencyFindingCandidates([item], [{ stableId: item.stableId, classification: 'evidence-backed-no-change', evidence: ['e:1'] }], '2026-08-16T00:00:00.000Z').length, 0);
+    const settled = currencyFindingCandidates([item], [{ stableId: item.stableId, classification: 'evidence-backed-no-change', evidence: ['e:1'] }], '2026-08-16T00:00:00.000Z');
+    assert.equal(settled.candidates.length, 0);
+    assert.equal(settled.unroutable.length, 0, 'confirmed-current content is not a finding of any kind, routable or not');
 });
 
 test('a currency run persists gate-bound items for the actionable classifications only, at gate1-pending', async () => {
@@ -149,11 +170,13 @@ test('a currency run persists gate-bound items for the actionable classification
     try {
         const result = await runTrack2(runOptions(root, store));
         assert.equal(result.status, 'completed');
-        assert.equal(result.findings.persisted, 4, 'four actionable classifications, four items');
+        assert.equal(result.findings.persisted, 3, 'three of the four actionable classifications have somewhere to be published');
+        assert.deepEqual(result.findings.unroutable.map((entry) => entry.stableId), ['catalogue:content'],
+            'the fourth is a real finding about an item with no artifact, and is carried out of the run rather than dropped');
         assert.equal(result.findings.failed, 0);
 
         const held = heldAtGate(store.db, 'gate-1', 'track-2');
-        assert.equal(held.length, 4, 'every finding must be held at Gate 1 for track-2');
+        assert.equal(held.length, 3, 'every PUBLISHABLE finding must be held at Gate 1 for track-2');
         assert.deepEqual(
             Object.fromEntries(held.map((entry) => [entry.target.path, entry.category])),
             EXPECTED_CATEGORY_BY_PATH,
@@ -162,7 +185,8 @@ test('a currency run persists gate-bound items for the actionable classification
         assert.equal(heldAtGate(store.db, 'gate-1', 'track-1').length, 0, 'track-2 findings must not leak into the track-1 gate');
 
         const rows = store.db.prepare('SELECT * FROM workflow_item ORDER BY item_id').all();
-        assert.equal(rows.length, 4, 'evidence-backed-no-change must persist no workflow item');
+        assert.equal(rows.length, 3, 'evidence-backed-no-change and the unpublishable finding must persist no workflow item');
+        assert.equal(rows.filter((row) => row.semantic_identity).length, 3);
         for (const row of rows) {
             assert.equal(row.track, 'track-2');
             assert.equal(row.current_state, 'gate1-pending');
@@ -175,7 +199,7 @@ test('a currency run persists gate-bound items for the actionable classification
         ], 'a finding enters the lifecycle at the top like any discovery candidate');
         assert.equal(transitions[0].actor, 'orchard-track-2-controller', 'the transition names the controller that recorded it');
 
-        assert.equal(store.getRun(result.run.run_id).item_count, 4, 'the run manifest must measure what the database holds');
+        assert.equal(store.getRun(result.run.run_id).item_count, 3, 'the run manifest must measure what the database holds');
         const verification = store.verify();
         assert.ok(verification.ok, `integrity and foreign keys must hold: ${JSON.stringify(verification)}`);
     } finally {
@@ -188,7 +212,7 @@ test('Gate 1 announces for track-2 with the right count, through the same announ
     const store = stateEstate();
     try {
         const result = await runTrack2(runOptions(root, store));
-        assert.equal(result.findings.persisted, 4);
+        assert.equal(result.findings.persisted, 3);
         const { impl, calls } = recordingFetch([
             { ok: true, status: 200, body: '[]' },
             { ok: true, status: 201, body: JSON.stringify({ number: 42, html_url: 'u' }) },
@@ -196,10 +220,10 @@ test('Gate 1 announces for track-2 with the right count, through the same announ
         const results = await announceGates({
             db: store.db, track: 'track-2', runId: result.run.run_id, repo: 'o/r', token: 't', log: () => { }, fetchImpl: impl,
         });
-        assert.deepEqual(results.map((r) => [r.gate, r.action, r.count]), [['gate-1', 'created', 4], ['gate-2', 'empty', 0]]);
+        assert.deepEqual(results.map((r) => [r.gate, r.action, r.count]), [['gate-1', 'created', 3], ['gate-2', 'empty', 0]]);
         const posted = JSON.parse(calls.at(-1).body);
-        assert.ok(posted.title.includes('4 items awaiting approval (Currency)'), 'the issue title must name the track by what it does and the count');
-        assert.ok(posted.body.includes('modules/module-a.json'), 'the issue must name the published file the finding is about');
+        assert.ok(posted.title.includes('3 items awaiting approval (Currency)'), 'the issue title must name the track by what it does and the count');
+        assert.ok(posted.body.includes(MODULE_TARGET), 'the issue must name the published file the finding is about');
         assert.ok(posted.body.includes('/orchard gate1 approve item='), 'the issue must carry the exact decision command');
     } finally {
         store.close();
@@ -211,11 +235,13 @@ test('a second run over unchanged findings dedupes instead of stacking duplicate
     const store = stateEstate();
     try {
         const first = await runTrack2(runOptions(root, store));
-        assert.equal(first.findings.persisted, 4);
+        assert.equal(first.findings.persisted, 3);
         const second = await runTrack2(runOptions(root, store));
         assert.equal(second.findings.persisted, 0, 'a live finding must not be proposed again');
-        assert.equal(second.findings.skipped, 4);
-        assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM workflow_item').get().n, 4);
+        assert.equal(second.findings.skipped, 3);
+        assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM workflow_item').get().n, 3);
+        assert.deepEqual(second.findings.unroutable.map((entry) => entry.stableId), ['catalogue:content'],
+            'an unpublishable finding is reported on EVERY run; it has no gate to be deduped against');
         assert.equal(store.getRun(second.run.run_id).item_count, 0, 'the second run held nothing new and its manifest says so');
     } finally {
         store.close();
@@ -344,8 +370,8 @@ test('a changed assessment supersedes the stale item instead of duplicating or i
     const store = stateEstate();
     try {
         const first = await runTrack2(runOptions(root, store));
-        assert.equal(first.findings.persisted, 4);
-        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'modules/module-a.json');
+        assert.equal(first.findings.persisted, 3);
+        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === MODULE_TARGET);
         assert.equal(stale.category, 'update');
 
         // The same file, a week later, read as needing removal rather than update.
@@ -354,11 +380,11 @@ test('a changed assessment supersedes the stale item instead of duplicating or i
         }));
         assert.equal(second.findings.superseded, 1, 'exactly the one subject whose assessment changed');
         assert.equal(second.findings.persisted, 1);
-        assert.equal(second.findings.skipped, 3, 'the three unchanged assessments are still the same question');
+        assert.equal(second.findings.skipped, 2, 'the two unchanged assessments are still the same question');
 
         const held = heldAtGate(store.db, 'gate-1', 'track-2');
-        assert.equal(held.length, 4, 'the gate holds one item per subject, never two questions about one file');
-        const current = held.find((entry) => entry.target.path === 'modules/module-a.json');
+        assert.equal(held.length, 3, 'the gate holds one item per subject, never two questions about one file');
+        const current = held.find((entry) => entry.target.path === MODULE_TARGET);
         assert.equal(current.category, 'removal', "the gate asks this week's question");
         assert.notEqual(current.item_id, stale.item_id);
         assert.ok(current.rationale.includes(stale.item_id), 'the gate says what this replaces');
@@ -421,7 +447,7 @@ test('a decision aimed at a superseded item is refused by the lifecycle', async 
     const store = stateEstate();
     try {
         const first = await runTrack2(runOptions(root, store));
-        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === 'modules/module-a.json');
+        const stale = heldAtGate(store.db, 'gate-1', 'track-2').find((entry) => entry.target.path === MODULE_TARGET);
         await runTrack2(runOptions(root, store, {
             inspector: async (item) => reclassify({ 'learning-module:module-a': 'removal' })(item),
         }));

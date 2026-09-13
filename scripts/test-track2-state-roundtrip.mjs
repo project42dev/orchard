@@ -130,20 +130,23 @@ function writeJson(path, value) { writeFileSync(path, `${JSON.stringify(value, n
 /** The same seven-item canonical corpus the other Track 2 tests inspect. */
 function platformFixture() {
     const root = scratch('orchard-t2state-platform-');
-    for (const directory of ['content/modules', 'content/resources', 'content/diagrams']) mkdirSync(join(root, directory), { recursive: true });
+    for (const directory of ['content/modules/path-a', 'content/resources', 'content/diagrams']) mkdirSync(join(root, directory), { recursive: true });
     writeJson(join(root, 'content/catalog.json'), {
         schemaVersion: '1.0.0', contentVersion: 'test',
         paths: [{ id: 'path-b', title: 'B' }, { id: 'path-a', title: 'A' }],
         modules: [{ id: 'module-a', title: 'Module' }],
         resources: [{ id: 'resource-a', title: 'Resource' }],
     });
-    writeJson(join(root, 'content/modules/module-a.json'), { id: 'module-a', body: 'canonical module' });
+    writeJson(join(root, 'content/modules/path-a/module-a.json'), { id: 'module-a', body: 'canonical module' });
     writeJson(join(root, 'content/resources/resource-a.json'), { id: 'resource-a', body: 'canonical resource' });
     writeJson(join(root, 'content/diagrams/catalogue.json'), { $schemaVersion: '1.0.0', renderer: 'mermaid', diagrams: [{ id: 'diagram-a', source: 'diagram-a.mmd' }] });
     writeFileSync(join(root, 'content/diagrams/diagram-a.mmd'), 'graph TD; A-->B;\n', 'utf8');
     return root;
 }
 
+// catalogue:content has no artifact of its own -- its source is catalog.json,
+// which no surface publishes to -- so it is reported by the run summary rather
+// than held at a gate, and three of these four reach the state store.
 const CLASSIFICATION_BY_ID = {
     'learning-module:module-a': 'update',
     'guide:resource-a': 'correction',
@@ -193,8 +196,8 @@ test('a Track 2 run cold-starts its state and publishes a verified generation', 
     const { observed, published } = await runFencedTrack2(adapter, platformRoot);
 
     assert.equal(observed.coldStart, true, 'there was no prior generation to read');
-    assert.equal(observed.findings.persisted, 4, 'a cold start does the work rather than crashing or no-opping');
-    assert.equal(observed.held, 4);
+    assert.equal(observed.findings.persisted, 3, 'a cold start does the work rather than crashing or no-opping');
+    assert.equal(observed.held, 3);
 
     const names = [...container.blobs.keys()].sort();
     assert.ok(names.includes('orchard-state/track-2/manifest.json'), 'the manifest must exist after the first run');
@@ -219,7 +222,7 @@ test('a second run reads the published state back and holds nothing new because 
 
     const first = await runFencedTrack2(adapter, platformRoot);
     assert.equal(first.observed.coldStart, true);
-    assert.equal(first.observed.findings.persisted, 4);
+    assert.equal(first.observed.findings.persisted, 3);
 
     // Nothing about the corpus or the inspector changes. The ONLY thing that
     // is different is that the state the first run published now exists.
@@ -227,8 +230,8 @@ test('a second run reads the published state back and holds nothing new because 
     assert.equal(second.observed.coldStart, false, 'the second run must find and download the published generation');
     assert.notEqual(second.observed.statePath, first.observed.statePath, 'it is a fresh download, not the first run leftover file');
     assert.equal(second.observed.findings.persisted, 0, 'every finding is already held, so nothing is proposed again');
-    assert.equal(second.observed.findings.skipped, 4);
-    assert.equal(second.observed.held, 4, 'the gate holds four items, not eight');
+    assert.equal(second.observed.findings.skipped, 3);
+    assert.equal(second.observed.held, 3, 'the gate holds three items, not six');
     assert.equal(second.published.generation, 2, 'the second run publishes the next generation on top of the first');
 
     // The proof that the behaviour came from the state and not from the
@@ -236,7 +239,7 @@ test('a second run reads the published state back and holds nothing new because 
     container.blobs.clear();
     const third = await runFencedTrack2(adapter, platformRoot);
     assert.equal(third.observed.coldStart, true);
-    assert.equal(third.observed.findings.persisted, 4, 'with the state gone, the same run proposes all four again');
+    assert.equal(third.observed.findings.persisted, 3, 'with the state gone, the same run proposes all three again');
 });
 
 test.after(() => {
