@@ -244,6 +244,19 @@ test("Blob state peekStateCounts reads real lifecycle counts without a lease", a
         // eligibility -- otherwise auto-chaining can never see a backlog
         // recovering from a crash, only freshly-approved ado-linked work.
         await walkTo(fixture.store, fixture.runId, orphanedId, "executing");
+        // Gate 2 rework waits on authoring too, and a Gate 1 return does not:
+        // the chain must count the first and not the second, with the same
+        // classifier the authoring run's sweep acts on.
+        const { applyRework } = await import("../scripts/apply-gate2-rework.mjs");
+        const { generateUuidV7 } = await import("../scripts/lib/identity.mjs");
+        const [returnedLate, returnedEarly] = await seedGateItems(fixture.store, fixture.runId, ["delta", "epsilon"]);
+        await walkTo(fixture.store, fixture.runId, returnedLate, "gate2-pending");
+        assert.equal((await applyRework(fixture.store, { item: returnedLate, reason: "fix the citations" })).requeued, 1);
+        await fixture.store.recordTransition({
+            schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: fixture.runId, item_id: returnedEarly,
+            item_revision: 1, from_state: "gate1-pending", to_state: "changes-requested", cause: "decision-requested-changes",
+            actor: "test", reason: "narrow the scope", occurred_at: "2026-08-15T00:00:00.000Z", correlation_id: generateUuidV7(),
+        });
         fixture.store.close();
 
         const handle = await adapter.acquire("track-1", "peek-owner");
@@ -257,6 +270,8 @@ test("Blob state peekStateCounts reads real lifecycle counts without a lease", a
         assert.equal(counts["ado-linked"], 1);
         assert.equal(counts["gate1-pending"], 1);
         assert.equal(counts["authoring-recoverable"], 1);
+        assert.equal(counts["changes-requested"], 2, "both returns sit in the raw state count");
+        assert.equal(counts["rework-recoverable"], 1, "only the Gate 2 return is authoring's waiting work");
         void pendingId;
     } finally {
         cleanupFixtures();

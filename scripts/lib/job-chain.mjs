@@ -88,8 +88,14 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
         if (hop.role === currentRole) continue;
         const jobResourceId = env[hop.envVar];
         if (!jobResourceId) continue;
+        // Authoring's waiting work is three things, each counted by
+        // BlobStateAdapter.peekStateCounts with the exact predicate the
+        // authoring run acts on: fresh ado-linked approvals, binding-free
+        // executing items a crashed run left behind, and Gate 2 rework
+        // (lib/rework-recovery.mjs). Rework was invisible here until
+        // 2026-09-13, so a request-changes decision never started a redraft.
         const waiting = hop.state === "ado-linked"
-            ? (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0)
+            ? (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0) + (counts["rework-recoverable"] ?? 0)
             : (counts[hop.state] ?? 0);
         if (waiting <= 0) continue;
         try {
@@ -128,28 +134,46 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
  * Apps execution to rediscover the exact same stuck items. That is the
  * deliberate stop, logged with why, never a silent one.
  */
-export async function continueAuthoringChain({ strandedRecovery, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log }) {
+//
+// GATE 2 REWORK, since 2026-09-13, is the second backlog only authoring
+// drains (lib/rework-recovery.mjs reopens at most a capped number of returned
+// items per run), and it is bounded by the identical rule: another run starts
+// only if some backlog still has eligible work AND this run moved at least one
+// item out of THAT backlog. A backlog that did not move cannot restart the
+// chain on the strength of a different backlog's progress. `remaining` for
+// rework counts only eligible items -- a Gate 1 return or an unpublishable
+// target is refused every run and is not a backlog -- and a reopened rework
+// item cannot return to changes-requested without a new human decision, so
+// this cannot self-trigger forever.
+export async function continueAuthoringChain({ strandedRecovery, reworkRecovery = null, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log }) {
     const jobResourceId = env.ORCHARD_CHAIN_AUTHORING_JOB_ID;
     if (!jobResourceId) return false;
-    if (!strandedRecovery) return false;
-    const { remaining, recovered } = strandedRecovery;
-    if (!remaining || remaining <= 0) {
-        log?.("info", "chain.continue.none", { remaining: remaining ?? 0, effect: "no stranded backlog is waiting on another authoring run" });
+    const backlogs = [["stranded", strandedRecovery], ["rework", reworkRecovery]]
+        .filter(([, summary]) => summary)
+        .map(([name, summary]) => ({ name, remaining: summary.remaining ?? 0, recovered: summary.recovered?.length ?? 0 }));
+    if (backlogs.length === 0) return false;
+    const waiting = backlogs.filter((backlog) => backlog.remaining > 0);
+    const remaining = waiting.reduce((sum, backlog) => sum + backlog.remaining, 0);
+    if (waiting.length === 0) {
+        log?.("info", "chain.continue.none", { remaining: 0, effect: "no stranded or rework backlog is waiting on another authoring run" });
         return false;
     }
-    if (!recovered || recovered.length === 0) {
+    const moving = waiting.filter((backlog) => backlog.recovered > 0);
+    if (moving.length === 0) {
         log?.("warn", "chain.continue.stopped", {
             remaining,
-            reason: "this run's stranded sweep recovered 0 items; the backlog is not moving, so starting another authoring run would only re-find the same stuck items",
+            backlogs: waiting.map((backlog) => backlog.name),
+            reason: "this run's recovery sweeps recovered 0 items from every backlog still waiting; nothing is moving, so starting another authoring run would only re-find the same stuck items",
         });
         return false;
     }
+    const recovered = moving.reduce((sum, backlog) => sum + backlog.recovered, 0);
     try {
         const started = await startJob({ jobResourceId, tokenProvider, fetchImpl });
-        log?.("info", "chain.continue.triggered", { role: "authoring", remaining, recovered: recovered.length, execution: started?.name });
+        log?.("info", "chain.continue.triggered", { role: "authoring", remaining, recovered, backlogs: moving.map((backlog) => backlog.name), execution: started?.name });
         return true;
     } catch (error) {
-        log?.("error", "chain.continue.trigger-failed", { role: "authoring", remaining, recovered: recovered.length, statusCode: error.statusCode ?? null, error: error.message });
+        log?.("error", "chain.continue.trigger-failed", { role: "authoring", remaining, recovered, statusCode: error.statusCode ?? null, error: error.message });
         return false;
     }
 }

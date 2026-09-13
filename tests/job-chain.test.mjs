@@ -133,6 +133,45 @@ test("the authoring hop counts ado-linked and authoring-recoverable work togethe
     assert.equal(started.length, 1);
 });
 
+test("the authoring hop fires for Gate 2 rework alone -- a request-changes decision starts a redraft", async () => {
+    // Found 2026-09-13: item 01a024de was returned at Gate 2 and three
+    // authoring runs later had not been redrafted, because nothing counted
+    // changes-requested work as waiting on authoring.
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
+    const logs = [];
+    const triggered = await chainNextRoles({
+        counts: { "ado-linked": 0, "rework-recoverable": 1, "changes-requested": 1 }, env, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.deepEqual(triggered, ["authoring"]);
+    assert.equal(started.length, 1);
+    assert.equal(logs.find((l) => l.event === "chain.triggered").detail.waiting, 1);
+});
+
+test("the authoring hop ignores raw changes-requested counts -- only the classified rework count starts it", async () => {
+    // A Gate 1 return is also changes-requested. The raw GROUP BY count includes
+    // it; authoring refuses it; so it must not start an authoring run.
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await chainNextRoles({
+        counts: { "changes-requested": 3, "stale-approval": 2 }, env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.deepEqual(triggered, []);
+    assert.equal(started.length, 0);
+});
+
+test("authoring never triggers itself on rework it just saw -- the currentRole guard covers the rework count", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await chainNextRoles({
+        counts: { "rework-recoverable": 4 }, env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl, currentRole: "authoring",
+    });
+    assert.deepEqual(triggered, []);
+    assert.equal(started.length, 0);
+});
+
 test("chainNextRoles logs a failed hop start at error level with the ARM status code, never swallowed", async () => {
     const fetchImpl = async () => ({ ok: false, status: 403, text: async () => "the identity lacks Microsoft.App/jobs/start/action" });
     const env = { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" };
@@ -208,6 +247,52 @@ test("continueAuthoringChain is off by default: no configured job id means no at
     const triggered = await continueAuthoringChain({
         strandedRecovery: { stranded: 5, recovered: [{ item: "i1" }], refused: [], remaining: 4 },
         env: {}, tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.equal(triggered, false);
+    assert.equal(started.length, 0);
+});
+
+test("continueAuthoringChain starts another run while capped Gate 2 rework is still waiting and this run reopened some", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec-r" }) }; };
+    const logs = [];
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 0, recovered: [], refused: [], remaining: 0 },
+        reworkRecovery: { waiting: 8, recovered: [{ item: "r1" }, { item: "r2" }, { item: "r3" }], refused: [], remaining: 5 },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.equal(triggered, true);
+    assert.equal(started.length, 1);
+    const fired = logs.find((l) => l.event === "chain.continue.triggered");
+    assert.deepEqual(fired.detail.backlogs, ["rework"]);
+    assert.equal(fired.detail.remaining, 5);
+});
+
+test("continueAuthoringChain stops when rework is waiting but this run reopened none of it", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const logs = [];
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 0, recovered: [], refused: [], remaining: 0 },
+        reworkRecovery: { waiting: 2, recovered: [], refused: [{ item: "r9", reason: "retry refused" }], remaining: 2 },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.equal(triggered, false);
+    assert.equal(started.length, 0, "a sweep that moved nothing must not buy another execution to rediscover it");
+    assert.ok(logs.some((l) => l.event === "chain.continue.stopped"));
+});
+
+test("continueAuthoringChain does not restart for a stalled backlog on the strength of another backlog's progress", async () => {
+    // Stranded moved its last item (remaining 0); rework is waiting but did not
+    // move. Nothing still waiting moved, so no restart.
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await continueAuthoringChain({
+        strandedRecovery: { stranded: 1, recovered: [{ item: "s1" }], refused: [], remaining: 0 },
+        reworkRecovery: { waiting: 3, recovered: [], refused: [], remaining: 3 },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl,
     });
     assert.equal(triggered, false);
     assert.equal(started.length, 0);

@@ -56,12 +56,21 @@
 // operator retrying an item does not need to (and cannot accidentally)
 // restate or overwrite it.
 
+// GATE 2 REWORK, since 2026-09-13. 'changes-requested' and 'stale-approval'
+// share the identical recovery shape when GATE 2 put the item there, and until
+// then nothing performed it: apply-gate2-rework.mjs deferred the successor
+// revision to "the authoring runtime", which never created one. They are
+// recoverable here now, and lib/rework-recovery.mjs drives it every authoring
+// run. A Gate 1 return is refused: see lib/rework-gate.mjs for why the state
+// machine alone does not stop it.
+
 import { openStateStore } from "./lib/state-store.mjs";
 import { generateUuidV7 } from "./lib/identity.mjs";
 import { GATE_MANIFEST_REFERENCE_PREFIX } from "./lib/gate-queue.mjs";
+import { REWORK_STATES, reworkGateOf } from "./lib/rework-gate.mjs";
 
 export const DEFAULT_ACTOR = "orchard/apply-blocked-retry";
-const RECOVERABLE = new Set(["blocked", "gate2-ready", "denied"]);
+const RECOVERABLE = new Set(["blocked", "gate2-ready", "denied", ...REWORK_STATES]);
 
 function latestGate2DenyEventId(db, itemId) {
   const row = db.prepare(
@@ -114,6 +123,23 @@ export async function applyRetry(store, { item, now = null, actor = DEFAULT_ACTO
   const successorRevision = currentRevision + 1;
 
   let predecessorDecisionEventId = null;
+  if (REWORK_STATES.includes(row.current_state)) {
+    // Only a Gate 2 return re-enters at 'executing'. The transition recorded
+    // below claims recovery_gate gate-2, and the state machine would accept
+    // that claim for a Gate 1 return too, so it is checked against the record
+    // here before it is made.
+    const origin = reworkGateOf(store.db, row);
+    if (origin?.gate !== "gate-2") {
+      result.errors.push(origin
+        ? `${row.item_id} is ${row.current_state} from ${origin.gate}; a Gate 1 return goes back to the proposal, not to authoring`
+        : `${row.item_id} is ${row.current_state} but nothing on record says which gate returned it, so no recovery gate can be claimed`);
+      return result;
+    }
+    // The request-changes decision this successor revision answers, when the
+    // production decision path recorded one. Optional for these states in the
+    // transition schema, and carried because it is the audit link.
+    predecessorDecisionEventId = origin.decisionEventId;
+  }
   if (row.current_state === "denied") {
     predecessorDecisionEventId = latestGate2DenyEventId(store.db, row.item_id);
     if (!predecessorDecisionEventId) {

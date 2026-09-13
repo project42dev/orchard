@@ -67,6 +67,7 @@ import { splitDiagramDeliverable } from "./lib/diagram-deliverable.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor, persistGate2Evidence } from "./run-gate2-prep.mjs";
 import { recoverStrandedItems } from "./lib/stranded-recovery.mjs";
+import { recoverReworkItems } from "./lib/rework-recovery.mjs";
 import { prepareRemovalCommit } from "./lib/prepare-gate2-evidence.mjs";
 import { buildRemovalEvidence, buildRemovalRecord, deregistrationFor, inboundReferences, redirectFor, removedIdForTarget } from "./lib/removal.mjs";
 import { readGateToken } from "./announce-gates.mjs";
@@ -778,6 +779,24 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         }
     }
 
+    // Reopen Gate 2 rework, also before briefs are claimed, so this same run
+    // re-drafts it with the reviewer's reason on the brief. A request-changes
+    // decision leaves the item at 'changes-requested', and until 2026-09-13
+    // nothing ever created the successor revision that takes it back to
+    // 'executing' -- generate-briefs does not select that state, and nothing
+    // here did either. Capped at what this run's spend ceiling can draft; see
+    // lib/rework-recovery.mjs for what it refuses and why it needs no
+    // lifetime attempt cap.
+    let reworkRecovery = { waiting: 0, recovered: [], refused: [], remaining: 0 };
+    {
+        const reworkStore = openStateStore(resolve(dbPath));
+        try {
+            reworkRecovery = await recoverReworkItems({ store: reworkStore, track: argOf(argv, "track", null), now, env, log, limit: budget.limit });
+        } finally {
+            reworkStore.close();
+        }
+    }
+
     // Claim work. Each brief records ado-linked -> executing, so a crash after
     // this point leaves items visibly executing rather than silently unclaimed,
     // and the ingest below (this run or the next) is what moves them on.
@@ -875,7 +894,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             store.close();
         }
     }
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery, removals: removalSummary };
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

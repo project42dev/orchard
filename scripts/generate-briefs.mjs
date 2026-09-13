@@ -664,20 +664,34 @@ export function parseReworkNote(note) {
 
 // The reviewer's reason, read back from the lifecycle rather than a column.
 //
-// apply-gate2-rework.mjs records a `changes-requested` transition carrying the
-// reason. The most recent one is the reason this item is being written again,
-// and it is rendered in the exact `note` form buildPrompt already reads, so an
-// item with no rework history costs nothing.
+// TWO WRITERS, TWO RECORDS. apply-gate2-rework.mjs (the operator tool) records
+// a `changes-requested` transition carrying the reason. The PRODUCTION path does
+// not: a request-changes comment is applied by apply-gate-decisions.mjs through
+// store.recordVerifiedDecision, which writes a decision_event carrying the
+// reason and updates workflow_item in place, with no state_transition_event at
+// all. Reading only transitions -- the only thing this read until 2026-09-13 --
+// meant every reviewer's reason that arrived through GitHub reached no brief.
+// Both are read and the newest reason wins, rendered in the exact `note` form
+// buildPrompt already reads, so an item with no rework history costs nothing.
 export function reworkNoteFor(db, itemId) {
-  const row = db.prepare(
-    `SELECT record_json FROM state_transition_event
+  const transition = db.prepare(
+    `SELECT occurred_at, record_json FROM state_transition_event
       WHERE item_id = ? AND to_state = 'changes-requested'
       ORDER BY occurred_at DESC, transition_id DESC LIMIT 1`,
   ).get(itemId);
-  if (!row) return null;
-  const reason = JSON.parse(row.record_json).reason;
-  if (typeof reason !== 'string' || !reason) return null;
-  return reason.startsWith(REWORK_PREFIX) ? reason : `${REWORK_PREFIX}${reason}`;
+  const decision = db.prepare(
+    `SELECT occurred_at, record_json FROM decision_event
+      WHERE item_id = ? AND gate = 'gate-2' AND decision = 'request-changes'
+      ORDER BY occurred_at DESC, event_id DESC LIMIT 1`,
+  ).get(itemId);
+  const newestFirst = [transition, decision].filter(Boolean)
+    .sort((a, b) => String(b.occurred_at).localeCompare(String(a.occurred_at)));
+  for (const row of newestFirst) {
+    const reason = JSON.parse(row.record_json).reason;
+    if (typeof reason !== 'string' || !reason) continue;
+    return reason.startsWith(REWORK_PREFIX) ? reason : `${REWORK_PREFIX}${reason}`;
+  }
+  return null;
 }
 
 // apply-blocked-retry.mjs does not repeat the ensemble's refusal reason --
@@ -859,6 +873,10 @@ export async function generateBriefs({
     // way a blocked item re-enters this query is apply-blocked-retry.mjs
     // moving it to 'executing' with a fresh, binding-free revision -- an
     // explicit operator decision, not something this query does on its own.
+    // 'changes-requested' and 'stale-approval' are not selected here either,
+    // for the same reason: lib/rework-recovery.mjs (called by run-authoring
+    // before this) reopens a Gate 2 return at 'executing' with a fresh
+    // revision, and this query claims it through the recovery case above.
     const rows = db.prepare(
       `SELECT i.item_id, i.track, i.surface, i.outcome, i.semantic_identity,
               i.current_revision, i.origin_run_id, r.record_json,
