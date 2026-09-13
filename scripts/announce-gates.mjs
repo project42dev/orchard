@@ -326,11 +326,33 @@ export async function announceGates({ db, track, runId, repo, token, log, fetchI
                     results.push({ gate, action: "close-held-back", number: entry.issueNumber, count: 0 });
                     continue;
                 }
+                const states = Object.fromEntries(entry.settled.map((triple) => {
+                    const itemId = triple.split(":")[0];
+                    return [itemId, stateOfItem(db, itemId)];
+                }));
+                // THE SAME GUARD, AGAINST THE OTHER WAY IN. An item counts as
+                // settled because heldAtGate stopped returning it, which is
+                // normally because it was decided. It is not the only reason:
+                // heldAtGate INNER JOINs item_revision on the item's current
+                // revision, so an item whose current revision has no revision
+                // row is STILL gate-pending in workflow_item and simply
+                // invisible to the announcement. Today that is a silent
+                // non-announcement. Closing its issue on the strength of it
+                // would take away the only place that item is named and leave
+                // real work held in total silence -- the exact failure this
+                // reconciliation exists to prevent, arriving from the far side.
+                // workflow_item.current_state is the authority on what is
+                // pending, so it gets the last word over the join.
+                const unannounced = Object.entries(states).filter(([, state]) => state === GATES[gate].state).map(([itemId]) => itemId);
+                if (unannounced.length > 0) {
+                    log("warn", "gate.reconcile.close-held-back-unannounced", {
+                        gate, issue: entry.issueNumber, items: unannounced.length,
+                        effect: "kept open: these items are still held at this gate but the announcement no longer sees them, so this issue is the only thing naming them",
+                    });
+                    results.push({ gate, action: "close-held-back", number: entry.issueNumber, count: 0 });
+                    continue;
+                }
                 try {
-                    const states = Object.fromEntries(entry.settled.map((triple) => {
-                        const itemId = triple.split(":")[0];
-                        return [itemId, stateOfItem(db, itemId)];
-                    }));
                     await closeIssue({
                         repo, issueNumber: entry.issueNumber, token, fetchImpl,
                         comment: closureComment({ ...entry, states }),

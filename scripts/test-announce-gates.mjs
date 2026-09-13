@@ -159,7 +159,14 @@ test('the same held set updates its issue rather than opening a second one', asy
   store.close();
 });
 
-test('the marker keys on the batch digest so a changed set gets a new issue', () => {
+test('gateMarker itself is keyed on the batch digest, not the run -- but it is no longer what decides whether a second issue opens', () => {
+  // TRUE OF THIS FUNCTION, NOT OF THE SYSTEM, since 2026-09-12. Deriving issue
+  // identity from membership is exactly what opened 53 issues in one evening
+  // for one growing set. announce-gates.mjs now reconciles against the issues
+  // that are already open (lib/gate-issue-plan.mjs) and updates them by number;
+  // this function still mints the marker a NEW issue carries and is still the
+  // fallback when that listing is unavailable. Do not read the assertions below
+  // as the design.
   const first = gateMarker({ track: 'track-1', gate: 'gate-1', runId: 'r1', batchDigest: `sha256:${'a'.repeat(64)}` });
   const second = gateMarker({ track: 'track-1', gate: 'gate-1', runId: 'r2', batchDigest: `sha256:${'a'.repeat(64)}` });
   const third = gateMarker({ track: 'track-1', gate: 'gate-1', runId: 'r1', batchDigest: `sha256:${'b'.repeat(64)}` });

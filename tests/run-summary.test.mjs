@@ -178,6 +178,38 @@ test("a gate announcement that failed is named in the summary, not swallowed", (
     assert.ok(body.includes("no issue was opened for it"));
 });
 
+test("duplicate gate issues that were closed are counted in the summary, so the list shrinking is explained rather than alarming", () => {
+    // 2026-09-12: one evening left 53 open Gate 2 issues, 24 generations of the
+    // same growing item set, because issue identity was derived from
+    // membership. The reconciliation in announce-gates.mjs closes the
+    // duplicates -- and 27 issues disappearing from the owner's list with the
+    // summary silent about it reads exactly like work that went missing. Each
+    // closure comments on its own issue; this is the count.
+    const body = renderRunSummary({
+        track: "track-2", runId: "run-1", verdict: null,
+        announced: [
+            { gate: "gate-2", action: "updated", count: 3, number: 190 },
+            { gate: "gate-2", action: "closed", number: 185, count: 0 },
+            { gate: "gate-2", action: "closed", number: 186, count: 0 },
+            { gate: "gate-2", action: "close-held-back", number: 187, count: 0 },
+        ],
+        now: "2026-09-06T00:00:00.000Z",
+    });
+    assert.ok(body.includes("`2` duplicate gate issue"), "the number of closures must be stated");
+    assert.ok(/no item was decided by this/i.test(body), "and it must say plainly that closing decided nothing");
+    assert.ok(body.includes("`1` issue"), "an issue kept open despite looking redundant is stated too");
+    assert.ok(body.includes("announced nowhere"), "with the reason it was kept");
+});
+
+test("a pass that only closed duplicates still reports them, rather than saying nothing is happening", () => {
+    const body = renderRunSummary({
+        track: "track-2", runId: "run-2", verdict: null,
+        announced: [{ gate: "gate-2", action: "closed", number: 185, count: 0 }],
+        now: "2026-09-06T00:00:00.000Z",
+    });
+    assert.ok(body.includes("`1` duplicate gate issue"), "the closure must survive the no-work-held early return");
+});
+
 // THE CASE THE RUNTIME ACTUALLY SENDS. Exit 4 IS the below-threshold verdict,
 // and runController turns any non-zero exit into a throw, so a real
 // below-coverage run arrives here with a controllerError AND a met:false

@@ -259,8 +259,9 @@ function gateSection({ announced, repo }) {
     const entries = Array.isArray(announced) ? announced : [];
     const failed = entries.filter((entry) => entry.action === "failed");
     const opened = entries.filter((entry) => (entry.count ?? 0) > 0);
+    const tidied = entries.filter((entry) => ["closed", "close-held-back", "close-failed"].includes(entry.action));
     const lines = ["### Gates", ""];
-    if (opened.length === 0 && failed.length === 0) {
+    if (opened.length === 0 && failed.length === 0 && tidied.length === 0) {
         lines.push("No item is held at either gate. Nothing is waiting on a decision from you.");
         lines.push("");
         return lines;
@@ -271,6 +272,19 @@ function gateSection({ announced, repo }) {
     }
     for (const entry of failed) {
         lines.push(`- **${entry.gate}** — ⚠️ the announcement FAILED: ${entry.reason ?? "no reason recorded"}. Work is held at this gate and no issue was opened for it.`);
+    }
+    // A closure is bookkeeping, not a decision, but it still removes issues
+    // from the owner's list -- and an issue vanishing without the summary
+    // saying so reads exactly like work that went missing. Each closed issue
+    // also carries its own comment saying where its items went; this is the
+    // count, so the change in the list is expected rather than alarming.
+    const closed = entries.filter((entry) => entry.action === "closed");
+    if (closed.length > 0) {
+        lines.push(`- \`${closed.length}\` duplicate gate issue${closed.length === 1 ? " was" : "s were"} closed, because everything on ${closed.length === 1 ? "it is" : "them is"} announced on another issue or is no longer waiting. **No item was decided by this**; each closure comments on its own issue saying where its items went.`);
+    }
+    const heldBack = entries.filter((entry) => entry.action === "close-held-back" || entry.action === "close-failed");
+    if (heldBack.length > 0) {
+        lines.push(`- \`${heldBack.length}\` issue${heldBack.length === 1 ? "" : "s"} that looked redundant ${heldBack.length === 1 ? "was" : "were"} kept open anyway, because closing ${heldBack.length === 1 ? "it" : "them"} could have left work announced nowhere. Retried next run.`);
     }
     lines.push("");
     return lines;

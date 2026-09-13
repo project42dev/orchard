@@ -436,6 +436,35 @@ test('a write that failed holds back the close of the issue that announced those
   store.close();
 });
 
+test('an issue is NOT closed when its items are invisible to the announcement but still held at the gate', async () => {
+  // The other way the sole-announcement guard can be defeated, and the one
+  // that is not hypothetical. heldAtGate INNER JOINs item_revision on the
+  // item's current revision; an item whose current revision has no revision
+  // row is still `gate1-pending` in workflow_item and simply stops being
+  // returned. Every such item then looks "no longer pending" to the plan, its
+  // issue looks finished, and closing it would take away the only place that
+  // work is named. workflow_item.current_state is the authority on what is
+  // pending, so it overrides the join here.
+  const { store, runId } = await estate(['alpha']);
+  const ids = pendingForGate(store.db, 'gate-1', 'track-1').map((entry) => entry.item_id);
+  const stale = await announcedIssue(store, runId, 101, ids);
+  // Exactly the shape above: still gate1-pending, no revision row to join to.
+  store.db.prepare('UPDATE workflow_item SET current_revision = 2 WHERE item_id = ?').run(ids[0]);
+  assert.equal(pendingForGate(store.db, 'gate-1', 'track-1').length, 0, 'the fixture must actually make the item invisible to the announcement');
+  assert.equal(currentStateOf(store.db, ids[0]), 'gate1-pending', 'and the item must still be held at the gate');
+  const { impl, calls } = githubFor([stale]);
+  const events = [];
+  const results = await announceGates({
+    db: store.db, track: 'track-1', runId, repo: 'o/r', token: 't', log: (_l, event) => events.push(event), fetchImpl: impl,
+  });
+  assert.deepEqual(calls.filter((call) => call.method === 'PATCH' && call.body?.state === 'closed'), [],
+    'the only issue naming a still-held item must stay open, however finished it looks');
+  assert.ok(events.includes('gate.reconcile.close-held-back-unannounced'),
+    'and the mismatch must be named, because a silently unannounced held item is the failure this whole file is about');
+  assert.ok(results.some((entry) => entry.action === 'close-held-back'));
+  store.close();
+});
+
 test('a gate that holds nothing closes the issues it left behind, and writes no new one', async () => {
   const { store, runId } = await estate(['alpha']);
   const ids = pendingForGate(store.db, 'gate-1', 'track-1').map((entry) => entry.item_id);
