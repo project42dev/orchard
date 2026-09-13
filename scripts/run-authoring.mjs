@@ -63,6 +63,7 @@ import { ingest, readProposals } from "./ingest-proposals.mjs";
 import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage, buildRejectionEvidence, prepareRealCommit, buildEvidenceDocument, Gate2EvidenceError } from "./lib/prepare-gate2-evidence.mjs";
 import { inspectArtifactFormat, SKIP_ARTIFACT_FORMAT_CHECK } from "./lib/artifact-format.mjs";
 import { registrationFor, surfaceForTargetPath, RegistrationError } from "./lib/registration.mjs";
+import { splitDiagramDeliverable } from "./lib/diagram-deliverable.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor, persistGate2Evidence } from "./run-gate2-prep.mjs";
 import { recoverStrandedItems } from "./lib/stranded-recovery.mjs";
@@ -324,7 +325,39 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             // prepareRealCommit re-asserts the same rule as a throwing choke
             // point, so no future caller can reach GitHub around this.
             const target = { repository: revision.target_repository, path: revision.target_path };
-            const format = inspectArtifactFormat({ path: target.path, content: reconstructed.content });
+
+            // TWO DELIVERABLES, ONE CONTENT SLOT. A diagram is a .mmd source
+            // AND a catalogue entry, and until 2026-09-12 the pipeline could
+            // carry only the first: the drafter was asked for both, the whole
+            // blob was committed verbatim to diagrams/<id>.mmd, and
+            // registrationFor was called with no catalogue entry at all, so
+            // every diagram item held -- on
+            // artifact-format.mermaid-unrecognized when the drafter obeyed the
+            // instruction, and on registration.no-catalogue-entry when it did
+            // not. The drafter now emits the two halves as two tagged fenced
+            // blocks and this splits them, BEFORE the format check (the .mmd
+            // that gets checked and committed is the source half, pure mermaid)
+            // and before the publication credential is minted (a draft that did
+            // not comply is knowable here and costs nothing to refuse here).
+            // Non-mermaid targets pass through untouched. See
+            // lib/diagram-deliverable.mjs.
+            const deliverable = splitDiagramDeliverable({ path: target.path, content: reconstructed.content });
+            if (!deliverable.ok) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", {
+                    item: itemId,
+                    reason: deliverable.reason,
+                    code: deliverable.code,
+                    target: target.path,
+                    fenceTags: deliverable.tagsFound,
+                    contentLength: reconstructed.content.length,
+                    contentHead: deliverable.contentHead,
+                });
+                continue;
+            }
+            const publishable = deliverable.source;
+
+            const format = inspectArtifactFormat({ path: target.path, content: publishable });
             if (!format.ok) {
                 summary.held += 1;
                 log("warn", "gate2evidence.held", {
@@ -333,7 +366,7 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                     code: format.code,
                     target: target.path,
                     declaredFormat: format.format,
-                    contentLength: reconstructed.content.length,
+                    contentLength: publishable.length,
                     contentHead: format.contentHead,
                 });
                 continue;
@@ -365,7 +398,11 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 registration = registrationFor({
                     surface: surfaceForTargetPath(target.path),
                     targetPath: target.path,
-                    artifact: reconstructed.content,
+                    artifact: publishable,
+                    // The other half of the deliverable, carried from the split
+                    // above. Before 2026-09-12 no production caller passed this
+                    // and it defaulted to null, which is the whole defect.
+                    catalogueEntry: deliverable.catalogueEntry,
                 });
             } catch (error) {
                 if (!(error instanceof RegistrationError)) throw error;
@@ -376,7 +413,7 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
 
             let commit;
             try {
-                commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: reconstructed.content, registration, token, fetchImpl });
+                commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: publishable, registration, token, fetchImpl });
             } catch (error) {
                 if (!(error instanceof RegistrationError)) throw error;
                 summary.held += 1;
@@ -410,6 +447,16 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             // been shown the artifact itself, only cryptographic proof one
             // exists. Every Gate 2 item now carries its own content, the
             // same way an escalated item's rejected draft already does.
+            // BOTH HALVES, for a diagram. This is deliberately the WHOLE
+            // reconstructed deliverable and not the `publishable` half: a
+            // diagram's catalogue entry carries the alt text, which is an
+            // accessibility obligation a human is supposed to read before
+            // approving it, and showing only the mermaid source would put the
+            // half nobody can review into the commit under the reviewer's
+            // name. The envelope labels its own two blocks, so nothing is
+            // ambiguous about which part lands at which path. (The gate-2
+            // manifest item schema declares additionalProperties: false, so
+            // the entry rides in `content` rather than a field of its own.)
             const extra = { content: reconstructed.content };
 
             // DURABLE FIRST. The evidence goes into the state store before
@@ -558,7 +605,24 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
             // the dead end the rejection gate was built to remove. So the
             // check still runs, the opt-out is named rather than implied, and
             // the mismatch goes into the reason the reviewer reads.
-            const draftFormat = inspectArtifactFormat({ path: target.path, content: rejection.draft });
+            //
+            // THE DIAGRAM SPLIT IS ATTEMPTED THE SAME WAY. A rejected diagram
+            // draft that DOES carry both halves is escalated as its two real
+            // halves -- pure mermaid at the .mmd path, its catalogue entry in
+            // the registry -- so the human sees the thing that would have been
+            // published. One that does not is escalated as the raw draft it
+            // was, unsplit and unedited, because the point of this path is to
+            // show what was rejected; the failed split is reported alongside
+            // the ensemble's findings rather than swallowed.
+            const escalationSplit = splitDiagramDeliverable({ path: target.path, content: rejection.draft });
+            if (!escalationSplit.ok) {
+                log("warn", "rejection.escalate.deliverable-unsplit", {
+                    item: itemId, code: escalationSplit.code, target: target.path,
+                    fenceTags: escalationSplit.tagsFound, reason: escalationSplit.reason,
+                });
+            }
+            const escalationContent = escalationSplit.ok ? escalationSplit.source : rejection.draft;
+            const draftFormat = inspectArtifactFormat({ path: target.path, content: escalationContent });
             if (!draftFormat.ok) {
                 log("warn", "rejection.escalate.format-mismatch", {
                     item: itemId, code: draftFormat.code, target: target.path,
@@ -576,31 +640,48 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
             // still gets its registry entry in the prepared commit, exactly
             // like every other item.
             let escalationRegistration = null;
-            let registrationProblem = null;
+            let registrationProblem = escalationSplit.ok
+                ? null
+                : { code: escalationSplit.code, message: escalationSplit.reason };
             try {
                 escalationRegistration = registrationFor({
                     surface: surfaceForTargetPath(target.path),
                     targetPath: target.path,
-                    artifact: rejection.draft,
+                    artifact: escalationContent,
+                    catalogueEntry: escalationSplit.catalogueEntry,
                 });
             } catch (error) {
                 if (!(error instanceof RegistrationError)) throw error;
-                registrationProblem = error;
+                // THE ROOT CAUSE WINS. A diagram whose envelope did not split
+                // reaches registrationFor with no catalogue entry and throws
+                // registration.no-catalogue-entry, which is true but is the
+                // symptom. The reviewer needs the reason the entry is missing,
+                // so a split failure recorded above is not overwritten here.
+                //
+                // Defensive rather than load-bearing on THIS catch: a planted
+                // regression here (`??=` back to `=`) does not bite, because
+                // registrationFor only throws for an unrecognized surface or
+                // target path, and a missing catalogue entry does not surface
+                // until registration.apply runs inside prepareRealCommit. The
+                // catch below it is the one that fires, and its plant does
+                // bite. Both are written the same way so the rule does not
+                // depend on which of them happens to throw first.
+                registrationProblem ??= error;
                 log("warn", "rejection.escalate.registration-failed", { item: itemId, code: error.code, reason: error.message, target: target.path });
             }
 
             let commit;
             try {
                 commit = await prepareRealCommit({
-                    repository: target.repository, path: target.path, content: rejection.draft,
+                    repository: target.repository, path: target.path, content: escalationContent,
                     registration: escalationRegistration, token, fetchImpl, validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
                 });
             } catch (error) {
                 if (!(error instanceof RegistrationError)) throw error;
-                registrationProblem = error;
+                registrationProblem ??= error;
                 log("warn", "rejection.escalate.registration-failed", { item: itemId, code: error.code, reason: error.message, target: target.path });
                 commit = await prepareRealCommit({
-                    repository: target.repository, path: target.path, content: rejection.draft,
+                    repository: target.repository, path: target.path, content: escalationContent,
                     token, fetchImpl, validateFormat: SKIP_ARTIFACT_FORMAT_CHECK,
                 });
             }
