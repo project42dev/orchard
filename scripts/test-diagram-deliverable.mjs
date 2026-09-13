@@ -44,7 +44,7 @@ import {
 import { inspectArtifactFormat } from "./lib/artifact-format.mjs";
 import { registrationFor, registerDiagram, validateCatalogueEntry, DIAGRAM_CATEGORIES, RegistrationError } from "./lib/registration.mjs";
 import { buildPrompt, buildAcceptanceCriteria, formFor, surfaceConfigFor, DEFAULT_TARGETS_PATH } from "./generate-briefs.mjs";
-import { attemptGate2Evidence } from "./run-authoring.mjs";
+import { attemptGate2Evidence, attemptRejectionRecovery } from "./run-authoring.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { estate, walkTo, candidate, NOW } from "./test-fixtures.mjs";
 import { persistDiscoveryItems } from "./lib/gate-queue.mjs";
@@ -557,6 +557,131 @@ test("a compliant source with an unpublishable category holds before a credentia
     const held = events.find((entry) => entry.event === "gate2evidence.held");
     assert.equal(held.detail.code, "registration.unknown-diagram-category");
     assert.match(held.detail.reason, /Learning, Research, Agents/, "and names the categories that ARE publishable");
+    store.close();
+});
+
+// --- the escalation path: reported, never refused ----------------------------
+//
+// A twice-blocked item is escalated so a human can SEE what was rejected.
+// Refusing to prepare it would strand it with no route to a human, which is the
+// dead end the rejection gate exists to remove. So the split is attempted and
+// its failure is REPORTED alongside the ensemble's findings, rather than
+// holding. What it must not do is quietly publish the wrong bytes: a rejected
+// draft that DOES comply is escalated as its two real halves.
+
+/** The blocked-item fixture, targeting a diagram, walked to a second block. */
+async function escalationFixture(term, draftText) {
+    const { store, runId } = await estate();
+    const result = await persistDiscoveryItems({
+        store, runId, now: NOW,
+        candidates: [candidate(term, { surface: "guide-diagram", pathId: null })],
+    });
+    const id = result.items[0].item_id;
+    await walkTo(store, runId, id, "executing");
+
+    const directory = mkdtempSync(join(tmpdir(), "orchard-diagram-esc-"));
+    const proposalRoot = join(directory, "proposals");
+    mkdirSync(proposalRoot, { recursive: true });
+
+    const blockedProposal = {
+        modelStages: [
+            chunkedStage("evidence-research", "sources"),
+            chunkedStage("curriculum-writing", draftText),
+            chunkedStage("factual-verification", "verifier finding", "failed"),
+            chunkedStage("assessment-review", "adversary finding", "refuted"),
+            chunkedStage("accessibility-review", "human-review pending", "human-review"),
+            chunkedStage("release-proposal", "COMPLETENESS.\n\nRECOMMENDATION: REVISE"),
+        ],
+    };
+
+    // Two blocks: the first is retried automatically, the second escalates.
+    let revision = 1;
+    for (const round of [1, 2]) {
+        const file = `proposal-${id}-round${round}.json`;
+        writeFileSync(join(proposalRoot, file), JSON.stringify(blockedProposal));
+        await store.recordTransition({
+            schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: runId, item_id: id, item_revision: revision,
+            from_state: "executing", to_state: "blocked", cause: "policy-block",
+            reason: `blocked by the authoring ensemble, ${file}`, actor: "orchard/run-authoring",
+            occurred_at: `2026-09-12T00:0${round}:00.000Z`, correlation_id: generateUuidV7(),
+        });
+        if (round === 1) {
+            const prior = JSON.parse(store.db.prepare(
+                "SELECT record_json FROM item_revision WHERE item_id = ? AND item_revision = ?",
+            ).get(id, revision).record_json);
+            await store.recordItem({ ...prior, item_revision: revision + 1, state: "executing", created_at: NOW, updated_at: NOW });
+            await store.recordTransition({
+                schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: runId, item_id: id, item_revision: revision,
+                from_state: "blocked", to_state: "executing", cause: "revision-created", recovery_gate: "gate-2",
+                successor_revision: revision + 1, actor: "test-fixture",
+                occurred_at: `2026-09-12T00:0${round}:30.000Z`, correlation_id: generateUuidV7(),
+            });
+            revision += 1;
+        }
+    }
+
+    const proposalDigest = store.db.prepare(
+        "SELECT proposal_digest FROM item_revision WHERE item_id = ? AND item_revision = ?",
+    ).get(id, revision).proposal_digest;
+    store.db.prepare(
+        `INSERT INTO decision_event
+          (event_id, gate, run_id, item_id, item_revision, digest, decision, actor_provider,
+           actor_immutable_id, source_repository, source_issue_number, source_comment_id,
+           correlation_id, supersedes_event_id, idempotency_key, occurred_at, record_json)
+          VALUES (?, 'gate-1', ?, ?, 1, ?, 'approve', 'github', 'test-user', 'o/r', 1, 1, ?, NULL, ?, '2026-09-11T00:00:00.000Z', '{}')`,
+    ).run(generateUuidV7(), runId, id, proposalDigest, generateUuidV7(), `gate1-approve-esc:${id}`);
+    store.recordExternalLink({
+        link_id: generateUuidV7(), run_id: runId, item_id: id, item_revision: revision, provider: "ado",
+        operation: "ado-link", external_key: `orchard:track-1:${id}:r${revision}`, external_id: 7777, linked_at: "2026-09-11T00:01:00.000Z",
+    });
+    return { store, id, proposalRoot, file: `proposal-${id}-round2.json`, env: { ORCHARD_EVIDENCE_ROOT: directory } };
+}
+
+test("an escalated diagram draft that DID comply is escalated as its two real halves", async () => {
+    const { store, id, proposalRoot, file, env } = await escalationFixture("tool-trust-boundaries", envelope());
+    const { impl, blobs } = commitFetchMock();
+    const events = [];
+    const result = await attemptRejectionRecovery({
+        store, applied: [{ subjectId: id, from: "executing", to: "blocked", file }],
+        runRecordDir: proposalRoot, proposalRoot, now: "2026-09-12T00:10:00.000Z",
+        log: (level, event, detail) => events.push({ level, event, detail }),
+        env, fetchImpl: impl, readGateTokenImpl: async () => "test-token-literal",
+    });
+    assert.equal(result.escalated, 1, `the item escalates: ${JSON.stringify(events.filter((e) => e.event.includes("held")))}`);
+
+    const [registryBlob, artifactBlob] = blobs;
+    assert.equal(artifactBlob, SOURCE, "the human sees pure mermaid at the .mmd path, not the envelope");
+    assert.ok(JSON.parse(registryBlob).diagrams.some((entry) => entry.id === "tool-trust-boundaries"),
+        "and the entry the drafter authored is in the catalogue, so an approved escalation is reachable");
+    assert.ok(!events.some((entry) => entry.event === "rejection.escalate.deliverable-unsplit"),
+        "nothing is reported unsplit, because it split");
+    store.close();
+});
+
+test("an escalated diagram draft that did NOT comply is still escalated, with the reason in front of the reviewer", async () => {
+    const { store, id, proposalRoot, file, env } = await escalationFixture("agent-orchestration", OBEDIENT_PROSE);
+    const { impl, blobs } = commitFetchMock();
+    const events = [];
+    const result = await attemptRejectionRecovery({
+        store, applied: [{ subjectId: id, from: "executing", to: "blocked", file }],
+        runRecordDir: proposalRoot, proposalRoot, now: "2026-09-12T00:10:00.000Z",
+        log: (level, event, detail) => events.push({ level, event, detail }),
+        env, fetchImpl: impl, readGateTokenImpl: async () => "test-token-literal",
+    });
+    assert.equal(result.escalated, 1, "it is NOT refused: refusing strands a twice-blocked item with no route to a human");
+    assert.equal(result.held, 0);
+
+    const unsplit = events.find((entry) => entry.event === "rejection.escalate.deliverable-unsplit");
+    assert.ok(unsplit, "the failed split is reported rather than swallowed");
+    assert.equal(unsplit.detail.code, "diagram-deliverable.no-source-block");
+    assert.equal(blobs.at(-1), OBEDIENT_PROSE, "and the raw rejected draft is what the human is shown, unedited");
+
+    const manifest = store.db.prepare(
+        "SELECT record_json FROM observation_event WHERE item_id = ? AND evidence_reference LIKE 'orchard/gate-manifest/gate-2:%' ORDER BY observed_at DESC LIMIT 1",
+    ).get(id);
+    const item = JSON.parse(manifest.record_json).manifest_item;
+    assert.match(item.rejection_reason, /Reachability \(diagram-deliverable\.no-source-block\)/,
+        "the reviewer is told in the reason text that approving this publishes something no reader can open");
     store.close();
 });
 

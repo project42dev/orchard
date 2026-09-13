@@ -652,7 +652,21 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                 });
             } catch (error) {
                 if (!(error instanceof RegistrationError)) throw error;
-                registrationProblem = error;
+                // THE ROOT CAUSE WINS. A diagram whose envelope did not split
+                // reaches registrationFor with no catalogue entry and throws
+                // registration.no-catalogue-entry, which is true but is the
+                // symptom. The reviewer needs the reason the entry is missing,
+                // so a split failure recorded above is not overwritten here.
+                //
+                // Defensive rather than load-bearing on THIS catch: a planted
+                // regression here (`??=` back to `=`) does not bite, because
+                // registrationFor only throws for an unrecognized surface or
+                // target path, and a missing catalogue entry does not surface
+                // until registration.apply runs inside prepareRealCommit. The
+                // catch below it is the one that fires, and its plant does
+                // bite. Both are written the same way so the rule does not
+                // depend on which of them happens to throw first.
+                registrationProblem ??= error;
                 log("warn", "rejection.escalate.registration-failed", { item: itemId, code: error.code, reason: error.message, target: target.path });
             }
 
@@ -664,7 +678,7 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                 });
             } catch (error) {
                 if (!(error instanceof RegistrationError)) throw error;
-                registrationProblem = error;
+                registrationProblem ??= error;
                 log("warn", "rejection.escalate.registration-failed", { item: itemId, code: error.code, reason: error.message, target: target.path });
                 commit = await prepareRealCommit({
                     repository: target.repository, path: target.path, content: escalationContent,
