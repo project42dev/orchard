@@ -71,6 +71,64 @@ import { recoverReworkItems } from "./lib/rework-recovery.mjs";
 import { prepareRemovalCommit } from "./lib/prepare-gate2-evidence.mjs";
 import { buildRemovalEvidence, buildRemovalRecord, deregistrationFor, inboundReferences, redirectFor, removedIdForTarget } from "./lib/removal.mjs";
 import { readGateToken } from "./announce-gates.mjs";
+import { inspectDrafterRefusal, refusalTransitionReason, drafterRefusalReference, DRAFTER_REFUSAL_PREFIX } from "./lib/drafter-refusal.mjs";
+
+/**
+ * Record a drafter refusal as what it is: a block, with the drafter's own
+ * reason and required inputs on the record.
+ *
+ * The reason goes on the blocked transition, because that is the field
+ * generate-briefs.mjs blockedNoteFor reads back into the next brief ("THIS IS A
+ * RETRY ... The refusal, verbatim"). The whole refusal document goes into an
+ * observation beside it, because the transition reason is capped at 2000
+ * characters and the required-inputs list is the part an operator needs whole.
+ *
+ * `fromState` is gate2-ready (the inline evidence step caught it) or blocked
+ * (the ensemble had already refused the item and the rejection gate caught
+ * the draft). blocked -> blocked with policy-block is legal in
+ * lib/state-machine.mjs ("any state but closed/denied/superseded"); it exists
+ * here only to put the drafter's words where the retry path reads them, and
+ * the rejection gate does not count it as another attempt.
+ */
+export async function recordDrafterRefusal({ store, itemId, revision, runId, fromState, refusal, target, now, actor }) {
+    const record = {
+        kind: "drafter-refusal",
+        item_id: itemId,
+        item_revision: Number(revision),
+        target,
+        code: refusal.code,
+        reason: refusal.reason,
+        required_inputs: refusal.requiredInputs,
+        unknowns: refusal.unknowns,
+        document: refusal.document,
+        recorded_at: now,
+    };
+    await store.recordObservation({
+        observation_id: generateUuidV7(),
+        run_id: runId,
+        item_id: itemId,
+        item_revision: Number(revision),
+        evidence_reference: drafterRefusalReference(itemId, revision),
+        evidence_digest: sha256Digest(record),
+        observed_at: now,
+        drafter_refusal: record,
+    });
+    await store.recordTransition({
+        schema_version: "1.0.0",
+        transition_id: generateUuidV7(),
+        run_id: runId,
+        item_id: itemId,
+        item_revision: Number(revision),
+        from_state: fromState,
+        to_state: "blocked",
+        cause: "policy-block",
+        reason: refusalTransitionReason(refusal),
+        actor,
+        occurred_at: now,
+        correlation_id: generateUuidV7(),
+    });
+    return { item: itemId, revision: Number(revision), code: refusal.code, reason: refusal.reason, requiredInputs: refusal.requiredInputs, unknowns: refusal.unknowns };
+}
 
 function argOf(argv, name, fallback = null) {
     const index = argv.indexOf(`--${name}`);
@@ -205,6 +263,9 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
     if (gate2Ready.length === 0) return { prepared: 0, held: 0 };
 
     const runProposals = readProposals(runRecordDir);
+    // `refused` and `refusals` appear only on a run that caught a drafter
+    // refusal, so every existing consumer of this summary sees the shape it
+    // always did.
     const summary = { prepared: 0, held: 0 };
     let token;
 
@@ -301,6 +362,31 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                     truncationNoticePresent,
                     rejoinedDigest: reconstructed.digest,
                     recordedDigest: contentStage.outputDigest,
+                });
+                continue;
+            }
+
+            // A REFUSAL IS NOT A DRAFT. Checked before the format check,
+            // because a refusal written as one JSON object passes that check:
+            // found live 2026-09-13, a {"status":"BLOCKED",...} document was
+            // announced at Gate 2 with an approve command. It is routed to
+            // blocked with the drafter's reason and required inputs on the
+            // record, and the entry is re-labelled so the rejection gate below
+            // treats it as the block it is (one automatic retry, with that
+            // reason in the brief, and never an escalation of the refusal).
+            const refusal = inspectDrafterRefusal({ path: revision.target_path, content: reconstructed.content });
+            if (refusal) {
+                const recorded = await recordDrafterRefusal({
+                    store, itemId, revision: row.current_revision, runId: row.origin_run_id, fromState: "gate2-ready",
+                    refusal, target: { repository: revision.target_repository, path: revision.target_path }, now,
+                    actor: "orchard/run-authoring/drafter-refusal",
+                });
+                summary.refused = (summary.refused ?? 0) + 1;
+                (summary.refusals ??= []).push(recorded);
+                entry.to = "blocked";
+                log("warn", "authoring.drafter-refused", {
+                    item: itemId, code: refusal.code, reason: refusal.reason, requiredInputs: refusal.requiredInputs,
+                    effect: "the item is blocked, not announced at Gate 2",
                 });
                 continue;
             }
@@ -500,7 +586,7 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
  */
 export async function attemptRejectionRecovery({ store, applied, runRecordDir, proposalRoot, now, env = process.env, log, fetchImpl = fetch, readGateTokenImpl = readGateToken }) {
     const blocked = applied.filter((entry) => entry.to === "blocked");
-    const summary = { retried: 0, escalated: 0, held: 0 };
+    const summary = { retried: 0, escalated: 0, held: 0, refused: 0, refusals: [] };
     if (blocked.length === 0) return summary;
 
     const runProposals = readProposals(runRecordDir);
@@ -534,8 +620,37 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                 rejection_evidence: rejection,
             });
 
+            // WAS THE "DRAFT" A REFUSAL? If so the drafter's own reason and
+            // required inputs go onto the blocked record now, before the retry
+            // below reads the reason back into the next brief. Without this the
+            // retry brief carries only the ingest's one-liner ("blocked by the
+            // authoring ensemble, <file>") and the drafter never learns what it
+            // said it was missing. Skipped when the inline evidence step has
+            // already recorded it (the entry arrived re-labelled from there).
+            const refusalTarget = store.db.prepare(
+                "SELECT target_repository, target_path FROM item_revision WHERE item_id = ? AND item_revision = ?",
+            ).get(itemId, revision);
+            const refusal = rejection.draft ? inspectDrafterRefusal({ path: refusalTarget?.target_path, content: rejection.draft }) : null;
+            if (refusal) {
+                const lastBlock = store.db.prepare(
+                    "SELECT record_json FROM state_transition_event WHERE item_id = ? AND to_state = 'blocked' ORDER BY occurred_at DESC, transition_id DESC LIMIT 1",
+                ).get(itemId);
+                const alreadyRecorded = lastBlock && String(JSON.parse(lastBlock.record_json).reason ?? "").startsWith(DRAFTER_REFUSAL_PREFIX);
+                const recorded = alreadyRecorded
+                    ? { item: itemId, revision, code: refusal.code, reason: refusal.reason, requiredInputs: refusal.requiredInputs, unknowns: refusal.unknowns }
+                    : await recordDrafterRefusal({
+                        store, itemId, revision, runId: row.origin_run_id, fromState: "blocked", refusal,
+                        target: { repository: refusalTarget?.target_repository ?? null, path: refusalTarget?.target_path ?? null },
+                        now, actor: "orchard/rejection-gate/drafter-refusal",
+                    });
+                summary.refusals.push(recorded);
+            }
+
+            // Attempts, not records: a blocked -> blocked transition is the
+            // drafter-refusal reason being put on the record above, not
+            // another authoring attempt, so it is not counted here.
             const priorBlocks = Number(store.db.prepare(
-                "SELECT COUNT(*) AS n FROM state_transition_event WHERE item_id = ? AND to_state = 'blocked'",
+                "SELECT COUNT(*) AS n FROM state_transition_event WHERE item_id = ? AND to_state = 'blocked' AND from_state <> 'blocked'",
             ).get(itemId).n);
             log("info", "rejection.evidence.recorded", { item: itemId, priorBlocks, verifierVerdict: rejection.verifierVerdict, adversaryVerdict: rejection.adversaryVerdict });
 
@@ -548,6 +663,21 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
                     summary.retried += 1;
                     log("info", "rejection.auto-retry.applied", result);
                 }
+                continue;
+            }
+
+            // A SECOND REFUSAL IS NOT ESCALATED. Escalation shows a human a
+            // rejected draft to overrule the ensemble on; a refusal is not a
+            // draft, and escalating one is exactly how a BLOCKED document was
+            // offered for approval on issue #238. It stays blocked, with the
+            // drafter's reason and required inputs on the record, and the run
+            // summary names it.
+            if (refusal) {
+                summary.refused += 1;
+                log("warn", "rejection.escalate.drafter-refused", {
+                    item: itemId, code: refusal.code, reason: refusal.reason, requiredInputs: refusal.requiredInputs,
+                    effect: "not escalated to Gate 2: there is no draft to approve; the item stays blocked with the drafter's reason recorded",
+                });
                 continue;
             }
 
@@ -810,6 +940,10 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         claimedBy: "orchard/run-authoring",
         apply: true,
         now,
+        // Set by orchard-production-runtime.mjs when this job carries the
+        // corpus snapshot binding (Track 2). Absent, a corpus-backed update is
+        // refused with the reason rather than briefed without its file.
+        corpusRoot: env.ORCHARD_CORPUS_ROOT ?? null,
     });
     log("info", "authoring.briefs.generated", {
         briefs: briefs.briefs.length, removals: briefs.removals.length, claimed: briefs.claimed.length,
@@ -894,7 +1028,19 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
             store.close();
         }
     }
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary };
+    // THE RUN SUMMARY NAMES EVERY DRAFTER REFUSAL, with its reason and what
+    // the drafter said it needs. A refusal is blocked, not announced, so this
+    // line and the blocked transition are the only places it is visible; it
+    // is not left to be inferred from a count.
+    const refusals = [...(gate2Evidence.refusals ?? []), ...(rejectionRecovery.refusals ?? [])]
+        .filter((entry, index, all) => all.findIndex((other) => other.item === entry.item && other.revision === entry.revision) === index);
+    log(refusals.length ? "warn" : "info", "authoring.run.summary", {
+        briefs: briefs.briefs.length, skipped: briefs.skipped.length, applied: ingested.applied.length,
+        gate2Prepared: gate2Evidence.prepared, gate2Held: gate2Evidence.held,
+        retried: rejectionRecovery.retried, escalated: rejectionRecovery.escalated,
+        drafterRefusals: refusals.map((entry) => ({ item: entry.item, revision: entry.revision, code: entry.code, reason: entry.reason, requiredInputs: entry.requiredInputs })),
+    });
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary, drafterRefusals: refusals };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();

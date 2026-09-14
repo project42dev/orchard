@@ -50,6 +50,7 @@ import { pathToFileURL } from "node:url";
 import { openStateStore } from "./lib/state-store.mjs";
 import { GATE_MANIFEST_REFERENCE_PREFIX } from "./lib/gate-queue.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
+import { inspectDrafterRefusal } from "./lib/drafter-refusal.mjs";
 
 function argOf(argv, name, fallback = null) {
     const index = argv.indexOf(`--${name}`);
@@ -249,6 +250,29 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
                         reference: gate2EvidenceReference(row.item_id, row.current_revision),
                         path: evidencePathFor(evidenceRoot, row.item_id),
                         effect: "the item stays gate2-ready; evidence is supplied, never fabricated",
+                    });
+                    continue;
+                }
+                // A refusal persisted by an earlier run (before the inline
+                // evidence step learned to catch one) is not preparable work.
+                // It goes to blocked with the drafter's reason, exactly as
+                // run-authoring.mjs routes a fresh one, and is never announced.
+                const refusalTarget = store.db.prepare(
+                    "SELECT target_path FROM item_revision WHERE item_id = ? AND item_revision = ?",
+                ).get(row.item_id, Number(row.current_revision))?.target_path ?? null;
+                const refusal = inspectDrafterRefusal({ path: refusalTarget, content: found.extra?.content })
+                    ?? inspectDrafterRefusal({ path: refusalTarget, content: found.extra?.rejected_draft });
+                if (refusal) {
+                    const { recordDrafterRefusal } = await import("./run-authoring.mjs");
+                    const recorded = await recordDrafterRefusal({
+                        store, itemId: row.item_id, revision: row.current_revision, runId: row.origin_run_id,
+                        fromState: "gate2-ready", refusal, target: refusalTarget, now, actor: "orchard/run-gate2-prep",
+                    });
+                    summary.refused = (summary.refused ?? 0) + 1;
+                    summary.refusals = [...(summary.refusals ?? []), recorded];
+                    log("warn", "gate2.prep.drafter-refused", {
+                        item: row.item_id, code: refusal.code, reason: refusal.reason, requiredInputs: refusal.requiredInputs,
+                        effect: "the item is blocked, not announced; the reason is on the blocked transition the retry path reads",
                     });
                     continue;
                 }

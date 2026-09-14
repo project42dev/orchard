@@ -447,6 +447,33 @@ async function runRoleAzure(role, log) {
             decisionStore.close();
         }
         await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
+        // THE DRAFTER NEEDS THE FILE IT IS CORRECTING. A Track 2 currency item
+        // is a correction order against a published file, and until
+        // 2026-09-13 the brief carried the finding and never the file: the
+        // drafter was asked to return a complete corrected resource it had
+        // never been shown, and refused ("The existing resource, exact target
+        // filename, three source records ... were not supplied"). The track-2
+        // role jobs carry the same corpus snapshot binding the inspection
+        // itself used (track2Env in infra/orchard.bicep), so the authoring
+        // role materializes that snapshot, and generate-briefs verifies each
+        // file against the digest the inspection recorded before quoting it.
+        // Track 1 jobs carry no snapshot binding and are unaffected. A failure
+        // here does not fail the run: generate-briefs refuses to brief a
+        // corpus-backed update it cannot show the drafter, and names why.
+        if (role === "authoring" && process.env.ORCHARD_CORPUS_ARCHIVE_BLOB && process.env.ORCHARD_CORPUS_MANIFEST_BLOB && process.env.ORCHARD_CONTENT_COMMIT) {
+            try {
+                const corpusRoot = await materializeCorpusSnapshot({
+                    containerClient: clients.artifacts, archiveBlob: process.env.ORCHARD_CORPUS_ARCHIVE_BLOB,
+                    manifestBlob: process.env.ORCHARD_CORPUS_MANIFEST_BLOB, expectedCommit: process.env.ORCHARD_CONTENT_COMMIT,
+                    destination: join(root, "platform"), maxArchiveBytes: integer("ORCHARD_MAX_CORPUS_ARCHIVE_BYTES", 268_435_456),
+                });
+                process.env.ORCHARD_CORPUS_ROOT = corpusRoot;
+                log("info", "authoring.corpus.materialized", { commit: process.env.ORCHARD_CONTENT_COMMIT, root: corpusRoot });
+            } catch (error) {
+                delete process.env.ORCHARD_CORPUS_ROOT;
+                log("warn", "authoring.corpus.unavailable", { reason: error.message, effect: "corpus-backed update briefs are refused this run, with the reason, rather than sent to the drafter without the file" });
+            }
+        }
         roleResult = await runController(role, ["--state-db", state.path, "--track", track], log);
         // The role just moved lifecycle states, so the tracker follows now
         // rather than at the next monthly survey. Never fails the run.

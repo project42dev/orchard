@@ -699,9 +699,19 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   const finding = 'The cited https://12factor.net/ entry passed its 90-day review cadence on 2026-08-30 and was not re-verified.';
   const corpusPath = 'content/resources/setup-quick-reference/agent-configuration-layering-reference.json';
 
+  // The corpus snapshot the authoring role materializes. Since 2026-09-13 a
+  // corpus-backed update is not briefed without the file it corrects (see
+  // tests/authoring-brief-inputs.test.mjs), so this fixture supplies one, and
+  // the item records the digest of exactly those bytes, as Track 2 does.
+  const { mkdirSync: mkdir } = await import('node:fs');
+  const corpusRoot = join(root, 'corpus-rework');
+  const corpusBytes = Buffer.from(JSON.stringify({ id: 'agent-configuration-layering-reference', lastVerified: '2026-06-01', reviewCadenceDays: 90, sources: [{ title: 'The Twelve-Factor App', url: 'https://12factor.net/', publisher: 'Heroku', lastVerified: '2026-06-01' }] }, null, 2));
+  mkdir(join(corpusRoot, 'content', 'resources', 'setup-quick-reference'), { recursive: true });
+  writeFileSync(join(corpusRoot, corpusPath), corpusBytes);
+
   const staleId = await seedItemWithOutcome(s2, r2, 'stale-guide', 'update', {
     surface: 'guide',
-    evidence: [{ reference: corpusPath, digest: sha256Digest(corpusPath) }],
+    evidence: [{ reference: corpusPath, digest: sha256Digest(corpusBytes) }],
   });
   // The manifest, recorded exactly where gate-queue.mjs puts it: revision 1.
   await s2.recordObservation({
@@ -721,7 +731,12 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
   s2.db.prepare('UPDATE workflow_item SET current_revision = 2 WHERE item_id = ?').run(staleId);
   s2.close();
 
-  const r = await generateBriefs({ ...base, dbPath: db2, limit: 10 });
+  const starved = await generateBriefs({ ...base, dbPath: db2, limit: 10 });
+  check('without the corpus snapshot the same update is refused before spend, not briefed blind',
+    !starved.briefs.some((b) => b.subjectId === staleId)
+      && starved.skipped.some((s) => s.subjectId === staleId && /cannot be briefed without the file it corrects/.test(s.reason)));
+
+  const r = await generateBriefs({ ...base, dbPath: db2, limit: 10, corpusRoot });
   const brief = r.briefs.find((b) => b.subjectId === staleId);
   check(`a reworked update item is briefed rather than stranded (${JSON.stringify(r.skipped)})`, Boolean(brief));
   if (brief) {
