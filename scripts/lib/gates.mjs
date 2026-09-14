@@ -222,7 +222,7 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
                 '**🛑 NOT APPROVABLE -- the drafter refused to write this item. There is no draft to publish.**', '',
                 `**The drafter's reason:** ${safe(refusal.reason)}`, '');
             if (refusal.requiredInputs.length) lines.push('**What it said it needs:**', '', ...refusal.requiredInputs.map((input) => `- ${safe(input)}`), '');
-            lines.push(`No approve command is offered. Item \`${item.item_id}\` revision \`${item.item_revision}\` is moved to \`blocked\` with this reason the next time its preparation runs, and re-drafted from there.`, '', '---', '');
+            lines.push(`No approve command is offered, and an approval of item \`${item.item_id}\` revision \`${item.item_revision}\` is refused if one is posted. It stays held here until it is sent back for a fresh draft: \`request-changes\` returns it to authoring, which now supplies the drafter with the file, its sources and the date it said were missing.`, '', '---', '');
             continue;
         }
         const badge = manifest.gate === 'gate-2'
