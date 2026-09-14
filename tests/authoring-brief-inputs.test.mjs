@@ -116,9 +116,11 @@ test("an oversize file is passed as the named section in full plus the JSON path
         corpusRoot: root,
         record: { evidence: [{ reference: SOURCE_PATH, digest: sha256Digest(RESOURCE) }] },
         findings: ["The record-verification section omits the model version."],
-        // Just under the fixture's 3973 bytes, so the file is oversize and the
-        // excerpt (two section bodies dropped) still fits.
-        maxBytes: 3900,
+        // One byte under the fixture's actual size, so the file is oversize and
+        // the excerpt (two section bodies dropped) still fits. Derived, not a
+        // literal: checkout line endings change the size (3973 bytes with CRLF
+        // on Windows, fewer with LF on the CI runner, where 3900 was not oversize).
+        maxBytes: RESOURCE.length - 1,
     });
     assert.equal(existing.status, "supplied");
     assert.equal(existing.partial, true);
