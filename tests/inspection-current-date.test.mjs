@@ -43,6 +43,12 @@ test("the exact production case: 2026-07-25 called future on 2026-09-13 is a fal
     assert.equal(isFalseFutureDateClaim("lastVerified 2026-12-01 is a future date", TODAY), false, "a date that really is later than today may be called future");
     assert.equal(isFalseFutureDateClaim("the record is future-dated", TODAY), false, "no date named means nothing to check, so nothing is dropped");
     assert.equal(isFalseFutureDateClaim("Checked 2026-09-13, which has not yet occurred.", TODAY), true, "today itself is not the future");
+    assert.equal(isFalseFutureDateClaim("The inspection's characterization of 2026-07-25 as a future date is wrong.", TODAY), true, "the drafter's own phrasing of the production claim");
+    assert.equal(isFalseFutureDateClaim("lastVerified 2026-07-25 is future-dated", TODAY), true);
+    // Ordinary prose that merely contains the word must never be withdrawn:
+    // these are real findings, and withdrawing them would hide real work.
+    assert.equal(isFalseFutureDateClaim("The future-proofing guidance should name the version checked; lastVerified 2026-07-25.", TODAY), false, "future-proofing is not a date claim");
+    assert.equal(isFalseFutureDateClaim("Future versions of the SDK rename this key; source last verified 2026-07-25.", TODAY), false, "future versions is not a date claim");
 });
 
 test("the inspector is told today's date in its instructions and its input", async () => {

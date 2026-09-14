@@ -29,7 +29,11 @@ const ISO_DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
 // "future", "future-dated", "in the future", "has not yet occurred",
 // "has not happened yet". Deliberately narrow: the claim being refused is
 // specifically that a date has not arrived.
-const FUTURE_CLAIM = /\bfuture\b|\bhas(?: not|n't) (?:yet )?(?:happened|occurred|arrived)\b|\bnot yet (?:happened|occurred|arrived)\b/i;
+// NOT a bare /\bfuture\b/: that matches "future-proofing", "future versions"
+// and "future work", ordinary prose about AI content, and a real finding that
+// happened to mention one beside a lastVerified date would have been withdrawn
+// in silence -- the opposite failure to the one this exists to stop.
+const FUTURE_CLAIM = /\bfuture[- ]dated\b|\b(?:a|as|is|the) future date\b|\bin the future\b|\bfrom the future\b|\bdate (?:is |lies |sits )?in the future\b|\bhas(?: not|n't) (?:yet )?(?:happened|occurred|arrived)\b|\bnot yet (?:happened|occurred|arrived)\b/i;
 
 /** YYYY-MM-DD in UTC for a Date, an ISO string, or a function returning either. */
 export function isoDateOf(now = new Date()) {
