@@ -33,6 +33,8 @@ export function verifyGateManifestDigests(manifest, allItems) {
 // serialized size, not on a flat item count alone. 20 stays the ceiling;
 // this only ever makes a batch smaller, never larger, and the last batch was
 // already allowed to be smaller than 20 before this existed.
+import { manifestItemRefusal } from './drafter-refusal.mjs';
+
 const MAX_MANIFEST_ITEM_BYTES = 30_000;
 
 export function sizedBatches(sorted) {
@@ -206,6 +208,23 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
     for (const item of manifest.items) {
         const digest = manifest.gate === 'gate-1' ? item.proposal_digest : item.artifact_digest;
         const attention = manifest.gate === 'gate-2' ? gate2AttentionReason(item) : null;
+        // A DRAFTER REFUSAL IS NEVER OFFERED FOR APPROVAL. Found live
+        // 2026-09-13 on issue #238: a {"status":"BLOCKED",...} refusal was
+        // rendered as the proposed content with an approve command under it.
+        // The authoring and preparation paths now block such an item before it
+        // gets here; this is the last line for one prepared before they did.
+        // It is shown, with the drafter's reason and what it said it needs,
+        // and no approve command is rendered for it (apply-gate-decisions.mjs
+        // refuses an approval of one as well).
+        const refusal = manifest.gate === 'gate-2' ? manifestItemRefusal(item) : null;
+        if (refusal) {
+            lines.push(`### ${safe(item.target.path)}`, '',
+                '**🛑 NOT APPROVABLE -- the drafter refused to write this item. There is no draft to publish.**', '',
+                `**The drafter's reason:** ${safe(refusal.reason)}`, '');
+            if (refusal.requiredInputs.length) lines.push('**What it said it needs:**', '', ...refusal.requiredInputs.map((input) => `- ${safe(input)}`), '');
+            lines.push(`No approve command is offered. Item \`${item.item_id}\` revision \`${item.item_revision}\` is moved to \`blocked\` with this reason the next time its preparation runs, and re-drafted from there.`, '', '---', '');
+            continue;
+        }
         const badge = manifest.gate === 'gate-2'
             ? (item.escalated ? '🛑 REJECTED TWICE BY THE ENSEMBLE -- YOUR CALL' : attention ? `⚠️ NEEDS ATTENTION -- ${attention}` : '✅ passed every review')
             : null;

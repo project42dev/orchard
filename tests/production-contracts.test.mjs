@@ -528,7 +528,11 @@ test("Foundry producer atomically reserves capacity before concurrent dispatch",
         }
     };
     try {
-        const producer = createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "fixed policy", client, maxOutputTokens: 5, maxRequests: 2, maxTotalInputTokens: 10_000, maxTotalOutputTokens: 5, maxSpendUsd: 1 });
+        // Input headroom for two reservations: every request now carries the
+        // current-date grounding (lib/inspection-dates.mjs), so 10_000 no
+        // longer covers two and the input cap tripped before the output cap
+        // this test is about.
+        const producer = createFoundryInspectionProducer({ endpoint: "https://example.test/", deployment: "model", policy: "fixed policy", client, maxOutputTokens: 5, maxRequests: 2, maxTotalInputTokens: 20_000, maxTotalOutputTokens: 5, maxSpendUsd: 1 });
         const first = producer(item, root);
         await assert.rejects(() => producer(item, root), /output-token reservation cap reached/);
         assert.equal(calls, 1);

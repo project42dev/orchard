@@ -32,11 +32,12 @@
 // legal next step. See lib/gate-queue.mjs for the two-queue trap in full.
 
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, dirname, join } from 'node:path';
+import { resolve, dirname, join, sep, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { openStateStore } from './lib/state-store.mjs';
 import { GATE_MANIFEST_REFERENCE_PREFIX } from './lib/gate-queue.mjs';
-import { generateUuidV7 } from './lib/identity.mjs';
+import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
+import { isoDateOf, isFalseFutureDateClaim } from './lib/inspection-dates.mjs';
 // The fence tags the drafter is instructed to emit and the parser splits on are
 // ONE pair of constants, imported here rather than spelled again. An
 // instruction that asks for a tag the parser does not read is the same class of
@@ -559,9 +560,195 @@ export function formFor(surface, surfaceConfig) {
   return surfaceConfig?.form ?? SURFACE_DEFAULT_FORM[surface] ?? null;
 }
 
-export function buildPrompt(item, evidence, citations, surfaceConfig, findings = []) {
+// THE FILE BEING CORRECTED, IN THE BRIEF.
+//
+// Found live 2026-09-13 on item 01a024de-1918-7baf-985c-252d89570314. A Track 2
+// currency update is a correction order against one published file, and the
+// deliverable is that whole file, corrected. Until this existed the brief
+// carried the inspection's findings and a target on the brief object that the
+// prompt text never named, and nothing else: not the file, not its filename
+// (so not its id or slug, which the form rules require to match it), not its
+// source records, not the date. The drafter correctly refused -- "The existing
+// resource, exact target filename, three source records, and at least one
+// relevant source with a resolving https URL were not supplied" -- and that
+// refusal reached Gate 2 as an item to approve.
+//
+// WHERE THE BYTES COME FROM. Not main, and not GitHub. The Track 2 inspection
+// read a corpus snapshot pinned to a commit, and recorded on the item the
+// corpus path it read and the sha256 of those exact bytes
+// (track-2-controller.mjs currencyCandidateFor: evidenceRefs). The authoring
+// role materializes the same snapshot binding (orchard-production-runtime.mjs)
+// and this reads the file back from it and checks the digest, so the drafter
+// is shown the bytes that were inspected, or told plainly that they differ.
+//
+// SIZE. Resources run to about 4 KB; the largest published module is about
+// 37 KB. Up to MAX_EXISTING_CONTENT_BYTES the file goes in whole. Beyond it the
+// brief carries every field except the section bodies, the full body of any
+// section the findings name, and the JSON path of every section it left out,
+// and says that it did so.
+export const MAX_EXISTING_CONTENT_BYTES = 40_000;
+export const CORPUS_MANIFEST_NAME = '.orchard-corpus-manifest.json';
+
+/** The corpus path and digest the currency inspection recorded on the item, if it recorded one. */
+export function corpusEvidenceOf(record) {
+  return (record?.evidence ?? []).find((entry) => typeof entry?.reference === 'string'
+    && entry.reference.startsWith('content/')) ?? null;
+}
+
+/** The corpus commit the item's originating inspection run was pinned to, from its run manifest. */
+export function inspectionCommitFor(db, runId) {
+  if (!runId) return null;
+  const row = db.prepare('SELECT record_json FROM workflow_run WHERE run_id = ?').get(runId);
+  if (!row) return null;
+  try { return JSON.parse(row.record_json).content_commit ?? null; } catch { return null; }
+}
+
+function unavailable(base, reason) {
+  return { ...base, status: 'unavailable', reason };
+}
+
+function partialRendering(parsed, findings, maxBytes) {
+  const haystack = findings.join('\n').toLowerCase();
+  const sections = Array.isArray(parsed.sections) ? parsed.sections : [];
+  const omittedPaths = [];
+  const excerpt = { ...parsed };
+  excerpt.sections = sections.map((section, index) => {
+    const named = [section?.id, section?.title].some((value) => typeof value === 'string' && value && haystack.includes(value.toLowerCase()));
+    if (named) return section;
+    omittedPaths.push(`$.sections[${index}] (id "${section?.id ?? ''}", title "${section?.title ?? ''}")`);
+    return { id: section?.id, title: section?.title, omitted: `body omitted from this brief; it is at $.sections[${index}] in the published file and must be carried through unchanged` };
+  });
+  let content = JSON.stringify(excerpt, null, 2);
+  if (Buffer.byteLength(content) > maxBytes) {
+    // Even the named sections do not fit: fall back to ids and titles only.
+    excerpt.sections = sections.map((section, index) => ({ id: section?.id, title: section?.title, omitted: `$.sections[${index}]` }));
+    omittedPaths.length = 0;
+    sections.forEach((section, index) => omittedPaths.push(`$.sections[${index}] (id "${section?.id ?? ''}")`));
+    content = JSON.stringify(excerpt, null, 2);
+  }
+  return { content, omittedPaths };
+}
+
+/**
+ * The existing file for a corpus-backed update, read from the materialized
+ * corpus snapshot and bound to what the inspection read.
+ *
+ * Returns null for an item whose record names no corpus path (a Track 1 update
+ * carries URLs, not a corpus file), otherwise
+ *   { required: true, status: 'supplied' | 'unavailable', ... }.
+ */
+export function existingContentFor({ corpusRoot, record, inspectionCommit = null, findings = [], maxBytes = MAX_EXISTING_CONTENT_BYTES }) {
+  const evidence = corpusEvidenceOf(record);
+  if (!evidence) return null;
+  const base = { required: true, sourcePath: evidence.reference, recordedDigest: evidence.digest ?? null, inspectionCommit };
+  if (!corpusRoot) {
+    return unavailable(base, 'no corpus snapshot was materialized for this authoring run (ORCHARD_CORPUS_ROOT is unset)');
+  }
+  const root = resolve(corpusRoot);
+  const file = resolve(root, evidence.reference);
+  if (!file.startsWith(`${root}${sep}`)) return unavailable(base, `the recorded corpus path ${evidence.reference} escapes the snapshot root`);
+  if (!existsSync(file)) return unavailable(base, `the corpus snapshot has no ${evidence.reference}`);
+  const bytes = readFileSync(file);
+  const digest = sha256Digest(bytes);
+  let snapshotCommit = null;
+  try { snapshotCommit = JSON.parse(readFileSync(join(root, CORPUS_MANIFEST_NAME), 'utf8')).commit ?? null; } catch { /* a local checkout carries no manifest */ }
+  const text = bytes.toString('utf8');
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch { /* not JSON: a diagram source, quoted as text */ }
+  let content = text;
+  let omittedPaths = [];
+  const partial = bytes.byteLength > maxBytes;
+  if (partial) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ({ content, omittedPaths } = partialRendering(parsed, findings, maxBytes));
+    else content = text.slice(0, maxBytes);
+  }
+  return {
+    ...base,
+    status: 'supplied',
+    digest,
+    digestMatches: base.recordedDigest ? digest === base.recordedDigest : null,
+    snapshotCommit,
+    byteLength: bytes.byteLength,
+    partial,
+    omittedPaths,
+    content,
+    parsed: parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null,
+  };
+}
+
+function addDays(isoDate, days) {
+  const date = new Date(`${isoDate}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || !Number.isFinite(days)) return null;
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+/** The https sources the existing file itself cites, in citation shape. */
+export function existingFileCitations(existing) {
+  const sources = Array.isArray(existing?.parsed?.sources) ? existing.parsed.sources : [];
+  return sources
+    .filter((source) => isResolvableCitation(source?.url))
+    .map((source) => ({ url: source.url, title: source.title ?? null, publisher: source.publisher ?? null, last_verified: source.lastVerified ?? null }))
+    .sort((a, b) => String(a.last_verified ?? '').localeCompare(String(b.last_verified ?? '')));
+}
+
+function existingContentLines(existing, target, today) {
+  const lines = [];
+  if (target?.path) {
+    const id = basename(target.path).replace(/\.[^.]+$/, '');
+    lines.push('', `The file to correct is ${target.repository ? `${target.repository}/` : ''}${target.path}. Its id and slug are "${id}", taken from that filename; keep them exactly.`);
+  }
+  if (!existing) return lines;
+  if (existing.status !== 'supplied') {
+    lines.push('', `The existing file could not be supplied: ${existing.reason}.`);
+    return lines;
+  }
+  const provenance = [
+    `read from the corpus snapshot${existing.snapshotCommit ? ` at commit ${existing.snapshotCommit}` : ''}`,
+    existing.inspectionCommit ? `the currency inspection ran against commit ${existing.inspectionCommit}` : null,
+    existing.digestMatches === true
+      ? `its sha256 (${existing.digest}) matches the bytes the inspection read`
+      : existing.digestMatches === false
+        ? `its sha256 (${existing.digest}) DIFFERS from the ${existing.recordedDigest} the inspection read, so the file has changed since the findings above were made; correct only what the findings still describe`
+        : `sha256 ${existing.digest}`,
+  ].filter(Boolean).join('; ');
+  lines.push(
+    '',
+    `THE EXISTING FILE (${existing.sourcePath}, ${existing.byteLength} bytes; ${provenance}).`,
+    'Return the COMPLETE corrected file: every field, every section and every source, changed only where the findings require. It is supplied here in full, so do not refuse for want of it and do not rebuild it from memory.',
+  );
+  if (existing.partial) {
+    lines.push(
+      `It is larger than the ${MAX_EXISTING_CONTENT_BYTES}-byte brief limit, so what follows is PARTIAL: every field except the bodies of the sections listed below, which are omitted here and must be carried through from the published file unchanged:`,
+      ...existing.omittedPaths.map((path) => `  - ${path}`),
+    );
+  }
+  lines.push('````json', existing.content, '````');
+
+  const parsed = existing.parsed;
+  if (parsed) {
+    const cadence = Number(parsed.reviewCadenceDays);
+    if (typeof parsed.lastVerified === 'string') {
+      const due = addDays(parsed.lastVerified, cadence);
+      lines.push('', `Dated review record: the file was last verified ${parsed.lastVerified}${Number.isFinite(cadence) ? ` on a ${cadence}-day review cadence, so it fell due for review on ${due}${due && today ? (due <= today ? `, which has passed (today is ${today})` : `, which has not yet arrived (today is ${today})`) : ''}` : ''}.`);
+    }
+    const sources = Array.isArray(parsed.sources) ? parsed.sources : [];
+    if (sources.length) {
+      lines.push('', `Its ${sources.length} source record${sources.length === 1 ? '' : 's'}, verbatim, with what each one's own date says about the cadence:`);
+      for (const source of sources) {
+        const due = typeof source?.lastVerified === 'string' ? addDays(source.lastVerified, cadence) : null;
+        const status = due && today ? (due <= today ? `past its review cadence since ${due}` : `within cadence until ${due}`) : 'no dated verification';
+        lines.push(`  - "${source?.title ?? ''}" ${source?.url ?? '(no url)'} (${source?.publisher ?? 'no publisher'}, lastVerified ${source?.lastVerified ?? 'none'}; ${status})`);
+      }
+    }
+  }
+  return lines;
+}
+
+export function buildPrompt(item, evidence, citations, surfaceConfig, findings = [], context = {}) {
   const lines = [];
   const level = evidence?.level ?? item.level ?? 'intermediate';
+  const today = context.today ?? null;
 
   if (item.kind === 'needs-creating') {
     lines.push(
@@ -591,10 +778,19 @@ export function buildPrompt(item, evidence, citations, surfaceConfig, findings =
     // told to correct what a change affects, and not told what changed, has
     // one honest move left, which is to write UNKNOWN -- and 26 of the 49
     // items in Gate 2 issues #190-#216 did exactly that.
+    // THE DATE. The drafter's system prompt states it too; it is repeated
+    // here because the findings below are dated claims, and a finding that
+    // calls a date on or before today "future" is wrong on its face. Those
+    // are also removed before they get here (see generateBriefs), and this
+    // line is what tells the drafter why one it can still see is not a fact.
+    if (today) {
+      lines.push('', `Today's date is ${today} (UTC). A date on or before today is not in the future; do not treat one as future-dated, and do not act on any finding that says it is.`);
+    }
     if (findings?.length) {
       lines.push('', 'What the currency inspection found, verbatim:');
       for (const f of findings.slice(0, 8)) lines.push(`  - ${f}`);
     }
+    lines.push(...existingContentLines(context.existing ?? null, context.target ?? null, today));
     if (citations?.length) {
       lines.push('', 'Cited sources on the existing item, oldest verification first:');
       for (const c of citations.slice(0, 12)) {
@@ -773,10 +969,22 @@ export function buildAcceptanceCriteria(item, evidence) {
 
 // Build one brief for one queue item, and refuse if the link back to that item
 // would not survive the round trip through the delivery platform.
-export function briefFor({ item, roles, targets, evidence, citations, findings = [] }) {
+export function briefFor({ item, roles, targets, evidence, citations, findings = [], existing = null, today = null }) {
   const briefId = briefIdFor(item.kind, item.subject_id);
   if (!briefId) {
     return { error: `work item kind "${item.kind}" has no brief id form` };
+  }
+
+  // REFUSE BEFORE ANYTHING IS SPENT, AGAIN. A corpus-backed update asks for the
+  // whole corrected file back, and a drafter that cannot see the file can only
+  // invent it or refuse. Measured 2026-09-13: it refused, at full ensemble
+  // cost, and the refusal reached Gate 2. When the file cannot be supplied the
+  // outcome is knowable in advance, so nothing is sent.
+  if (item.kind === 'needs-updating' && existing?.required && existing.status !== 'supplied') {
+    return {
+      error: `a currency update against ${existing.sourcePath} cannot be briefed without the file it corrects: ${existing.reason}. `
+        + 'Materialize the corpus snapshot for the authoring run (the track-2 job binds ORCHARD_CORPUS_ARCHIVE_BLOB) before briefing it.',
+    };
   }
 
   // REFUSE BEFORE ANYTHING IS SPENT. An update brief is a correction order: it
@@ -828,7 +1036,11 @@ export function briefFor({ item, roles, targets, evidence, citations, findings =
       kind: item.kind,
       surface: item.surface,
       title: item.title,
-      prompt: buildPrompt(item, evidence, citations, surfaceConfig, findings),
+      prompt: buildPrompt(item, evidence, citations, surfaceConfig, findings, {
+        today,
+        existing,
+        target: item.kind === 'needs-updating' && item.recordedTarget ? item.recordedTarget : null,
+      }),
       acceptanceCriteria: buildAcceptanceCriteria(item, evidence),
       roles,
       targets: [resolved.target],
@@ -849,7 +1061,12 @@ export async function generateBriefs({
   claimedBy = 'orchard/generate-briefs',
   apply = false,
   now = new Date().toISOString(),
+  // A materialized corpus snapshot (the directory holding content/), from
+  // which a corpus-backed update's existing file is read. See
+  // existingContentFor.
+  corpusRoot = null,
 }) {
+  const today = isoDateOf(now);
   const modelMap = readJson(mapPath);
   const targets = readJson(targetsPath);
   const inventory = loadInventory(inventoryPath);
@@ -1025,13 +1242,28 @@ export async function generateBriefs({
         }
         continue;
       }
+      // A finding that calls a date on or before today "future" is not a
+      // finding (lib/inspection-dates.mjs). The inspector no longer produces
+      // them; items approved at Gate 1 before it stopped still carry them, and
+      // they do not reach a drafter.
+      const findings = (item.currencyFindings ?? []).filter((finding) => !isFalseFutureDateClaim(finding, today));
+      const inspectionCommit = item.kind === 'needs-updating' ? inspectionCommitFor(db, item.origin_run_id) : null;
+      const existing = item.kind === 'needs-updating'
+        ? existingContentFor({ corpusRoot, record: item.record, inspectionCommit, findings })
+        : null;
+      // For a corpus-backed update the sources ARE in the file: the item
+      // record's only evidence is the corpus path, which is not a citation.
+      const recordCitations = evidenceCitations(item.record);
+      const updateCitations = recordCitations.length ? recordCitations : existingFileCitations(existing);
       const built = briefFor({
         item,
         roles,
         targets,
         evidence: evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity),
-        citations: item.kind === 'needs-updating' ? evidenceCitations(item.record) : (evidenceCitations(item.record).length > 0 ? evidenceCitations(item.record) : ((evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity))?.evidenceRefs?.map(r => ({ url: r.reference, publisher: 'surveyed source' })).filter((c) => isResolvableCitation(c.url)) ?? [])),
-        findings: item.currencyFindings ?? [],
+        citations: item.kind === 'needs-updating' ? updateCitations : (recordCitations.length > 0 ? recordCitations : ((evidenceById.get(item.subject_id) ?? evidenceById.get(item.semantic_identity))?.evidenceRefs?.map(r => ({ url: r.reference, publisher: 'surveyed source' })).filter((c) => isResolvableCitation(c.url)) ?? [])),
+        findings,
+        existing,
+        today,
       });
       if (built.error) {
         skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: built.error });

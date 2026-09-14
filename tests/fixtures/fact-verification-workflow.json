@@ -1,0 +1,80 @@
+{
+  "id": "fact-verification-workflow",
+  "slug": "fact-verification-workflow",
+  "title": "Fact Verification Workflow",
+  "summary": "Verify material facts through bounded questions, current primary evidence, contradiction searches, reproducible checks, and explicit uncertainty.",
+  "category": "Verification",
+  "format": "playbook",
+  "audience": [
+    "learner",
+    "practitioner",
+    "developer",
+    "operator"
+  ],
+  "level": "intermediate",
+  "providers": [
+    "provider-neutral"
+  ],
+  "prerequisites": [
+    "An atomic claim map or a single checkable claim"
+  ],
+  "owner": "project42-editorial",
+  "reviewCadenceDays": 90,
+  "lastVerified": "2026-07-25",
+  "tags": [
+    "facts",
+    "verification",
+    "research",
+    "reproducibility"
+  ],
+  "sections": [
+    {
+      "id": "verify-in-bounded-steps",
+      "title": "Verify in bounded steps",
+      "paragraphs": [
+        "State the exact claim and as-of date, then identify what evidence would confirm, qualify, or disprove it. Retrieve the most direct current source, record provenance, and search deliberately for exceptions or contradictions. Separate what the evidence states from your inference.",
+        "For quantities, recompute from the underlying data and record units, denominator, rounding, and time window. For system behavior, reproduce in a safe environment with the named version and configuration. For volatile state, query the system of record immediately before consequential use."
+      ]
+    },
+    {
+      "id": "record-verification",
+      "title": "Record a reproducible verification",
+      "paragraphs": [
+        "Use synthetic or redacted examples when a real record contains restricted data. Verification evidence should be sufficient for an authorized reviewer, not a dump of sensitive inputs."
+      ],
+      "code": {
+        "language": "text",
+        "label": "Fact verification record",
+        "code": "Claim: [ATOMIC CLAIM]\nAs of: [YYYY-MM-DD]\nConsequence if wrong: [LOW | MEDIUM | HIGH]\nConfirming evidence: [SOURCE OR TEST ID]\nContradicting evidence sought: [QUERY OR SOURCE]\nReproduction: [VERSION, CONFIGURATION, INPUT CLASS, STEPS]\nCalculation: [FORMULA, UNITS, DENOMINATOR]\nObserved result: [SAFE RESULT]\nInference: [WHAT FOLLOWS AND WHAT DOES NOT]\nConfidence: [HIGH | MEDIUM | LOW WITH REASON]\nDisposition: [CONFIRMED | QUALIFIED | DISPROVED | UNKNOWN]\nReviewer and date: [OWNER, YYYY-MM-DD]"
+      }
+    },
+    {
+      "id": "verify-the-verification",
+      "title": "Expected evidence and verification",
+      "paragraphs": [
+        "The expected evidence is a reproducible record showing the claim, date, direct evidence, contradiction search, method, result, inference boundary, confidence, and reviewer. Unknown remains a valid result.",
+        "Have another person reproduce the calculation or system check without relying on the conclusion. Confirm the source is current and authoritative, inspect edge cases, and rerun after changes to data, model, prompt, retrieval, tool, or application logic. Escalate professional legal, medical, financial, or safety decisions to qualified experts."
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Artificial Intelligence Risk Management Framework: Generative Artificial Intelligence Profile",
+      "url": "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+      "publisher": "NIST",
+      "lastVerified": "2026-07-25"
+    },
+    {
+      "title": "Evaluation best practices",
+      "url": "https://developers.openai.com/api/docs/guides/evaluation-best-practices",
+      "publisher": "OpenAI",
+      "lastVerified": "2026-09-13"
+    },
+    {
+      "title": "Evaluate model and system for safety",
+      "url": "https://ai.google.dev/responsible/docs/evaluation",
+      "publisher": "Google",
+      "lastVerified": "2026-07-25"
+    }
+  ]
+}

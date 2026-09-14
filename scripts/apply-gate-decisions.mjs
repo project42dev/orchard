@@ -29,6 +29,7 @@ import { pathToFileURL } from "node:url";
 import { loadProtectedAdapterModule, protectedAdapterDigest } from "./lib/protected-adapter.mjs";
 import { sha256Digest } from "./lib/identity.mjs";
 import { LIFECYCLE_STATES } from "./lib/state-machine.mjs";
+import { manifestItemRefusal } from "./lib/drafter-refusal.mjs";
 
 const GATES = Object.freeze(["gate-1", "gate-2"]);
 const PENDING = Object.freeze({ "gate-1": "gate1-pending", "gate-2": "gate2-pending" });
@@ -176,6 +177,23 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                         manifest, fullManifestItems, verifiedEvent, authorizationPolicy: policy, currentItem: item,
                     });
                     const decision = captured.event;
+
+                    // A drafter refusal is not approvable, however the
+                    // approval arrived (typed per item, or a bare "approve"
+                    // expanded over the issue). Found live 2026-09-13: a
+                    // {"status":"BLOCKED",...} refusal sat on issue #238 with
+                    // an approve command, and approving it would have
+                    // committed the refusal note as the resource. Refused
+                    // here, before anything is recorded, and named.
+                    if (gate === "gate-2" && decision.decision === "approve" && manifestItemRefusal(item)) {
+                        summary.refused += 1;
+                        log("warn", "gate.apply.refusal-not-approvable", {
+                            gate, issue: issue.number, comment: comment.id, item: itemId,
+                            reason: manifestItemRefusal(item).reason,
+                            effect: "the approval was not recorded; the item has no draft to publish",
+                        });
+                        return;
+                    }
 
                     // A Gate 1 approval records with no queue work item id:
                     // the ADO work item does not exist yet, because approval

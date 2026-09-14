@@ -52,7 +52,17 @@ function scratchDir(label) {
 
 // A guide resource: JSON, and its surface has no registry, so preparing its
 // commit needs no catalogue read.
-const DRAFT = JSON.stringify({ id: "stored-evidence", title: "Evidence that outlives its container", body: "real authored text" }, null, 2);
+// A conforming Resource: since 2026-09-13 a JSON object missing required
+// Resource fields is treated as a drafter refusal and blocked, never prepared
+// (scripts/lib/drafter-refusal.mjs), so the stand-in draft has to be a real one.
+const DRAFT = JSON.stringify({
+    id: "stored-evidence", slug: "stored-evidence", title: "Evidence that outlives its container",
+    summary: "real authored text", category: "Verification", format: "reference", audience: ["operator"],
+    level: "intermediate", providers: ["provider-neutral"], prerequisites: [], owner: "project42-editorial",
+    reviewCadenceDays: 90, lastVerified: "2026-09-01", tags: ["evidence"],
+    sections: [{ id: "body", title: "Body", paragraphs: ["real authored text"] }],
+    sources: [{ title: "Example", url: "https://example.com/", publisher: "Example", lastVerified: "2026-09-01" }],
+}, null, 2);
 
 function chunkedStage(stage, text, status = "passed") {
     const chunks = [];
