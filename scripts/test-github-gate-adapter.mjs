@@ -30,6 +30,17 @@ async function fixture() {
     return { itemId, runId, manifest, body };
 }
 
+function gate2MixedIssueBody(items) {
+    return ['# issue', '', '<details>', '', '```json', JSON.stringify({
+        gate: 'gate-2',
+        run_id: generateUuidV7(),
+        track: 'track-2',
+        batch_digest: `sha256:${'2'.repeat(64)}`,
+        idempotency_key: 'github:gate-2:x:y',
+        items,
+    }), '```', '', '</details>'].join('\n');
+}
+
 function responder({ comment, issue }) {
     return async (url) => {
         const payload = url.includes('/issues/comments/') ? comment : issue;
@@ -138,6 +149,36 @@ test('a bare decision naming an item this issue does not offer is refused', asyn
             env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: 'approve' }), issue: { number: 9, body } }),
         }),
         /expected_item_id names an item this issue did not offer/,
+    );
+});
+
+test('a bare approve is refused on a mixed Gate 2 issue with an item that failed review', async () => {
+    const cleanId = generateUuidV7();
+    const failingId = generateUuidV7();
+    const body = gate2MixedIssueBody([
+        {
+            item_id: cleanId,
+            item_revision: 1,
+            artifact_digest: `sha256:${'1'.repeat(64)}`,
+            target: { repository: 'project42dev/project42-content', path: 'resources/clean.json' },
+            factual_review: { status: 'passed', evidence_ref: 'orchard:handoff:clean' },
+            accessibility_review: { status: 'human-review', evidence_ref: 'orchard:handoff:a11y' },
+        },
+        {
+            item_id: failingId,
+            item_revision: 1,
+            artifact_digest: `sha256:${'2'.repeat(64)}`,
+            target: { repository: 'project42dev/project42-content', path: 'resources/failing.json' },
+            factual_review: { status: 'failed', evidence_ref: 'orchard:handoff:failed' },
+            accessibility_review: { status: 'human-review', evidence_ref: 'orchard:handoff:a11y' },
+        },
+    ]);
+    await assert.rejects(
+        () => fetchVerifiedEvent({ ...reference, expected_item_id: cleanId, current_state: 'gate2-pending' }, {
+            env: ENV,
+            fetchImpl: responder({ comment: commentOn(cleanId, { body: 'approve' }), issue: { number: 9, body } }),
+        }),
+        /bare approve cannot decide this Gate 2 issue/,
     );
 });
 

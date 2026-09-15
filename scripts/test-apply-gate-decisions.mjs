@@ -16,6 +16,7 @@ import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { protectedAdapterDigest } from './lib/protected-adapter.mjs';
 import { adapterIdentity } from './adapters/github-gate/adapter.mjs';
 import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor, itemHandedOff } from './apply-gate-decisions.mjs';
+import { estate as fixtureEstate, seedGateItems, walkTo } from './test-fixtures.mjs';
 
 const REPO = 'project42dev/orchard';
 const OWNER_ID = 4242;
@@ -327,6 +328,49 @@ async function multiEstate(terms) {
     return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
 }
 
+async function mixedGate2Estate() {
+    const { store, runId } = await fixtureEstate();
+    const [cleanId, failingId] = await seedGateItems(store, runId, ['clean-gate2', 'failing-gate2']);
+    await walkTo(store, runId, cleanId, 'gate2-pending');
+    await walkTo(store, runId, failingId, 'gate2-pending');
+    const manifest = {
+        gate: 'gate-2',
+        run_id: runId,
+        track: 'track-1',
+        batch_digest: `sha256:${'b'.repeat(64)}`,
+        idempotency_key: `github:gate-2:${runId}:sha256:${'b'.repeat(64)}`,
+        items: [
+            {
+                item_id: cleanId,
+                item_revision: 1,
+                artifact_digest: `sha256:${'1'.repeat(64)}`,
+                target: { repository: 'project42dev/project42-content', path: 'resources/clean-gate2.json' },
+                factual_review: { status: 'passed', evidence_ref: 'orchard:handoff:clean' },
+                accessibility_review: { status: 'human-review', evidence_ref: 'orchard:handoff:clean-a11y' },
+            },
+            {
+                item_id: failingId,
+                item_revision: 1,
+                artifact_digest: `sha256:${'2'.repeat(64)}`,
+                target: { repository: 'project42dev/project42-content', path: 'resources/failing-gate2.json' },
+                factual_review: { status: 'failed', evidence_ref: 'orchard:handoff:failed' },
+                accessibility_review: { status: 'human-review', evidence_ref: 'orchard:handoff:failed-a11y' },
+            },
+        ],
+    };
+    const body = [
+        `<!-- orchard:gate track=track-1 gate=gate-2 batch=sha256:${'b'.repeat(64)} -->`,
+        '', '<details>', '', '```json', JSON.stringify(manifest), '```', '', '</details>',
+    ].join('\n');
+    store.provisionTrustAnchor({
+        scope: 'gate', adapter_identity: adapterIdentity,
+        adapter_digest: await protectedAdapterDigest(ADAPTER), adapter_path: ADAPTER,
+        policy_digest: sha256Digest(POLICY), policy: POLICY,
+        provisioned_at: '2026-08-15T00:00:00.000Z',
+    });
+    return { store, issue: { number: 9, body }, cleanId, failingId };
+}
+
 test('ADR-0025 amendment: a bare approve comment approves every item on the issue', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
     const events = [];
@@ -339,6 +383,24 @@ test('ADR-0025 amendment: a bare approve comment approves every item on the issu
     assert.equal(summary.applied, items.length, JSON.stringify(events));
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
     assert.equal(heldAtGate(store.db, 'gate-1').length, 0);
+    store.close();
+});
+
+test('a bare approve on a mixed Gate 2 issue is refused before any item is recorded', async () => {
+    const { store, issue, cleanId, failingId } = await mixedGate2Estate();
+    const events = [];
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: github({ issue, comments: [comment('approve')] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, 0, JSON.stringify(events));
+    assert.equal(summary.refused, 1, JSON.stringify(events));
+    assert.equal(summary.errors, 0, JSON.stringify(events));
+    assert.equal(currentStateOf(store.db, cleanId), 'gate2-pending');
+    assert.equal(currentStateOf(store.db, failingId), 'gate2-pending');
+    assert.ok(events.some(([event]) => event === 'gate.apply.bare-approve-unsafe'), JSON.stringify(events));
     store.close();
 });
 
