@@ -56,7 +56,7 @@ Gate 1 issues appear on GitHub labeled with `orchard-gate-1`.
 
 ### **Gate 2 Approvals (Publication Manifests)**
 Gate 2 issues appear on GitHub labeled with `orchard-gate-2`.
-- **Whole Issue Approval**: Commenting `approved` approves every item in the batch whose evidence passed review.
+- **Whole Issue Approval**: Commenting `approved` or `approve` approves every still-pending item on that issue, including any item the summary says needs attention. On a mixed issue, use the per-item commands instead.
 - **Specific Item Approval**:
   ```text
   /orchard gate2 approve item=<item-id> revision=<rev> digest=<sha256-digest>
