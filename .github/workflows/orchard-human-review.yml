@@ -131,7 +131,7 @@ jobs:
           set -euo pipefail
           # Only answer comments that actually tried to be a decision, so
           # ordinary discussion on the issue is not replied to.
-          if printf '%s' "$ORCHARD_COMMENT_BODY" | grep -qiE '^\s*(approved|denied)\s*$|^/orchard'; then
+          if printf '%s' "$ORCHARD_COMMENT_BODY" | grep -qiE '^\s*(approve|approved|deny|denied)\s*$|^/orchard'; then
             REASON=$(node scripts/gate2-review.mjs --proposals delivery/proposals \
               | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s);console.log((r.errors||[]).map(e=>'- '+e).join('\n')||'- not a Gate 2 decision')})")
             gh issue comment ${{ github.event.issue.number }} --repo project42dev/orchard --body "> [!CAUTION]

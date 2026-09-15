@@ -147,7 +147,7 @@ function renderGateSummary(manifest) {
         .map((item) => ({ item, reason: gate2AttentionReason(item) }))
         .filter((entry) => entry.reason);
     if (attention.length === 0) {
-        return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];
+        return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** These items are safe to approve individually with the per-item command shown below.`, ''];
     }
     const clean = manifest.items.length - attention.length;
     const lines = [
