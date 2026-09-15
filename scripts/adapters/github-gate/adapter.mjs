@@ -38,6 +38,14 @@ const REPOSITORY = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 // and this must never disagree with it about the item id.
 const ITEM = /\/orchard gate[12] (?:approve|deny|defer|request-changes) item=([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/;
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const REQUIRED_RESOURCE_FIELDS = Object.freeze([
+    "id", "slug", "title", "summary", "category", "format", "audience", "level", "providers",
+    "prerequisites", "owner", "reviewCadenceDays", "lastVerified", "tags", "sections", "sources",
+]);
+const REQUIRED_MODULE_FIELDS = Object.freeze([
+    "id", "title", "summary", "level", "providers", "estimatedMinutes", "objectives",
+    "prerequisites", "sections", "knowledgeCheck", "sources",
+]);
 
 // ADR-0025, amendment 2026-08-16. A comment whose entire body, trimmed, is
 // exactly one of these words decides every item on the issue that is still
@@ -58,6 +66,65 @@ function fail(code, message) {
     const error = new Error(message);
     error.code = code;
     throw error;
+}
+
+function requiredFieldsFor(path) {
+    if (typeof path !== "string" || !path.endsWith(".json")) return null;
+    const normalized = path.replace(/^content\//, "");
+    if (normalized.startsWith("resources/")) return REQUIRED_RESOURCE_FIELDS;
+    if (normalized.startsWith("modules/")) return REQUIRED_MODULE_FIELDS;
+    return null;
+}
+
+function strings(value) {
+    return Array.isArray(value) ? value.filter((entry) => typeof entry === "string" && entry.trim()).map((entry) => entry.trim()) : [];
+}
+
+function inspectDrafterRefusal({ path, content }) {
+    if (typeof content !== "string" || content.trim() === "") return null;
+    const trimmed = content.trim();
+    const prose = /^(?:\*\*)?(?:STATUS|READINESS)(?:\*\*)?\s*:\s*BLOCKED\b/i.exec(trimmed);
+    if (prose) return { reason: trimmed.slice(0, 1500), requiredInputs: [], unknowns: [] };
+    let parsed;
+    try { parsed = JSON.parse(trimmed); } catch { return null; }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const requiredInputs = strings(parsed.requiredInputs);
+    const unknowns = strings(parsed.unknowns);
+    if (typeof parsed.status === "string" && /^blocked$/i.test(parsed.status.trim())) {
+        return {
+            reason: typeof parsed.reason === "string" && parsed.reason.trim() ? parsed.reason.trim() : "the drafter returned status BLOCKED with no reason",
+            requiredInputs, unknowns,
+        };
+    }
+    if ((requiredInputs.length || unknowns.length) && typeof parsed.id !== "string") {
+        return {
+            reason: typeof parsed.reason === "string" && parsed.reason.trim() ? parsed.reason.trim() : "the drafter returned a list of required inputs instead of an artifact",
+            requiredInputs, unknowns,
+        };
+    }
+    const required = requiredFieldsFor(path);
+    if (required) {
+        const missing = required.filter((field) => parsed[field] === undefined || parsed[field] === null);
+        if (missing.length > 0) {
+            return { reason: `the drafter's output is a JSON object but not a conforming artifact: it is missing ${missing.join(", ")}`, requiredInputs, unknowns };
+        }
+    }
+    return null;
+}
+
+function manifestItemRefusal(item) {
+    const path = item?.target?.path;
+    return inspectDrafterRefusal({ path, content: item?.content })
+        ?? inspectDrafterRefusal({ path, content: item?.rejected_draft });
+}
+
+function gate2UnsafeReason(item) {
+    if (manifestItemRefusal(item)) return "the drafter refused to write at least one item on this issue";
+    if (item?.escalated) return "at least one item on this issue was rejected twice by the ensemble";
+    const bad = [];
+    if (item?.factual_review?.status === "failed") bad.push("factual review failed");
+    if (item?.accessibility_review?.status === "failed") bad.push("accessibility review failed");
+    return bad.length ? bad.join(", ") : null;
 }
 
 async function call(path, { token, fetchImpl }) {
@@ -152,6 +219,10 @@ export async function fetchVerifiedEvent(reference, { fetchImpl = fetch, env = p
         // this particular verification resolves, and that item must be real,
         // read from the same manifest the structured path trusts.
         if (!expectedItemId) fail("reference.expected-item", "a bare approve or deny comment requires reference.expected_item_id");
+        if (/^approve/i.test(bareMatch[1]) && manifest.gate === "gate-2") {
+            const unsafe = manifest.items.find((entry) => gate2UnsafeReason(entry));
+            if (unsafe) fail("command.bare-unsafe", `a bare approve cannot decide this Gate 2 issue: ${gate2UnsafeReason(unsafe)}; use the per-item command instead`);
+        }
         item = manifest.items.find((entry) => entry.item_id === expectedItemId);
         if (!item) fail("binding.item", "expected_item_id names an item this issue did not offer");
         const gateToken = manifest.gate === "gate-1" ? "gate1" : "gate2";

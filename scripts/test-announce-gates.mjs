@@ -273,13 +273,26 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('2 of 3 items need') === false, 'exactly ONE item is bad here, the count must say 1 of 3, not 2 of 3');
   assert.ok(body.includes('1 of 3 item'), 'the summary must state the exact count needing attention');
-  assert.ok(/bare word `approve`.*approves EVERY item.*including the 1 below/s.test(body) || body.includes('including the 1 below'),
-    'the summary must explicitly warn that bare-approve would also approve the failed item, not just mention attention is needed');
+  assert.ok(body.includes('A bare `approve` comment is refused on this issue'),
+    'the summary must say a mixed Gate 2 issue refuses bare approve, not imply it would sweep the failed item through');
   assert.ok(body.includes('c-failed-item') && body.includes('factual review failed'),
     'the summary table must name the specific item and the specific reason, not a generic "needs review"');
   assert.ok(body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'the failed item\'s own section must carry a visible badge, not just the summary table');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
   assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
+});
+
+test('a Gate 2 issue with a non-approvable refusal is also mixed: the summary must not call it clean or safe to bare-approve', () => {
+  const refused = {
+    ...gate2Item('refused-item', { reviewsPassed: true }),
+    content: '{"status":"BLOCKED","reason":"missing source record","requiredInputs":["exact file"]}',
+  };
+  const manifest = gate2Manifest([gate2Item('clean-item', { reviewsPassed: true }), refused]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('1 of 2 item'), 'the refusal counts as the one item needing attention');
+  assert.ok(body.includes('the drafter refused; no draft to publish'), 'the summary table names why the item is not individually approvable');
+  assert.ok(body.includes('A bare `approve` comment is refused on this issue'), 'a refusal must also block bare approve at the issue level');
+  assert.ok(!body.includes('All 2 items passed every review'), 'the summary must not call a refusal batch clean');
 });
 
 test('a Gate 2 item shows badge, target, and the approve command before any digest -- the binding table is collapsed, not a wall between them', () => {
@@ -594,4 +607,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-

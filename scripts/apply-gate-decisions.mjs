@@ -34,6 +34,16 @@ import { manifestItemRefusal } from "./lib/drafter-refusal.mjs";
 const GATES = Object.freeze(["gate-1", "gate-2"]);
 const PENDING = Object.freeze({ "gate-1": "gate1-pending", "gate-2": "gate2-pending" });
 
+function gate2UnsafeReason(item) {
+    const refusal = manifestItemRefusal(item);
+    if (refusal) return "the drafter refused to write at least one item on this issue";
+    if (item?.escalated) return "at least one item on this issue was rejected twice by the ensemble";
+    const bad = [];
+    if (item?.factual_review?.status === "failed") bad.push("factual review failed");
+    if (item?.accessibility_review?.status === "failed") bad.push("accessibility review failed");
+    return bad.length ? bad.join(", ") : null;
+}
+
 // The state each gate's approval path must reach before its issue is done:
 // proof that the NEXT process took the item, not just that it was approved.
 // Gate 1 hands to ado-sync.mjs, which creates the tracker item (ado-linked).
@@ -251,6 +261,18 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                 }
 
                 if (bareDecision) {
+                    if (gate === "gate-2" && bareDecision === "approve") {
+                        const unsafe = manifest.items.find((item) => gate2UnsafeReason(item));
+                        if (unsafe) {
+                            summary.refused += 1;
+                            log("warn", "gate.apply.bare-approve-unsafe", {
+                                gate, issue: issue.number, comment: comment.id,
+                                reason: gate2UnsafeReason(unsafe),
+                                effect: "the bare approve was refused; use the per-item command for the individually approvable items",
+                            });
+                            continue;
+                        }
+                    }
                     // Every item this issue offers that is still pending,
                     // read fresh per item so a decision applied earlier in
                     // THIS SAME pass (an individual structured command that

@@ -139,12 +139,19 @@ function gate2AttentionReason(item) {
     return bad.length ? bad.join(', ') : null;
 }
 
+function gate2SummaryReason(item) {
+    const refusal = manifestItemRefusal(item);
+    if (refusal) return 'the drafter refused; no draft to publish';
+    if (item.escalated) return 'rejected twice by the ensemble';
+    return gate2AttentionReason(item);
+}
+
 function renderGateSummary(manifest) {
     if (manifest.gate !== 'gate-2') {
         return [`**${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'}**, all newly proposed -- there is nothing to compare against yet, so nothing here is flagged.`, ''];
     }
     const attention = manifest.items
-        .map((item) => ({ item, reason: gate2AttentionReason(item) }))
+        .map((item) => ({ item, reason: gate2SummaryReason(item) }))
         .filter((entry) => entry.reason);
     if (attention.length === 0) {
         return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];
@@ -152,7 +159,7 @@ function renderGateSummary(manifest) {
     const clean = manifest.items.length - attention.length;
     const lines = [
         `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`,
-        `Commenting the bare word \`approve\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`,
+        'A bare `approve` comment is refused on this issue because not every item is individually approvable -- use the per-item command instead.',
         '',
     ];
     if (clean > 0) lines.push(`${clean} item${clean === 1 ? '' : 's'} passed every review and are safe to approve individually.`, '');
