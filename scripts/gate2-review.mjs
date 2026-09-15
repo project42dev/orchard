@@ -87,9 +87,10 @@ export function parseDecision(text) {
   return out;
 }
 
-// A bare "Approved" is explicitly NOT a decision. This is the whole point.
+// A bare "approve"/"Approved" or "deny"/"Denied" is explicitly NOT a decision.
+// This is the whole point.
 export function isBareApproval(text) {
-  return /^\s*(approved|denied)\s*$/i.test(String(text));
+  return /^\s*(approve|approved|deny|denied)\s*$/i.test(String(text));
 }
 
 /**
@@ -176,7 +177,7 @@ export function evaluate({ text, proposalDir, allowedActors = [], actor = null }
 
   if (isBareApproval(text)) {
     result.errors.push(
-      'a bare "Approved" or "Denied" is not a Gate 2 decision. Use: /orchard gate2 approve item=<id> digest=<sha256>',
+      'a bare "approve", "approved", "deny", or "denied" is not a Gate 2 decision. Use: /orchard gate2 approve item=<id> digest=<sha256>',
     );
     return result;
   }

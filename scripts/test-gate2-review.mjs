@@ -54,7 +54,7 @@ const approveLine = (i) => `/orchard gate2 approve item=${i.id} digest=${i.diges
 // --- a bare Approved is NOT a decision. This is the defect being closed. ---
 {
   const { dir, digest } = fixture();
-  for (const word of ["Approved", "approved", "  APPROVED  ", "Denied"]) {
+  for (const word of ["approve", "Approved", "approved", "  APPROVED  ", "deny", "Denied"]) {
     const r = evaluate({ text: word, proposalDir: dir });
     ok(!r.authorised, `a bare "${word.trim()}" must never authorise`);
     // Not merely "it authorised nothing" -- it must be REFUSED, by name. A
@@ -64,6 +64,7 @@ const approveLine = (i) => `/orchard gate2 approve item=${i.id} digest=${i.diges
     ok(r.errors.some((e) => e.includes("is not a Gate 2 decision")),
        `a bare "${word.trim()}" is refused by name, not ignored`);
   }
+  ok(isBareApproval("approve"), "isBareApproval recognises the bare approve shape");
   ok(isBareApproval("Approved"), "isBareApproval recognises the old shape");
   ok(!isBareApproval("/orchard gate2 approve item=create-thing digest=" + digest),
      "a bound command is not a bare approval");

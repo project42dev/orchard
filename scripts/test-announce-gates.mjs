@@ -223,11 +223,12 @@ function gate2Manifest(items) {
   };
 }
 
-test('a Gate 2 issue where every item passed review tells the owner it is safe to bare-approve', () => {
+test('a Gate 2 issue where every item passed review still keeps the decision item-specific', () => {
   const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true })]);
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('All 2 items passed every review'), 'the summary must say plainly that every item is clean');
-  assert.ok(body.includes('safe to bare-approve') || body.includes('approves all of them'), 'the summary must say a bare approve is safe here');
+  assert.ok(body.includes('safe to approve individually'), 'the summary must direct the owner to the per-item commands');
+  assert.ok(!body.includes('approves all of them'), 'the summary must not imply that a whole-issue approval changes state');
   assert.ok(!body.includes('NEEDS ATTENTION'), 'a clean issue must not show any attention badge');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
   assert.equal(okBadges, 2, 'every item must carry its own clean badge, not just the summary');
@@ -594,4 +595,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-
