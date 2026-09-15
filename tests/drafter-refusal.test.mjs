@@ -35,6 +35,135 @@ const BLOCKED = JSON.stringify({
     ],
 });
 const RESOURCE_PATH = "resources/research-verification/fact-verification-workflow.json";
+const CLINE_OPERATING_CARD_PATH = "resources/coding-tools/cline-operating-card.json";
+const CODEX_OPERATING_CARD_PATH = "resources/coding-tools/codex-cli-operating-card.json";
+const DISGUISED_CLINE_OPERATING_CARD = JSON.stringify({
+    id: "cline-operating-card",
+    slug: "cline-operating-card",
+    title: "Cline operating card",
+    summary: "This intermediate reference explains why the operating guidance cannot yet be safely corrected and identifies the evidence needed to complete the source update without inventing instructions.",
+    category: "AI coding tools",
+    format: "reference",
+    audience: ["practitioner", "developer"],
+    level: "intermediate",
+    providers: ["provider-neutral"],
+    prerequisites: ["Access to the current resource file and its repository history", "Access to current official Cline documentation"],
+    owner: "project42-editorial",
+    reviewCadenceDays: 30,
+    lastVerified: "2026-09-12",
+    tags: ["cline", "coding-tools", "source-verification", "operating-card"],
+    sections: [
+        {
+            id: "can-i-use-this-card",
+            title: "Can I safely use this operating card?",
+            paragraphs: [
+                "No. The supplied material does not contain the existing operating instructions or a successfully verified replacement for the changed citation, so no Cline procedure can be confirmed. This is an intermediate-level source review, not verified operational guidance.",
+                "The citation record supplied for review is content/resources/coding-tools/cline-operating-card.json. That is a local resource path rather than an HTTPS product source.",
+            ],
+            callout: "Do not infer commands, interface labels, versions, configuration keys, or recovery actions from this card.",
+        },
+        {
+            id: "complete-the-correction",
+            title: "Complete the source correction",
+            paragraphs: ["Retrieve the current cline-operating-card.json file and its revision history."],
+        },
+        {
+            id: "expected-evidence-and-verification",
+            title: "Expected evidence and verification",
+            paragraphs: ["That evidence is not present in the supplied material."],
+        },
+    ],
+    sources: [{ title: "Cline documentation", url: "https://docs.cline.bot/", publisher: "Cline", lastVerified: "2026-09-12" }],
+});
+const DISGUISED_CODEX_OPERATING_CARD = JSON.stringify({
+    id: "codex-cli-operating-card",
+    slug: "codex-cli-operating-card",
+    title: "Codex CLI operating card",
+    summary: "An intermediate reference for deciding whether the Codex CLI guidance in this resource is ready for operational use. Product-specific procedures remain UNKNOWN until the first-party source and the previous resource contents can be verified.",
+    category: "AI coding agents",
+    format: "reference",
+    audience: ["practitioner", "developer", "operator"],
+    level: "intermediate",
+    providers: ["openai"],
+    prerequisites: ["Access to the existing resource revision that must be corrected", "Access to current first-party Codex CLI documentation over HTTPS"],
+    owner: "project42-editorial",
+    reviewCadenceDays: 30,
+    lastVerified: "2026-09-12",
+    tags: ["codex-cli", "openai", "coding-agents", "source-verification"],
+    sections: [
+        {
+            id: "operational-answer",
+            title: "Can I rely on this operating card now?",
+            paragraphs: [
+                "No. This is an intermediate-level source review, and the product-specific operating instructions are UNKNOWN because neither the previous resource contents nor a successfully verified replacement citation was supplied.",
+                "Do not infer installation, authentication, invocation, configuration, approval, sandbox, output, or troubleshooting procedures from this card.",
+            ],
+        },
+        {
+            id: "source-correction",
+            title: "Source correction and affected content",
+            paragraphs: ["The cited source record that triggered this update is content/resources/coding-tools/codex-cli-operating-card.json."],
+            callout: "A minimal-diff update cannot be confirmed from the supplied material because the existing JSON object and its former external citation were not provided.",
+        },
+        {
+            id: "expected-evidence-and-verification",
+            title: "Expected evidence and verification",
+            paragraphs: ["That evidence is not available in the supplied material."],
+        },
+    ],
+    sources: [{ title: "Codex", url: "https://github.com/openai/codex", publisher: "OpenAI", lastVerified: "2026-09-12" }],
+});
+const REAL_CLINE_OPERATING_CARD = JSON.stringify({
+    id: "cline-operating-card",
+    slug: "cline-operating-card",
+    title: "Cline Operating Card",
+    summary: "Use Cline with a deliberate Plan-to-Act transition, reviewed approvals, independent Git history, and checkpoint-aware recovery.",
+    category: "AI coding tools",
+    format: "reference",
+    audience: ["practitioner", "developer"],
+    level: "beginner",
+    providers: ["provider-neutral"],
+    prerequisites: ["A supported editor with Cline installed", "A version-controlled working copy", "An approved model-provider path"],
+    owner: "project42-editorial",
+    reviewCadenceDays: 30,
+    lastVerified: "2026-09-13",
+    tags: ["coding-tools", "cline", "ide", "checkpoints"],
+    sections: [
+        {
+            id: "fit",
+            title: "Separate planning from authorized action",
+            paragraphs: [
+                "Cline provides Plan and Act workflows inside an editor and can read files, propose changes, run tools, and request approvals.",
+                "Review every requested action against the task boundary.",
+            ],
+        },
+        {
+            id: "operate",
+            title: "Approve the smallest useful action",
+            paragraphs: [
+                "Open the intended project folder, provide repository instructions, list protected paths, and define the tests that demonstrate success.",
+                "Compare checkpoint diffs and the actual Git diff before accepting.",
+            ],
+            code: {
+                language: "text",
+                label: "Cline task card",
+                code: "Task: [one bounded result]",
+            },
+        },
+        {
+            id: "verify",
+            title: "Expected evidence and verification",
+            paragraphs: [
+                "Expected evidence includes the approved plan, action history, checkpoint or file comparisons, final Git diff, and verification output.",
+                "For recovery, stop new approvals, preserve the failing output, compare the checkpoint with Git, and restore only the affected scope before retrying.",
+            ],
+        },
+    ],
+    sources: [
+        { title: "Cline documentation", url: "https://docs.cline.bot/", publisher: "Cline", lastVerified: "2026-09-13" },
+        { title: "Cline IDE workflow", url: "https://docs.cline.bot/usage/ide", publisher: "Cline", lastVerified: "2026-09-13" },
+    ],
+});
 
 function stage(name, text, status = "passed") {
     const findings = [];
@@ -89,6 +218,18 @@ test("a conforming artifact is not a refusal, a non-conforming resource is", () 
     assert.equal(inspectDrafterRefusal({ path: RESOURCE_PATH, content: partial }).code, "drafter-refusal.non-conforming");
     assert.equal(inspectDrafterRefusal({ path: RESOURCE_PATH, content: "READINESS: BLOCKED, the spec is missing" }).code, "drafter-refusal.status-blocked");
     assert.equal(inspectDrafterRefusal({ path: "diagrams/x.mmd", content: "flowchart TD\n  a --> b" }), null);
+});
+
+test("a schema-valid source-review operating card is treated as a refusal, but a real operating card is not", () => {
+    assert.equal(
+        inspectDrafterRefusal({ path: CLINE_OPERATING_CARD_PATH, content: DISGUISED_CLINE_OPERATING_CARD }).code,
+        "drafter-refusal.disguised-source-review",
+    );
+    assert.equal(
+        inspectDrafterRefusal({ path: CODEX_OPERATING_CARD_PATH, content: DISGUISED_CODEX_OPERATING_CARD }).code,
+        "drafter-refusal.disguised-source-review",
+    );
+    assert.equal(inspectDrafterRefusal({ path: CLINE_OPERATING_CARD_PATH, content: REAL_CLINE_OPERATING_CARD }), null);
 });
 
 test("authoring routes a BLOCKED draft to blocked with the drafter's reason, and never toward Gate 2", async () => {
