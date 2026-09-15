@@ -71,9 +71,9 @@ Gate 2 issues appear on GitHub labeled with `orchard-gate-2`.
   one comment — one per line, all of the same kind, each naming a different
   item and its own digest. Every line is checked on its own and each outcome is
   reported, but if **any** line is wrong the whole comment is refused and
-  nothing is applied; fix the line the reply names and post again. This does
-  not change the in-container path (`apply-gate-decisions.mjs`), which still
-  reads one named item per comment and still honours a whole-issue `approved`.
+  nothing is applied; fix the line the reply names and post again. The
+  in-container path (`apply-gate-decisions.mjs`) also requires item-specific
+  commands; bare whole-issue approvals do not change state.
 
 > **Note on Approver Identity**: All comments must originate from an authorized GitHub identity (`@kristopherjturner`). Comments from bots or unlisted users fail closed with `gate.apply.actor-unauthorised`.
 
