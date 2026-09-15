@@ -56,7 +56,7 @@ Gate 1 issues appear on GitHub labeled with `orchard-gate-1`.
 
 ### **Gate 2 Approvals (Publication Manifests)**
 Gate 2 issues appear on GitHub labeled with `orchard-gate-2`.
-- **Whole Issue Approval**: Commenting `approved` approves every item in the batch whose evidence passed review.
+- **Whole Issue Approval**: Not supported for Gate 2. Bare `approve`/`approved` comments are refused.
 - **Specific Item Approval**:
   ```text
   /orchard gate2 approve item=<item-id> revision=<rev> digest=<sha256-digest>
@@ -71,9 +71,9 @@ Gate 2 issues appear on GitHub labeled with `orchard-gate-2`.
   one comment — one per line, all of the same kind, each naming a different
   item and its own digest. Every line is checked on its own and each outcome is
   reported, but if **any** line is wrong the whole comment is refused and
-  nothing is applied; fix the line the reply names and post again. This does
-  not change the in-container path (`apply-gate-decisions.mjs`), which still
-  reads one named item per comment and still honours a whole-issue `approved`.
+  nothing is applied; fix the line the reply names and post again. The
+  in-container path (`apply-gate-decisions.mjs`) follows the same rule: Gate 2
+  decisions must be item-specific.
 
 > **Note on Approver Identity**: All comments must originate from an authorized GitHub identity (`@kristopherjturner`). Comments from bots or unlisted users fail closed with `gate.apply.actor-unauthorised`.
 
