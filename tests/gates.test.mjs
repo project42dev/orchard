@@ -130,6 +130,8 @@ test('digest verification rejects proposal, target, and batch mutation', async (
 test('strict parser accepts one exact line and rejects issue prose or multiple commands', () => {
   const command = `/orchard gate1 approve item=${itemId} revision=1 digest=${digest('a')}`;
   assert.equal(parseDecisionCommand(command).decision, 'approve');
+  const approvedAlias = `/orchard gate1 approved item=${itemId} revision=1 digest=${digest('a')}`;
+  assert.equal(parseDecisionCommand(approvedAlias).decision, 'approve');
   for (const invalid of [`Please ${command}`, `${command}\nthanks`, `${command}\n${command}`]) {
     assert.throws(() => parseDecisionCommand(invalid));
   }

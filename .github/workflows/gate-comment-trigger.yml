@@ -48,7 +48,7 @@ jobs:
           shaped=false
           if [[ "$trimmed" == "approve" || "$trimmed" == "approved" || "$trimmed" == "deny" || "$trimmed" == "denied" ]]; then
             shaped=true
-          elif printf '%s' "$BODY" | grep -qE '^/orchard gate[12] (approve|deny|defer|request-changes) item='; then
+          elif printf '%s' "$BODY" | grep -qE '^/orchard gate[12] (approve|approved|deny|denied|defer|request-changes) item='; then
             shaped=true
           fi
           echo "shaped=$shaped" >> "$GITHUB_OUTPUT"
