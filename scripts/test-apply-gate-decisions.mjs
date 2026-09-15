@@ -173,6 +173,21 @@ test('a Gate 1 approval records with no tracker item, because approval is what c
     store.close();
 });
 
+test('a structured approved alias is normalized and applied as approve', async () => {
+    const { store, item, issue } = await estate();
+    const body = `/orchard gate1 approved item=${item.item_id} revision=1 digest=${item.proposal_digest}`;
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        fetchImpl: github({ issue, comments: [comment(body)] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, 1);
+    assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
+    const [decision] = store.listDecisions(item.item_id);
+    assert.equal(decision.decision, 'approve');
+    store.close();
+});
+
 test('a comment from anyone not on the allowlist is named and changes nothing', async () => {
     const { store, item, issue } = await estate();
     const body = `/orchard gate1 deny item=${item.item_id} revision=1 digest=${item.proposal_digest} reason="nope"`;
