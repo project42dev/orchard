@@ -105,6 +105,14 @@ test('a bare approve comment synthesizes the exact per-item command for the item
     assert.equal(event.issue.manifest_digest, sha256Digest(manifest));
 });
 
+test('a structured approved alias still binds the named item', async () => {
+    const { itemId, body } = await fixture();
+    const event = await fetchVerifiedEvent(reference, {
+        env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: `/orchard gate1 approved item=${itemId} revision=1 digest=sha256:${'1'.repeat(64)}` }), issue: { number: 9, body } }),
+    });
+    assert.match(event.body, /^\/orchard gate1 approved item=/);
+});
+
 test('bare approve is case-insensitive and tolerates surrounding whitespace', async () => {
     const { itemId, body } = await fixture();
     for (const raw of ['Approve', 'APPROVED', '  approved  \n']) {
