@@ -54,6 +54,42 @@ function strings(value) {
     return Array.isArray(value) ? value.filter((entry) => typeof entry === "string" && entry.trim()).map((entry) => entry.trim()) : [];
 }
 
+function operatingCardMarker(path, parsed) {
+    if (typeof path === "string" && /(?:^|\/)[^/]*operating-card\.json$/i.test(path.replace(/^content\//, ""))) return true;
+    return [parsed?.id, parsed?.slug, parsed?.title].some((value) => typeof value === "string" && /operating card/i.test(value));
+}
+
+function disguisedSourceReviewRefusal(path, parsed) {
+    if (!operatingCardMarker(path, parsed)) return null;
+    const sections = Array.isArray(parsed?.sections) ? parsed.sections : [];
+    const haystack = [
+        typeof parsed?.summary === "string" ? parsed.summary : "",
+        ...sections.flatMap((section) => [
+            typeof section?.title === "string" ? section.title : "",
+            ...(Array.isArray(section?.paragraphs) ? section.paragraphs : []),
+            typeof section?.callout === "string" ? section.callout : "",
+        ]),
+    ].join("\n").toLowerCase();
+    const markers = [
+        "source review",
+        "source correction",
+        "supplied material",
+        "not verified operational guidance",
+        "cannot yet be safely corrected",
+        "product-specific operating instructions are unknown",
+        "do not infer",
+    ];
+    const matched = markers.filter((marker) => haystack.includes(marker));
+    if (matched.length < 3) return null;
+    return {
+        code: "drafter-refusal.disguised-source-review",
+        reason: "the drafter returned a source-review refusal document instead of a publishable operating card",
+        requiredInputs: [],
+        unknowns: [],
+        document: parsed,
+    };
+}
+
 /**
  * Returns null for a draft, or a refusal record:
  *   { code, reason, requiredInputs, unknowns, document }
@@ -103,6 +139,8 @@ export function inspectDrafterRefusal({ path, content }) {
             };
         }
     }
+    const disguised = disguisedSourceReviewRefusal(path, parsed);
+    if (disguised) return disguised;
     return null;
 }
 
