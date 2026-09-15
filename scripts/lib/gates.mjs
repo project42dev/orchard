@@ -133,6 +133,7 @@ const safe = (value) => String(value).replaceAll('|', '\\|').replaceAll('\n', '<
 // too, for the same reason: it is not evidence of a problem, only of no
 // automated verdict, which is not this function's job to editorialize on.
 function gate2AttentionReason(item) {
+    if (manifestItemRefusal(item)) return 'not approvable: the drafter refused to write this item';
     const bad = [];
     if (item.factual_review && item.factual_review.status === 'failed') bad.push('factual review failed');
     if (item.accessibility_review && item.accessibility_review.status === 'failed') bad.push('accessibility review failed');

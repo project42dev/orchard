@@ -282,6 +282,25 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
 });
 
+test('a Gate 2 summary classifies a drafter refusal as not approvable, not as a factual-review failure', () => {
+  const refused = {
+    ...gate2Item('blocked-item', { reviewsPassed: false }),
+    target: { repository: 'project42dev/project42-content', path: 'resources/coding-tools/blocked-item.json' },
+    content: JSON.stringify({
+      status: 'BLOCKED',
+      reason: 'A truthful correction-only update cannot be produced from the supplied material.',
+      requiredInputs: ['The exact existing JSON resource and its target filename.'],
+    }),
+  };
+  const manifest = gate2Manifest([gate2Item('clean-item', { reviewsPassed: true }), refused]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('| `blocked-item` (resources/coding-tools/blocked-item.json) | not approvable: the drafter refused to write this item |'),
+    'the summary table must classify a refusal as not approvable');
+  assert.doesNotMatch(body, /\| `blocked-item` \(resources\/coding-tools\/blocked-item\.json\) \| factual review failed \|/,
+    'the refusal must not be mislabeled as an ordinary factual-review failure');
+  assert.match(body, /NOT APPROVABLE -- the drafter refused to write this item/, 'the item section still renders the refusal-specific badge');
+});
+
 test('a Gate 2 item shows badge, target, and the approve command before any digest -- the binding table is collapsed, not a wall between them', () => {
   // Found live 2026-08-17, TWICE: the owner rejected the same issue twice
   // because the badge/summary fix (previous test above) was necessary but
@@ -594,4 +613,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-
