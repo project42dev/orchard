@@ -148,11 +148,8 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
             }
 
             // One item decision, start to finish: verify through the pinned
-            // adapter, capture, and record. Shared by the structured
-            // single-item path and the bare-approve per-item expansion below,
-            // so a bare approve goes through exactly the same trust chain as
-            // a typed command, once per item, never a shortcut around it.
-            const applyOneItem = async (comment, itemId, currentState, expectedItemId) => {
+            // adapter, capture, and record.
+            const applyOneItem = async (comment, itemId, currentState) => {
                 const fullManifestItems = fullManifestItemsFor(manifest, allManifests);
                 if (!fullManifestItems) {
                     summary.blocked += 1;
@@ -169,7 +166,7 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     // snapshot, and the fewer ambient things it depends on the
                     // smaller the surface its digest has to cover.
                     const verifiedEvent = await adapter.fetchVerifiedEvent(
-                        { repository: repo, issue_number: issue.number, comment_id: comment.id, current_state: currentState, ...(expectedItemId ? { expected_item_id: expectedItemId } : {}) },
+                        { repository: repo, issue_number: issue.number, comment_id: comment.id, current_state: currentState },
                         { fetchImpl, env: { ORCHARD_GATE_GITHUB_TOKEN: token } },
                     );
                     const item = manifest.items.find((entry) => entry.item_id === itemId);
@@ -179,8 +176,7 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     const decision = captured.event;
 
                     // A drafter refusal is not approvable, however the
-                    // approval arrived (typed per item, or a bare "approve"
-                    // expanded over the issue). Found live 2026-09-13: a
+                    // approval arrived. Found live 2026-09-13: a
                     // {"status":"BLOCKED",...} refusal sat on issue #238 with
                     // an approve command, and approving it would have
                     // committed the refusal note as the resource. Refused
@@ -215,7 +211,7 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     log("info", "gate.apply.decided", {
                         gate, item: decision.item_id, decision: decision.decision,
                         from: decision.previous_state, to: decision.next_state, comment: comment.id,
-                        via: expectedItemId ? "bare" : "structured",
+                        via: "structured",
                     });
                 } catch (error) {
                     summary.errors += 1;
@@ -230,12 +226,7 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
             for (const comment of comments) {
                 const text = String(comment.body ?? "");
                 const structured = /\/orchard gate[12] /.test(text);
-                // ADR-0025, amendment 2026-08-16. Checked BEFORE the actor
-                // allowlist look-up shares its own log lines with the
-                // structured path below.
-                const bareMatch = !structured ? /^(approve|approved|deny|denied)$/i.exec(text.trim()) : null;
-                const bareDecision = bareMatch ? (/^approve/i.test(bareMatch[1]) ? "approve" : "deny") : null;
-                if (!structured && !bareDecision) continue;
+                if (!structured) continue;
 
                 const actorId = comment.user?.id === undefined ? null : String(comment.user.id);
                 if (!actorId || !allowed.has(actorId)) {
@@ -247,28 +238,6 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                         actor: comment.user?.login ?? "unknown",
                         effect: "the comment was read and changed nothing",
                     });
-                    continue;
-                }
-
-                if (bareDecision) {
-                    // Every item this issue offers that is still pending,
-                    // read fresh per item so a decision applied earlier in
-                    // THIS SAME pass (an individual structured command that
-                    // appears before this one) is already reflected: a bare
-                    // decision only ever acts on what is still pending at the
-                    // moment it is evaluated, which is what makes
-                    // structured-first ordering produce mixed outcomes
-                    // correctly (deny a few individually, then bare-approve
-                    // the rest, or the reverse).
-                    const pending = manifest.items.filter((item) => currentStateOf(store.db, item.item_id) === PENDING[gate]);
-                    if (pending.length === 0) {
-                        summary.unchanged += 1;
-                        log("info", "gate.apply.bare-decision-nothing-pending", { gate, issue: issue.number, comment: comment.id, decision: bareDecision });
-                        continue;
-                    }
-                    for (const item of pending) {
-                        await applyOneItem(comment, item.item_id, PENDING[gate], item.item_id);
-                    }
                     continue;
                 }
 
@@ -292,7 +261,7 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     log("info", "gate.apply.already-decided", { gate, item: named[1], state: currentState });
                     continue;
                 }
-                await applyOneItem(comment, named[1], currentState, null);
+                await applyOneItem(comment, named[1], currentState);
             }
 
             // Not only when this pass just decided something: a batch whose

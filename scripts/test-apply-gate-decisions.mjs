@@ -327,78 +327,48 @@ async function multiEstate(terms) {
     return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
 }
 
-test('ADR-0025 amendment: a bare approve comment approves every item on the issue', async () => {
+test('a bare approve comment changes nothing because approvals must name an item', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
-    const events = [];
     const summary = await applyGateDecisions({
         store, track: 'track-1', repo: REPO, token: 't',
-        log: (_l, event, detail) => events.push([event, detail]),
         fetchImpl: github({ issue, comments: [comment('approve')] }),
         adapter: await pinnedAdapter(store), policy: POLICY,
     });
-    assert.equal(summary.applied, items.length, JSON.stringify(events));
-    for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
-    assert.equal(heldAtGate(store.db, 'gate-1').length, 0);
+    assert.equal(summary.applied, 0);
+    for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    assert.equal(heldAtGate(store.db, 'gate-1').length, items.length);
     store.close();
 });
 
-test('ADR-0025 amendment: a bare deny comment denies every item on the issue with an honest synthesized reason', async () => {
+test('a bare deny comment changes nothing because denials must name an item', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search']);
     const summary = await applyGateDecisions({
         store, track: 'track-1', repo: REPO, token: 't',
         fetchImpl: github({ issue, comments: [comment('Denied')] }),
         adapter: await pinnedAdapter(store), policy: POLICY,
     });
-    assert.equal(summary.applied, items.length);
-    for (const item of items) {
-        assert.equal(currentStateOf(store.db, item.item_id), 'denied');
-        const [decision] = store.listDecisions(item.item_id);
-        assert.equal(decision.decision, 'deny');
-    }
+    assert.equal(summary.applied, 0);
+    for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
     store.close();
 });
 
-test('ADR-0025 amendment: an individual deny posted before a bare approve produces a mixed outcome', async () => {
+test('an individual deny posted before a bare approve leaves the bare comment inert', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
     const [denyThis, ...rest] = items;
     const denyBody = `/orchard gate1 deny item=${denyThis.item_id} revision=1 digest=${denyThis.proposal_digest} reason="not a real gap"`;
-    // GitHub returns comments in creation order; the denial is listed first,
-    // exactly as it would be if the owner typed it before the bare approve.
     const comments = [comment(denyBody, { id: 1 }), comment('approve', { id: 2 })];
     const summary = await applyGateDecisions({
         store, track: 'track-1', repo: REPO, token: 't',
         fetchImpl: github({ issue, comments }),
         adapter: await pinnedAdapter(store), policy: POLICY,
     });
-    assert.equal(summary.applied, items.length, 'one decision per item, whichever comment decided it');
-    assert.equal(currentStateOf(store.db, denyThis.item_id), 'denied', 'the individually denied item must not be swept up by the later bare approve');
-    for (const item of rest) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
+    assert.equal(summary.applied, 1);
+    assert.equal(currentStateOf(store.db, denyThis.item_id), 'denied');
+    for (const item of rest) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
     store.close();
 });
 
-test('ADR-0025 amendment: a bare approve when nothing is pending is quiet, not an error', async () => {
-    const { store, items, issue } = await multiEstate(['prompt-injection']);
-    await applyGateDecisions({
-        store, track: 'track-1', repo: REPO, token: 't',
-        fetchImpl: github({ issue, comments: [comment('approve', { id: 1 })] }),
-        adapter: await pinnedAdapter(store), policy: POLICY,
-    });
-    assert.equal(currentStateOf(store.db, items[0].item_id), 'gate1-approved');
-
-    const events = [];
-    const second = await applyGateDecisions({
-        store, track: 'track-1', repo: REPO, token: 't',
-        log: (_l, event, detail) => events.push([event, detail]),
-        fetchImpl: github({ issue, comments: [comment('approve', { id: 1 })] }),
-        adapter: await pinnedAdapter(store), policy: POLICY,
-    });
-    assert.equal(second.applied, 0);
-    assert.equal(second.unchanged, 1);
-    assert.ok(events.some(([event]) => event === 'gate.apply.bare-decision-nothing-pending'), JSON.stringify(events));
-    store.close();
-});
-
-test('ADR-0025 amendment: a bare approve from an unauthorised actor changes nothing', async () => {
+test('a bare approve from an unauthorised actor is ignored like any other non-command prose', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search']);
     const summary = await applyGateDecisions({
         store, track: 'track-1', repo: REPO, token: 't',
@@ -406,7 +376,7 @@ test('ADR-0025 amendment: a bare approve from an unauthorised actor changes noth
         adapter: await pinnedAdapter(store), policy: POLICY,
     });
     assert.equal(summary.applied, 0);
-    assert.equal(summary.refused, 1);
+    assert.equal(summary.refused, 0);
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
     store.close();
 });
