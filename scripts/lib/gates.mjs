@@ -139,25 +139,43 @@ function gate2AttentionReason(item) {
     return bad.length ? bad.join(', ') : null;
 }
 
+function gate2SummaryStatus(item) {
+    const refusal = manifestItemRefusal(item);
+    if (refusal) return { kind: 'not-approvable', reason: 'the drafter refused to write this item; no approve command is offered' };
+    if (item.escalated) return { kind: 'attention', reason: 'rejected twice by the ensemble -- your call' };
+    const reason = gate2AttentionReason(item);
+    return reason ? { kind: 'attention', reason } : null;
+}
+
 function renderGateSummary(manifest) {
     if (manifest.gate !== 'gate-2') {
         return [`**${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'}**, all newly proposed -- there is nothing to compare against yet, so nothing here is flagged.`, ''];
     }
-    const attention = manifest.items
-        .map((item) => ({ item, reason: gate2AttentionReason(item) }))
-        .filter((entry) => entry.reason);
-    if (attention.length === 0) {
+    const flagged = manifest.items
+        .map((item) => ({ item, status: gate2SummaryStatus(item) }))
+        .filter((entry) => entry.status);
+    const attention = flagged.filter((entry) => entry.status.kind === 'attention');
+    const refusals = flagged.filter((entry) => entry.status.kind === 'not-approvable');
+    if (flagged.length === 0) {
         return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];
     }
-    const clean = manifest.items.length - attention.length;
+    const clean = manifest.items.length - flagged.length;
     const lines = [
-        `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`,
-        `Commenting the bare word \`approve\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`,
-        '',
+        refusals.length === 0
+            ? `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`
+            : attention.length === 0
+                ? `**${refusals.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} ${refusals.length === 1 ? 'is' : 'are'} not approvable in ${refusals.length === 1 ? 'its' : 'their'} current form.**`
+                : `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve, and ${refusals.length} ${refusals.length === 1 ? 'item is' : 'items are'} not approvable in ${refusals.length === 1 ? 'its' : 'their'} current form.**`,
     ];
+    lines.push(
+        refusals.length === 0
+            ? `Commenting the bare word \`approve\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`
+            : 'Use the per-item approve commands offered below only for approvable items. Any item marked **NOT APPROVABLE** must be returned with `request-changes` instead.',
+        '',
+    );
     if (clean > 0) lines.push(`${clean} item${clean === 1 ? '' : 's'} passed every review and are safe to approve individually.`, '');
     lines.push('| Needs attention | Why |', '| --- | --- |');
-    for (const { item, reason } of attention) lines.push(`| \`${item.item_id}\` (${safe(item.target.path)}) | ${safe(reason)} |`);
+    for (const { item, status } of flagged) lines.push(`| \`${item.item_id}\` (${safe(item.target.path)}) | ${safe(status.reason)} |`);
     lines.push('');
     return lines;
 }

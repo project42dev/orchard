@@ -333,6 +333,29 @@ test('an escalated (rejected-twice) item shows a distinct badge and the real rea
   assert.ok(body.includes('✅ passed every review'), 'a clean neighbor item in the same batch keeps its own ordinary badge');
 });
 
+test('a Gate 2 summary does not misclassify a drafter refusal as an approvable factual-review failure', () => {
+  const clean = gate2Item('clean-neighbor', { reviewsPassed: true });
+  const failed = gate2Item('review-failed-item', { reviewsPassed: false });
+  const refused = {
+    ...gate2Item('refused-item', { reviewsPassed: false }),
+    content: JSON.stringify({
+      status: 'BLOCKED',
+      reason: 'A truthful Resource object cannot be produced from the supplied material.',
+      requiredInputs: ['The existing object'],
+    }, null, 2),
+  };
+  const manifest = gate2Manifest([clean, failed, refused]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('1 of 3 item') && body.includes('1 item is not approvable'),
+    'the summary must split ordinary review failures from drafter refusals');
+  assert.ok(body.includes('review-failed-item') && body.includes('factual review failed'),
+    'the ordinary failed review stays named in the summary');
+  assert.ok(body.includes('refused-item') && body.includes('no approve command is offered'),
+    'the refusal row must say why approval is unavailable');
+  assert.ok(!body.includes('including the 2 below'),
+    'the mixed warning for approvable failed reviews must not be reused when one item has no approve command');
+});
+
 test('a factual-review-failed item shows the REAL finding text, not just a handoff-id pointer the owner cannot follow', () => {
   // Found live 2026-08-18: the owner pasted a real issue with "factual
   // review failed" and nothing else to go on except an
@@ -594,4 +617,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-
