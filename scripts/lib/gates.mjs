@@ -144,7 +144,11 @@ function renderGateSummary(manifest) {
         return [`**${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'}**, all newly proposed -- there is nothing to compare against yet, so nothing here is flagged.`, ''];
     }
     const attention = manifest.items
-        .map((item) => ({ item, reason: gate2AttentionReason(item) }))
+        .map((item) => {
+        const refusal = manifestItemRefusal(item);
+        if (refusal) return { item, reason: 'drafter refused (no draft to publish)' };
+        return { item, reason: gate2AttentionReason(item) };
+    })
         .filter((entry) => entry.reason);
     if (attention.length === 0) {
         return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];

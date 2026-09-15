@@ -282,6 +282,20 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
 });
 
+test('a drafter refusal is counted as attention in the summary, not as safe-to-approve', () => {
+  const failing = gate2Item('failing-item', { reviewsPassed: false });
+  const refused = {
+    ...gate2Item('refused-item', { reviewsPassed: true }),
+    content: JSON.stringify({ status: 'BLOCKED', reason: 'missing source evidence' }),
+  };
+  const clean = gate2Item('clean-item', { reviewsPassed: true });
+  const manifest = gate2Manifest([failing, refused, clean]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('2 of 3 item'), 'failed review plus drafter refusal must both count as needing attention');
+  assert.ok(body.includes('1 item passed every review and are safe to approve individually.'), 'only clean reviewed items are safe to approve');
+  assert.ok(body.includes('| `refused-item` (modules/discovery/refused-item.json) | drafter refused (no draft to publish) |'));
+});
+
 test('a Gate 2 item shows badge, target, and the approve command before any digest -- the binding table is collapsed, not a wall between them', () => {
   // Found live 2026-08-17, TWICE: the owner rejected the same issue twice
   // because the badge/summary fix (previous test above) was necessary but
@@ -594,4 +608,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-
