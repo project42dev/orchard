@@ -302,20 +302,20 @@ test('the anchor refuses an adapter the release did not bind, and logins in plac
     store.close();
 });
 
-/** Like estate(), but holds several items behind one issue, for the whole-issue commands. */
-async function multiEstate(terms) {
+/** Like estate(), but holds several items behind one issue, for whole-issue command coverage. */
+async function multiEstate(terms, { gate = 'gate-1' } = {}) {
     const directory = mkdtempSync(join(tmpdir(), 'orchard-apply-'));
     temporaries.push(directory);
     const store = openStateStore(join(directory, 'state.db'));
     const runId = generateUuidV7();
     await store.recordRun(runManifest(runId));
     await persistDiscoveryItems({ store, runId, candidates: terms.map((term) => candidate(term)) });
-    const held = heldAtGate(store.db, 'gate-1', 'track-1');
+    const held = heldAtGate(store.db, gate, 'track-1');
     const [manifest] = await generateGateManifests({
-        gate: 'gate-1', runId, track: 'track-1', items: held.map(({ track: _t, ...entry }) => entry),
+        gate, runId, track: 'track-1', items: held.map(({ track: _t, ...entry }) => entry),
     });
     const body = [
-        `<!-- orchard:gate track=track-1 gate=gate-1 batch=sha256:${'a'.repeat(64)} -->`,
+        `<!-- orchard:gate track=track-1 gate=${gate} batch=sha256:${'a'.repeat(64)} -->`,
         '', '<details>', '', '```json', JSON.stringify(manifest), '```', '', '</details>',
     ].join('\n');
     store.provisionTrustAnchor({
@@ -408,6 +408,53 @@ test('ADR-0025 amendment: a bare approve from an unauthorised actor changes noth
     assert.equal(summary.applied, 0);
     assert.equal(summary.refused, 1);
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    store.close();
+});
+
+test('Gate 2 refuses bare whole-issue approve comments and requires per-item commands', async () => {
+    const { store, item } = await estate();
+    const gate2Manifest = {
+        schema_version: '1.0.0',
+        gate: 'gate-2',
+        run_id: generateUuidV7(),
+        track: 'track-1',
+        batch: { ordinal: 1, count: 1, item_count: 1, total_item_count: 1, maximum_size: 20 },
+        full_manifest_digest: DIGEST,
+        batch_digest: DIGEST,
+        idempotency_key: 'github:gate-2:test:test',
+        items: [{
+            item_id: generateUuidV7(),
+            item_revision: 1,
+            artifact_digest: DIGEST,
+            target: { repository: 'project42dev/project42-content', path: 'modules/discovery/test.json' },
+            decision_state: 'pending',
+        }],
+    };
+    const issue = {
+        number: 9,
+        body: [
+            `<!-- orchard:gate track=track-1 gate=gate-2 batch=sha256:${'a'.repeat(64)} -->`,
+            '',
+            '<details>',
+            '',
+            '```json',
+            JSON.stringify(gate2Manifest),
+            '```',
+            '',
+            '</details>',
+        ].join('\n'),
+    };
+    const events = [];
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: github({ issue, comments: [comment('approved')] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, 0);
+    assert.equal(summary.refused, 1);
+    assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    assert.ok(events.some(([event]) => event === 'gate.apply.bare-decision-refused'), JSON.stringify(events));
     store.close();
 });
 

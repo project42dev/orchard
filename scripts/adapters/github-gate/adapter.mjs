@@ -148,6 +148,9 @@ export async function fetchVerifiedEvent(reference, { fetchImpl = fetch, env = p
     let item;
     let body;
     if (bareMatch) {
+        if (manifest.gate === "gate-2") {
+            fail("command.grammar", "a bare approve or deny is not a Gate 2 decision; use a per-item /orchard gate2 command");
+        }
         // The comment itself names nothing: the caller must say which item
         // this particular verification resolves, and that item must be real,
         // read from the same manifest the structured path trusts.

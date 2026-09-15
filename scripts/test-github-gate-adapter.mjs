@@ -141,6 +141,24 @@ test('a bare decision naming an item this issue does not offer is refused', asyn
     );
 });
 
+test('Gate 2 refuses a bare approve comment and requires a per-item command', async () => {
+    const itemId = generateUuidV7();
+    const body = ['# issue', '', '<details>', '', '```json', JSON.stringify({
+        gate: 'gate-2',
+        run_id: generateUuidV7(),
+        track: 'track-1',
+        batch_digest: `sha256:${'2'.repeat(64)}`,
+        idempotency_key: 'github:gate-2:test:test',
+        items: [{ item_id: itemId, item_revision: 1, artifact_digest: `sha256:${'1'.repeat(64)}`, target: { repository: 'project42dev/project42-content', path: 'modules/discovery/a.json' } }],
+    }), '```', '', '</details>'].join('\n');
+    await assert.rejects(
+        () => fetchVerifiedEvent({ ...reference, current_state: 'gate2-pending', expected_item_id: itemId }, {
+            env: ENV, fetchImpl: responder({ comment: commentOn(itemId, { body: 'approved' }), issue: { number: 9, body } }),
+        }),
+        /not a Gate 2 decision/,
+    );
+});
+
 test('an edited bare approve comment is still reported as edited, which capture refuses', async () => {
     const { itemId, body } = await fixture();
     const event = await fetchVerifiedEvent({ ...reference, expected_item_id: itemId }, {
