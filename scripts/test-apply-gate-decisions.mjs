@@ -14,6 +14,7 @@ import { persistDiscoveryItems, heldAtGate } from './lib/gate-queue.mjs';
 import { generateGateManifests } from './lib/gates.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { protectedAdapterDigest } from './lib/protected-adapter.mjs';
+import { createTrack2RunRecord } from './lib/track-2-controller.mjs';
 import { adapterIdentity } from './adapters/github-gate/adapter.mjs';
 import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor, itemHandedOff } from './apply-gate-decisions.mjs';
 
@@ -332,7 +333,11 @@ async function gate2Estate(ids) {
     temporaries.push(directory);
     const store = openStateStore(join(directory, 'state.db'));
     const runId = generateUuidV7();
-    await store.recordRun({ ...runManifest(runId), track: 'track-2' });
+    await store.recordRun(createTrack2RunRecord({
+        runId, mode: 'subset', partitionSize: ids.length, concurrency: 1,
+        contentCommit: SHA, implementationCommit: SHA,
+    }, { expected: ids.length, enumerated: ids.length, inspected: ids.length, gaps: 0 }, 'completed',
+    '2026-08-12T00:00:00.000Z', '2026-08-12T00:10:00.000Z', ids.length));
     const items = ids.map((id) => ({
         item_id: id,
         item_revision: 1,
@@ -346,9 +351,10 @@ async function gate2Estate(ids) {
         artifact_ref: `evidence/artifact:${id}`,
         ado_external_key: `orchard:track-2:${id}:r1`,
         handoff_chain_digest: sha256Digest(`handoff:${id}`),
+        tests: [{ name: 'unit', status: 'passed', evidence_ref: `evidence:test:${id}` }],
         factual_review: { status: 'passed', evidence_ref: `evidence/factual:${id}` },
         accessibility_review: { status: 'human-review', evidence_ref: `evidence:a11y:${id}` },
-        title: `Item ${id}`,
+        cost: { currency: 'USD', amount: 0 },
         decision_state: 'pending',
     }));
     const [manifest] = await generateGateManifests({ gate: 'gate-2', runId, track: 'track-2', items });
