@@ -230,12 +230,26 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
             for (const comment of comments) {
                 const text = String(comment.body ?? "");
                 const structured = /\/orchard gate[12] /.test(text);
-                // ADR-0025, amendment 2026-08-16. Checked BEFORE the actor
-                // allowlist look-up shares its own log lines with the
-                // structured path below.
                 const bareMatch = !structured ? /^(approve|approved|deny|denied)$/i.exec(text.trim()) : null;
-                const bareDecision = bareMatch ? (/^approve/i.test(bareMatch[1]) ? "approve" : "deny") : null;
-                if (!structured && !bareDecision) continue;
+                // Whole-issue bare decisions remain a Gate 1-only path. Gate 2
+                // issues now state the rule explicitly: decisions are item-
+                // specific and a whole-issue approve does not change state,
+                // which is the only safe rule for mixed batches carrying items
+                // that failed review beside items that passed.
+                const bareDecision = gate === "gate-1" && bareMatch
+                    ? (/^approve/i.test(bareMatch[1]) ? "approve" : "deny")
+                    : null;
+                if (!structured && !bareDecision) {
+                    if (gate === "gate-2" && bareMatch) {
+                        summary.refused += 1;
+                        log("warn", "gate.apply.whole-issue-decision-refused", {
+                            gate, issue: issue.number, comment: comment.id,
+                            decision: /^approve/i.test(bareMatch[1]) ? "approve" : "deny",
+                            effect: "Gate 2 decisions are item-specific; use the per-item command printed on the issue",
+                        });
+                    }
+                    continue;
+                }
 
                 const actorId = comment.user?.id === undefined ? null : String(comment.user.id);
                 if (!actorId || !allowed.has(actorId)) {

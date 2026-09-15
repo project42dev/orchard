@@ -22,6 +22,7 @@ const OWNER_ID = 4242;
 const ADAPTER = resolve('scripts/adapters/github-gate/adapter.mjs');
 const DIGEST = `sha256:${'0'.repeat(64)}`;
 const SHA = '0'.repeat(40);
+const hashOf = (character) => `sha256:${character.repeat(64)}`;
 const temporaries = [];
 
 const POLICY = Object.freeze({
@@ -327,6 +328,111 @@ async function multiEstate(terms) {
     return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
 }
 
+function gate2ManifestItem(ordinal, { factualStatus = 'passed' } = {}) {
+    const itemId = generateUuidV7();
+    const nibble = ((ordinal % 6) + 1).toString();
+    return {
+        item_id: itemId,
+        item_revision: 1,
+        artifact_digest: hashOf(nibble),
+        proposal_digest: hashOf(((ordinal + 1) % 6 + 1).toString()),
+        displayed_diff_digest: hashOf(((ordinal + 2) % 6 + 1).toString()),
+        prepared_tree_digest: hashOf(((ordinal + 3) % 6 + 1).toString()),
+        target: { repository: 'project42dev/project42-content', path: `content/item-${ordinal}.md` },
+        base_commit: SHA,
+        diff_ref: `evidence/diff/${ordinal}`,
+        artifact_ref: `evidence/artifact/${ordinal}`,
+        ado_external_key: `orchard:track-1:${itemId}:r1`,
+        handoff_chain_digest: hashOf(((ordinal + 4) % 6 + 1).toString()),
+        tests: [{ name: 'unit', status: 'passed', evidence_ref: `evidence/test/${ordinal}` }],
+        factual_review: { status: factualStatus, evidence_ref: `evidence/factual/${ordinal}` },
+        accessibility_review: { status: 'passed', evidence_ref: `evidence/a11y/${ordinal}` },
+        cost: { currency: 'USD', amount: 0 },
+        decision_state: 'pending',
+    };
+}
+
+async function multiGate2Estate(reviewStatuses) {
+    const directory = mkdtempSync(join(tmpdir(), 'orchard-apply-'));
+    temporaries.push(directory);
+    const store = openStateStore(join(directory, 'state.db'));
+    const runId = generateUuidV7();
+    await store.recordRun(runManifest(runId));
+    const [manifest] = await generateGateManifests({
+        gate: 'gate-2',
+        runId,
+        track: 'track-1',
+        items: reviewStatuses.map((status, index) => gate2ManifestItem(index, { factualStatus: status })),
+    });
+    const body = [
+        `<!-- orchard:gate track=track-1 gate=gate-2 batch=sha256:${'a'.repeat(64)} -->`,
+        '',
+        '<details>',
+        '',
+        '```json',
+        JSON.stringify(manifest),
+        '```',
+        '',
+        '</details>',
+    ].join('\n');
+    store.provisionTrustAnchor({
+        scope: 'gate', adapter_identity: adapterIdentity,
+        adapter_digest: await protectedAdapterDigest(ADAPTER), adapter_path: ADAPTER,
+        policy_digest: sha256Digest(POLICY), policy: POLICY,
+        provisioned_at: '2026-08-15T00:00:00.000Z',
+    });
+    for (const item of manifest.items) {
+        store.db.prepare(`INSERT INTO workflow_item (item_id, origin_run_id, track, semantic_identity, surface, outcome,
+            current_revision, current_state, created_at, updated_at) VALUES (?, ?, ?, ?, 'docs', 'addition', 1, 'gate2-pending', ?, ?)`)
+            .run(item.item_id, runId, manifest.track, `content:${item.item_id}`, '2026-08-15T00:00:00.000Z', '2026-08-15T00:00:00.000Z');
+        store.db.prepare(`INSERT INTO item_revision (item_id, item_revision, run_id, proposal_digest, artifact_digest,
+            target_repository, target_path, lifecycle_key, record_json, created_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, '{}', ?)`)
+            .run(
+                item.item_id,
+                runId,
+                item.proposal_digest,
+                item.artifact_digest,
+                item.target.repository,
+                item.target.path,
+                `track-1:${item.item_id}:r1:revision`,
+                '2026-08-15T00:00:00.000Z',
+            );
+        const handoffId = generateUuidV7();
+        store.db.prepare(`INSERT INTO agent_handoff (handoff_id, run_id, item_id, item_revision, role, input_digest,
+            output_digest, predecessor_handoff_digest, idempotency_key, status, completed_at, record_json)
+            VALUES (?, ?, ?, 1, 'final-reviewer', ?, ?, NULL, ?, 'passed', ?, '{}')`)
+            .run(handoffId, runId, item.item_id, hashOf('7'), item.artifact_digest, `handoff:${item.item_id}:1`, '2026-08-15T00:00:00.000Z');
+        const artifact = {
+            binding_id: generateUuidV7(),
+            idempotency_key: `artifact:${item.item_id}:1`,
+            run_id: runId,
+            item_id: item.item_id,
+            item_revision: 1,
+            artifact_digest: item.artifact_digest,
+            final_handoff_id: handoffId,
+            final_handoff_digest: item.artifact_digest,
+            scope_digest: hashOf('8'),
+            occurred_at: '2026-08-15T00:00:00.000Z',
+        };
+        store.db.prepare(`INSERT INTO artifact_binding (binding_id, idempotency_key, run_id, item_id, item_revision,
+            artifact_digest, final_handoff_id, final_handoff_digest, scope_digest, occurred_at, record_json)
+            VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`)
+            .run(
+                artifact.binding_id,
+                artifact.idempotency_key,
+                artifact.run_id,
+                artifact.item_id,
+                artifact.artifact_digest,
+                artifact.final_handoff_id,
+                artifact.final_handoff_digest,
+                artifact.scope_digest,
+                artifact.occurred_at,
+                JSON.stringify(artifact),
+            );
+    }
+    return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
+}
+
 test('ADR-0025 amendment: a bare approve comment approves every item on the issue', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
     const events = [];
@@ -408,6 +514,28 @@ test('ADR-0025 amendment: a bare approve from an unauthorised actor changes noth
     assert.equal(summary.applied, 0);
     assert.equal(summary.refused, 1);
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    store.close();
+});
+
+test('Gate 2 refuses bare whole-issue approve or deny comments, so a mixed batch stays item-specific', async () => {
+    const { store, items, issue } = await multiGate2Estate(['passed', 'failed', 'passed']);
+    for (const body of ['approve', 'Denied']) {
+        const events = [];
+        const summary = await applyGateDecisions({
+            store, track: 'track-1', repo: REPO, token: 't',
+            log: (_l, event, detail) => events.push([event, detail]),
+            fetchImpl: github({ issue, comments: [comment(body)] }),
+            adapter: await pinnedAdapter(store), policy: POLICY,
+        });
+        assert.equal(summary.applied, 0, JSON.stringify(events));
+        assert.equal(summary.refused, 1, JSON.stringify(events));
+        for (const item of items) {
+            assert.equal(currentStateOf(store.db, item.item_id), 'gate2-pending');
+            assert.deepEqual(store.listDecisions(item.item_id), []);
+        }
+        const refusal = events.find(([event]) => event === 'gate.apply.whole-issue-decision-refused');
+        assert.equal(refusal?.[1]?.gate, 'gate-2');
+    }
     store.close();
 });
 
