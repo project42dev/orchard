@@ -201,7 +201,7 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
     `Batch: ${manifest.batch.ordinal} of ${manifest.batch.count}; ${manifest.batch.item_count} item(s) in this issue; ${manifest.batch.total_item_count} total`,
     `Full manifest digest: \`${manifest.full_manifest_digest}\``, `Batch digest: \`${manifest.batch_digest}\``, `Idempotency key: \`${manifest.idempotency_key}\``, '',
         ...renderGateSummary(manifest),
-        '> Decisions are item-specific. General prose, reactions, labels, and whole-issue approval do not change state.', ''];
+        '> Decisions are applied per item. General prose, reactions, and labels do not change state.', ''];
     if (compact) {
         lines.push('> Per-item rationale, evidence, risks, and review detail are omitted from this rendering so the machine-readable manifest below fits GitHub\'s body limit. Every field is still in that manifest and on the item\'s own ADO work item.', '');
     }
