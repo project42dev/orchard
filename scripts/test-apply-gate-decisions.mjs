@@ -327,6 +327,71 @@ async function multiEstate(terms) {
     return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
 }
 
+async function gate2Estate(ids) {
+    const directory = mkdtempSync(join(tmpdir(), 'orchard-apply-gate2-'));
+    temporaries.push(directory);
+    const store = openStateStore(join(directory, 'state.db'));
+    const runId = generateUuidV7();
+    await store.recordRun({ ...runManifest(runId), track: 'track-2' });
+    const items = ids.map((id) => ({
+        item_id: id,
+        item_revision: 1,
+        artifact_digest: sha256Digest(`artifact:${id}`),
+        proposal_digest: sha256Digest(`proposal:${id}`),
+        displayed_diff_digest: sha256Digest(`diff:${id}`),
+        prepared_tree_digest: sha256Digest(`tree:${id}`),
+        target: { repository: 'project42dev/project42-content', path: `resources/${id}.json` },
+        base_commit: 'a'.repeat(40),
+        diff_ref: `evidence/diff:${id}`,
+        artifact_ref: `evidence/artifact:${id}`,
+        ado_external_key: `orchard:track-2:${id}:r1`,
+        handoff_chain_digest: sha256Digest(`handoff:${id}`),
+        factual_review: { status: 'passed', evidence_ref: `evidence/factual:${id}` },
+        accessibility_review: { status: 'human-review', evidence_ref: `evidence:a11y:${id}` },
+        title: `Item ${id}`,
+        decision_state: 'pending',
+    }));
+    const [manifest] = await generateGateManifests({ gate: 'gate-2', runId, track: 'track-2', items });
+    const body = [
+        `<!-- orchard:gate track=track-2 gate=gate-2 batch=sha256:${'a'.repeat(64)} -->`,
+        '', '<details>', '', '```json', JSON.stringify(manifest), '```', '', '</details>',
+    ].join('\n');
+    store.provisionTrustAnchor({
+        scope: 'gate', adapter_identity: adapterIdentity,
+        adapter_digest: await protectedAdapterDigest(ADAPTER), adapter_path: ADAPTER,
+        policy_digest: sha256Digest(POLICY), policy: POLICY,
+        provisioned_at: '2026-08-15T00:00:00.000Z',
+    });
+    const db = store.db;
+    for (const item of manifest.items) {
+        db.prepare(`INSERT INTO workflow_item (item_id, origin_run_id, track, semantic_identity, surface, outcome,
+            current_revision, current_state, created_at, updated_at) VALUES (?, ?, ?, ?, 'docs', 'addition', 1, 'gate2-pending', ?, ?)`)
+            .run(item.item_id, runId, 'track-2', `content:${item.item_id}`, '2026-08-12T00:00:00.000Z', '2026-08-12T00:00:00.000Z');
+        db.prepare(`INSERT INTO item_revision (item_id, item_revision, run_id, proposal_digest, artifact_digest,
+            target_repository, target_path, lifecycle_key, record_json, created_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?, '{}', ?)`)
+            .run(item.item_id, runId, item.proposal_digest, item.artifact_digest, item.target.repository, item.target.path,
+                `track-2:${item.item_id}:r1:revision`, '2026-08-12T00:00:00.000Z');
+        const handoffId = generateUuidV7();
+        db.prepare(`INSERT INTO agent_handoff (handoff_id, run_id, item_id, item_revision, role, input_digest,
+            output_digest, predecessor_handoff_digest, idempotency_key, status, completed_at, record_json)
+            VALUES (?, ?, ?, 1, 'final-reviewer', ?, ?, NULL, ?, 'passed', ?, '{}')`)
+            .run(handoffId, runId, item.item_id, sha256Digest(`input:${item.item_id}`), item.artifact_digest,
+                `handoff:${handoffId}`, '2026-08-12T00:00:00.000Z');
+        const artifact = {
+            binding_id: generateUuidV7(), idempotency_key: `artifact:${item.item_id}:1`,
+            run_id: runId, item_id: item.item_id, item_revision: 1, artifact_digest: item.artifact_digest,
+            final_handoff_id: handoffId, final_handoff_digest: item.artifact_digest, scope_digest: sha256Digest(`scope:${item.item_id}`),
+            occurred_at: '2026-08-12T00:00:00.000Z'
+        };
+        db.prepare(`INSERT INTO artifact_binding (binding_id, idempotency_key, run_id, item_id, item_revision,
+            artifact_digest, final_handoff_id, final_handoff_digest, scope_digest, occurred_at, record_json)
+            VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)`)
+            .run(artifact.binding_id, artifact.idempotency_key, runId, item.item_id, item.artifact_digest, handoffId,
+                item.artifact_digest, artifact.scope_digest, artifact.occurred_at, JSON.stringify(artifact));
+    }
+    return { store, manifest, items: manifest.items, issue: { number: 9, body } };
+}
+
 test('ADR-0025 amendment: a bare approve comment approves every item on the issue', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
     const events = [];
@@ -408,6 +473,22 @@ test('ADR-0025 amendment: a bare approve from an unauthorised actor changes noth
     assert.equal(summary.applied, 0);
     assert.equal(summary.refused, 1);
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-pending');
+    store.close();
+});
+
+test('Gate 2 whole-issue bare approve is refused; only per-item commands can decide publication', async () => {
+    const { store, items, issue } = await gate2Estate([generateUuidV7(), generateUuidV7()]);
+    const events = [];
+    const summary = await applyGateDecisions({
+        store, track: 'track-2', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: github({ issue, comments: [comment('approved')] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, 0);
+    assert.equal(summary.refused, 1);
+    for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate2-pending');
+    assert.ok(events.some(([event]) => event === 'gate.apply.whole-issue-decision-refused'), JSON.stringify(events));
     store.close();
 });
 

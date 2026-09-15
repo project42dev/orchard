@@ -112,11 +112,10 @@ const safe = (value) => String(value).replaceAll('|', '\\|').replaceAll('\n', '<
 
 // Found live 2026-08-17: an owner staring at a Gate 2 issue full of digests
 // had no way to tell, without reading every table cell, that one of three
-// items had FAILED its factual review while the other two passed -- and a
-// bare "approve" comment approves every item on the issue with no
-// distinction. This surfaces exactly that distinction up front, once, in
-// plain language, instead of leaving it buried in a table row the reader
-// has to already know to look for.
+// items had FAILED its factual review while the other two passed. This
+// surfaces exactly that distinction up front, once, in plain language,
+// instead of leaving it buried in a table row the reader has to already know
+// to look for.
 //
 // ONLY "failed" is a red flag. The schema (gate-2-issue-manifest) allows
 // three statuses -- passed, failed, human-review -- and "human-review" is
@@ -147,12 +146,12 @@ function renderGateSummary(manifest) {
         .map((item) => ({ item, reason: gate2AttentionReason(item) }))
         .filter((entry) => entry.reason);
     if (attention.length === 0) {
-        return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];
+        return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Use the per-item command shown below to approve each one.`, ''];
     }
     const clean = manifest.items.length - attention.length;
     const lines = [
         `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`,
-        `Commenting the bare word \`approve\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`,
+        `Whole-issue approval does not change state here -- use the per-item command for each item you want to decide, including the ${attention.length} below.`,
         '',
     ];
     if (clean > 0) lines.push(`${clean} item${clean === 1 ? '' : 's'} passed every review and are safe to approve individually.`, '');
