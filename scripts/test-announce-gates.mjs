@@ -229,6 +229,8 @@ test('a Gate 2 issue where every item passed review tells the owner it is safe t
   assert.ok(body.includes('All 2 items passed every review'), 'the summary must say plainly that every item is clean');
   assert.ok(body.includes('`approve` or `approved`'), 'the summary must name both whole-issue approval spellings the gate accepts');
   assert.ok(body.includes('safe to bare-approve') || body.includes('approves all of them'), 'the summary must say a bare approve is safe here');
+  assert.ok(!body.includes('whole-issue approval do not change state'),
+    'the footer must not contradict the summary by claiming a bare whole-issue approval is inert');
   assert.ok(!body.includes('NEEDS ATTENTION'), 'a clean issue must not show any attention badge');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
   assert.equal(okBadges, 2, 'every item must carry its own clean badge, not just the summary');
