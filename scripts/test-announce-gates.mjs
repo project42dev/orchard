@@ -227,6 +227,7 @@ test('a Gate 2 issue where every item passed review tells the owner it is safe t
   const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true })]);
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('All 2 items passed every review'), 'the summary must say plainly that every item is clean');
+  assert.ok(body.includes('`approve` or `approved`'), 'the summary must name both whole-issue approval spellings the gate accepts');
   assert.ok(body.includes('safe to bare-approve') || body.includes('approves all of them'), 'the summary must say a bare approve is safe here');
   assert.ok(!body.includes('NEEDS ATTENTION'), 'a clean issue must not show any attention badge');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
@@ -273,13 +274,22 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('2 of 3 items need') === false, 'exactly ONE item is bad here, the count must say 1 of 3, not 2 of 3');
   assert.ok(body.includes('1 of 3 item'), 'the summary must state the exact count needing attention');
-  assert.ok(/bare word `approve`.*approves EVERY item.*including the 1 below/s.test(body) || body.includes('including the 1 below'),
+  assert.ok(/bare word `approve` or `approved`.*approves EVERY item.*including the 1 below/s.test(body) || body.includes('including the 1 below'),
     'the summary must explicitly warn that bare-approve would also approve the failed item, not just mention attention is needed');
   assert.ok(body.includes('c-failed-item') && body.includes('factual review failed'),
     'the summary table must name the specific item and the specific reason, not a generic "needs review"');
   assert.ok(body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'the failed item\'s own section must carry a visible badge, not just the summary table');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
   assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
+});
+
+test('a mixed Gate 2 issue uses singular grammar when exactly one clean item is individually approvable', () => {
+  const body = renderGateIssueBody(gate2Manifest([
+    gate2Item('clean-item', { reviewsPassed: true }),
+    gate2Item('failed-item', { reviewsPassed: false }),
+  ]));
+  assert.ok(body.includes('1 item passed every review and is safe to approve individually.'),
+    'a mixed issue with exactly one clean item must say that item is safe, not that one item "are" safe');
 });
 
 test('a Gate 2 item shows badge, target, and the approve command before any digest -- the binding table is collapsed, not a wall between them', () => {
@@ -594,4 +604,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-
