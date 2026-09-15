@@ -925,6 +925,10 @@ const SURFACE_CRITERIA = {
     'The module declares its level and does not assume knowledge above that level without saying so.',
   ],
   'field-guide': [
+    'The deliverable is a single JSON object that JSON.parse accepts on the first attempt, with no Markdown, code fence, heading, or commentary anywhere outside it.',
+    'Every required Resource field is present: id, slug, title, summary, category, format, audience, level, providers, prerequisites, owner, reviewCadenceDays, lastVerified, tags, sections, sources. A resource missing one of them is refused by the platform catalogue.',
+    'The resource id is kebab-case, slug matches id exactly, and both match the target file name without its .json extension.',
+    'The resource carries exactly three sections, and the last section states the expected evidence or result and how a reader verifies it.',
     'The piece answers a question a practitioner arrives with, and answers it before it explains itself.',
     'Every procedure step that can fail carries a remediation path. A step that can fail with no stated next action strands the reader.',
   ],
@@ -1403,4 +1407,3 @@ async function main() {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
-

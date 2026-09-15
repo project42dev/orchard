@@ -415,6 +415,30 @@ test("the learning acceptance criteria actually reach a learning item, under eit
     assert.equal(surfaceCriteriaFor("nonsense").length, 0, "an unknown surface gets no criteria rather than a guess");
 });
 
+test("the guide acceptance criteria actually reach a guide item, under either surface spelling", () => {
+    for (const surface of ["guide", "field-guide"]) {
+        const criteria = buildAcceptanceCriteria({
+            kind: "needs-updating",
+            surface,
+            title: "AI-Assisted Code Review Checklist",
+            subject_id: "ai-assisted-code-review-checklist-field-guide",
+            level: "intermediate",
+        }, null);
+        assert.ok(
+            criteria.some((entry) => entry.includes("JSON.parse accepts on the first attempt")),
+            `surface "${surface}" must carry the JSON criterion`,
+        );
+        assert.ok(
+            criteria.some((entry) => entry.includes("Every required Resource field is present")),
+            `surface "${surface}" must carry the required-field criterion`,
+        );
+        assert.ok(
+            criteria.some((entry) => entry.includes("exactly three sections")),
+            `surface "${surface}" must carry the three-section criterion`,
+        );
+    }
+});
+
 test("a module built to exactly what the brief demands passes the guard that refused the published nine", () => {
     const prompt = buildPrompt(LEARNING_ITEM, null, [], {});
     const built = learningModule();
