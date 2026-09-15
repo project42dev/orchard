@@ -6,6 +6,7 @@ import { parseDocument } from "yaml";
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const track1 = read("../.github/workflows/track-1-discovery.yml");
 const track2 = read("../.github/workflows/track-2-corpus-inspection.yml");
+const operations = read("../docs/operations.md");
 
 function parseWorkflow(workflow, name) {
     const document = parseDocument(workflow, { prettyErrors: true, uniqueKeys: true });
@@ -99,6 +100,12 @@ test("the Gate 2 reviewer's several-decisions-per-comment contract is what the w
     // The help text on a refused comment has to say the rule the script
     // enforces, or the owner cannot tell a refusal from a bug.
     assert.match(humanReview, /if any line is wrong, NONE of them is applied/);
+});
+
+test("the Gate 2 operations guide matches the mixed-issue whole-approval semantics", () => {
+    assert.match(operations, /Commenting `approved` or `approve` approves every still-pending item on that issue/);
+    assert.match(operations, /On a mixed issue, use the per-item commands instead/);
+    assert.doesNotMatch(operations, /whose evidence passed review/);
 });
 
 test("the curriculum request ingest is wired to run, and only reads", () => {
