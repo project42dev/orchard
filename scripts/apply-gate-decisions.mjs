@@ -251,6 +251,14 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                 }
 
                 if (bareDecision) {
+                    if (gate === "gate-2") {
+                        summary.refused += 1;
+                        log("warn", "gate.apply.bare-decision-refused", {
+                            gate, issue: issue.number, comment: comment.id, decision: bareDecision,
+                            effect: "Gate 2 decisions are item-specific only; the comment changed nothing",
+                        });
+                        continue;
+                    }
                     // Every item this issue offers that is still pending,
                     // read fresh per item so a decision applied earlier in
                     // THIS SAME pass (an individual structured command that

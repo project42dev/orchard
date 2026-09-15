@@ -13,18 +13,46 @@ import { generateUuidV7 } from './lib/identity.mjs';
 
 const ENV = { ORCHARD_GATE_GITHUB_TOKEN: 'token' };
 
-async function fixture() {
+async function fixture(gate = 'gate-1') {
     const itemId = generateUuidV7();
     const runId = generateUuidV7();
-    const [manifest] = await generateGateManifests({
-        gate: 'gate-1', runId, track: 'track-1',
-        items: [{
-            item_id: itemId, item_revision: 1, proposal_digest: `sha256:${'1'.repeat(64)}`,
-            category: 'new-module', title: 'A proposal', rationale: 'Because the sources say so',
-            evidence_refs: ['source-a:4'], score: { formula_version: '1.0.0', value: 30 },
+    const item = gate === 'gate-1'
+        ? {
+            item_id: itemId,
+            item_revision: 1,
+            proposal_digest: `sha256:${'1'.repeat(64)}`,
+            category: 'new-module',
+            title: 'A proposal',
+            rationale: 'Because the sources say so',
+            evidence_refs: ['source-a:4'],
+            score: { formula_version: '1.0.0', value: 30 },
             target: { repository: 'project42dev/project42-content', path: 'modules/discovery/a.json' },
-            risks: [], estimated_cost: { currency: 'USD', amount: 0.75 }, decision_state: 'pending',
-        }],
+            risks: [],
+            estimated_cost: { currency: 'USD', amount: 0.75 },
+            decision_state: 'pending',
+        }
+        : {
+            item_id: itemId,
+            item_revision: 1,
+            artifact_digest: `sha256:${'2'.repeat(64)}`,
+            proposal_digest: `sha256:${'1'.repeat(64)}`,
+            displayed_diff_digest: `sha256:${'3'.repeat(64)}`,
+            prepared_tree_digest: `sha256:${'4'.repeat(64)}`,
+            target: { repository: 'project42dev/project42-content', path: 'modules/discovery/a.json' },
+            base_commit: 'a'.repeat(40),
+            diff_ref: 'evidence/diff',
+            artifact_ref: 'evidence/artifact',
+            ado_external_key: `orchard:track-1:${itemId}:r1`,
+            handoff_chain_digest: `sha256:${'5'.repeat(64)}`,
+            tests: [{ name: 'unit', status: 'passed', evidence_ref: 'evidence:test' }],
+            factual_review: { status: 'passed', evidence_ref: 'evidence:factual' },
+            accessibility_review: { status: 'passed', evidence_ref: 'evidence:accessibility' },
+            cost: { currency: 'USD', amount: 0 },
+            decision_state: 'pending',
+        };
+    const [manifest] = await generateGateManifests({
+        gate, runId, track: 'track-1',
+        items: [item],
     });
     const body = ['# issue', '', '<details>', '', '```json', JSON.stringify(manifest), '```', '', '</details>'].join('\n');
     return { itemId, runId, manifest, body };
@@ -38,10 +66,10 @@ function responder({ comment, issue }) {
     };
 }
 
-function commentOn(itemId, overrides = {}) {
+function commentOn(itemId, overrides = {}, gateToken = 'gate1') {
     return {
         id: 555,
-        body: `/orchard gate1 approve item=${itemId} revision=1 digest=sha256:${'1'.repeat(64)}`,
+        body: `/orchard ${gateToken} approve item=${itemId} revision=1 digest=sha256:${(gateToken === 'gate1' ? '1' : '2').repeat(64)}`,
         user: { id: 4242, login: 'countrycloudboy' },
         created_at: '2026-08-15T12:00:00Z',
         updated_at: '2026-08-15T12:00:00Z',
@@ -149,6 +177,17 @@ test('an edited bare approve comment is still reported as edited, which capture 
     });
     assert.equal(event.edited, true);
     assert.equal(event.action, 'edited');
+});
+
+test('a bare Gate 2 approve comment is refused instead of being synthesized into a per-item command', async () => {
+    const { itemId, body } = await fixture('gate-2');
+    await assert.rejects(
+        () => fetchVerifiedEvent({ ...reference, current_state: 'gate2-pending', expected_item_id: itemId }, {
+            env: ENV,
+            fetchImpl: responder({ comment: commentOn(itemId, { body: 'approved' }, 'gate2'), issue: { number: 9, body } }),
+        }),
+        /not a Gate 2 decision/,
+    );
 });
 
 test('an issue with no machine-readable manifest can bind no decision', async () => {

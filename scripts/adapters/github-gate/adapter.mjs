@@ -39,18 +39,9 @@ const REPOSITORY = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 const ITEM = /\/orchard gate[12] (?:approve|deny|defer|request-changes) item=([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/;
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 
-// ADR-0025, amendment 2026-08-16. A comment whose entire body, trimmed, is
-// exactly one of these words decides every item on the issue that is still
-// pending, not the one item a structured command would name. It carries no
-// item, revision, or digest of its own, so the caller must supply which item
-// this particular verification is for (reference.expected_item_id) and this
-// function resolves and binds the rest from the issue's own manifest, the
-// same trusted source the structured path already reads. The binding
-// integrity option B (whole-issue approval) was rejected for is unchanged:
-// nothing here trusts anything the human typed beyond which of these two
-// words they wrote. Deny still requires a reason for the audit trail; a bare
-// deny cannot supply one a human authored, so this names honestly what
-// actually happened rather than inventing text and attributing it to them.
+// Gate 1 still accepts a whole-issue bare decision. Gate 2 does not: approval
+// there is bound to one exact artifact digest per item, so a comment that names
+// no item is not a Gate 2 decision at all.
 const BARE_DECISION = /^(approve|approved|deny|denied)$/i;
 const BARE_DENY_REASON = "denied via whole-issue bare deny comment";
 
@@ -148,6 +139,9 @@ export async function fetchVerifiedEvent(reference, { fetchImpl = fetch, env = p
     let item;
     let body;
     if (bareMatch) {
+        if (manifest.gate === "gate-2") {
+            fail("command.bare-forbidden", "a bare approve/approved/deny/denied comment is not a Gate 2 decision; post one per-item /orchard gate2 ... command instead");
+        }
         // The comment itself names nothing: the caller must say which item
         // this particular verification resolves, and that item must be real,
         // read from the same manifest the structured path trusts.
