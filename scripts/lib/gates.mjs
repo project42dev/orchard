@@ -147,12 +147,15 @@ function renderGateSummary(manifest) {
         .map((item) => ({ item, reason: gate2AttentionReason(item) }))
         .filter((entry) => entry.reason);
     if (attention.length === 0) {
-        return [`**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Commenting just the word \`approve\` on this issue approves all of them.`, ''];
+        return [
+            `**All ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} passed every review.** Gate 2 decisions are item-specific: approve each item with its own \`/orchard gate2 ...\` command.`,
+            '',
+        ];
     }
     const clean = manifest.items.length - attention.length;
     const lines = [
         `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`,
-        `Commenting the bare word \`approve\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`,
+        'Gate 2 decisions are item-specific only. General prose, reactions, labels, and bare whole-issue `approve`/`approved`/`deny`/`denied` comments do not change state.',
         '',
     ];
     if (clean > 0) lines.push(`${clean} item${clean === 1 ? '' : 's'} passed every review and are safe to approve individually.`, '');

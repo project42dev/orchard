@@ -223,11 +223,12 @@ function gate2Manifest(items) {
   };
 }
 
-test('a Gate 2 issue where every item passed review tells the owner it is safe to bare-approve', () => {
+test('a Gate 2 issue where every item passed review still tells the owner to approve each item individually', () => {
   const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true })]);
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('All 2 items passed every review'), 'the summary must say plainly that every item is clean');
-  assert.ok(body.includes('safe to bare-approve') || body.includes('approves all of them'), 'the summary must say a bare approve is safe here');
+  assert.match(body, /Gate 2 decisions are item-specific: approve each item with its own `\/orchard gate2 \.\.\.` command\./,
+    'the summary must say Gate 2 approval is still per-item even when every review passed');
   assert.ok(!body.includes('NEEDS ATTENTION'), 'a clean issue must not show any attention badge');
   const okBadges = (body.match(/✅ passed every review/g) || []).length;
   assert.equal(okBadges, 2, 'every item must carry its own clean badge, not just the summary');
@@ -260,21 +261,20 @@ test('accessibility_review that actually FAILED is still flagged -- only "human-
   assert.ok(body.includes('⚠️ NEEDS ATTENTION -- accessibility review failed'));
 });
 
-test('a Gate 2 issue with one failed review warns against bare-approve and names exactly which item, and why -- found live 2026-08-17', () => {
+test('a Gate 2 issue with one failed review names exactly which item needs attention and says Gate 2 decisions stay per-item -- found live 2026-08-17', () => {
   // The owner stared at a real 3-item Gate 2 issue where one item had FAILED
   // factual review, buried in a table cell identical in style to the two
   // that passed, with no summary distinguishing them -- "how the fuck do I
-  // read this to approve" was the exact, fair reaction. A bare `approve`
-  // comment approves every item on the issue, so silence here is not neutral,
-  // it is a trap: the reader has no way to know a bare approve would also
-  // approve the failed one.
+  // read this to approve" was the exact, fair reaction. The owner needs the
+  // summary to name the bad item and to say that Gate 2 decisions remain
+  // item-specific, so no whole-issue comment can quietly sweep anything up.
   const failing = gate2Item('c-failed-item', { reviewsPassed: false });
   const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true }), failing]);
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('2 of 3 items need') === false, 'exactly ONE item is bad here, the count must say 1 of 3, not 2 of 3');
   assert.ok(body.includes('1 of 3 item'), 'the summary must state the exact count needing attention');
-  assert.ok(/bare word `approve`.*approves EVERY item.*including the 1 below/s.test(body) || body.includes('including the 1 below'),
-    'the summary must explicitly warn that bare-approve would also approve the failed item, not just mention attention is needed');
+  assert.match(body, /Gate 2 decisions are item-specific only\./,
+    'the summary must say whole-issue bare comments do not decide Gate 2 items');
   assert.ok(body.includes('c-failed-item') && body.includes('factual review failed'),
     'the summary table must name the specific item and the specific reason, not a generic "needs review"');
   assert.ok(body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'the failed item\'s own section must carry a visible badge, not just the summary table');
@@ -594,4 +594,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-

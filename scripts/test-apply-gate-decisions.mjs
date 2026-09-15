@@ -16,6 +16,7 @@ import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { protectedAdapterDigest } from './lib/protected-adapter.mjs';
 import { adapterIdentity } from './adapters/github-gate/adapter.mjs';
 import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor, itemHandedOff } from './apply-gate-decisions.mjs';
+import { estate as workflowEstate, seedGateItems, walkTo } from './test-fixtures.mjs';
 
 const REPO = 'project42dev/orchard';
 const OWNER_ID = 4242;
@@ -327,6 +328,38 @@ async function multiEstate(terms) {
     return { store, runId, manifest, items: manifest.items, issue: { number: 9, body } };
 }
 
+async function gate2Estate() {
+    const { store, runId } = await workflowEstate();
+    const [itemId] = await seedGateItems(store, runId, ['gate2-bare-refusal']);
+    await walkTo(store, runId, itemId, 'gate2-pending');
+    const manifest = {
+        gate: 'gate-2',
+        run_id: runId,
+        track: 'track-1',
+        batch: { total_item_count: 1 },
+        batch_digest: sha256Digest(`batch:${itemId}`),
+        idempotency_key: `github:gate-2:${runId}:${itemId}`,
+        items: [{
+            item_id: itemId,
+            item_revision: 1,
+            artifact_digest: sha256Digest(`artifact:${itemId}`),
+            target: { repository: 'project42dev/project42-content', path: 'resources/example.json' },
+            decision_state: 'pending',
+        }],
+    };
+    const body = [
+        `<!-- orchard:gate track=track-1 gate=gate-2 batch=sha256:${'a'.repeat(64)} -->`,
+        '', '<details>', '', '```json', JSON.stringify(manifest), '```', '', '</details>',
+    ].join('\n');
+    store.provisionTrustAnchor({
+        scope: 'gate', adapter_identity: adapterIdentity,
+        adapter_digest: await protectedAdapterDigest(ADAPTER), adapter_path: ADAPTER,
+        policy_digest: sha256Digest(POLICY), policy: POLICY,
+        provisioned_at: '2026-08-15T00:00:00.000Z',
+    });
+    return { store, itemId, issue: { number: 9, body } };
+}
+
 test('ADR-0025 amendment: a bare approve comment approves every item on the issue', async () => {
     const { store, items, issue } = await multiEstate(['prompt-injection', 'vector-search', 'agent-orchestration']);
     const events = [];
@@ -339,6 +372,22 @@ test('ADR-0025 amendment: a bare approve comment approves every item on the issu
     assert.equal(summary.applied, items.length, JSON.stringify(events));
     for (const item of items) assert.equal(currentStateOf(store.db, item.item_id), 'gate1-approved');
     assert.equal(heldAtGate(store.db, 'gate-1').length, 0);
+    store.close();
+});
+
+test('Gate 2 bare whole-issue approve comments are refused and change nothing', async () => {
+    const { store, itemId, issue } = await gate2Estate();
+    const events = [];
+    const summary = await applyGateDecisions({
+        store, track: 'track-1', repo: REPO, token: 't',
+        log: (_l, event, detail) => events.push([event, detail]),
+        fetchImpl: github({ issue, comments: [comment('approved')] }),
+        adapter: await pinnedAdapter(store), policy: POLICY,
+    });
+    assert.equal(summary.applied, 0, JSON.stringify(events));
+    assert.equal(summary.refused, 1, JSON.stringify(events));
+    assert.equal(currentStateOf(store.db, itemId), 'gate2-pending');
+    assert.ok(events.some(([event]) => event === 'gate.apply.bare-decision-refused'), JSON.stringify(events));
     store.close();
 });
 
