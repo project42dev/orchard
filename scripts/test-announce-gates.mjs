@@ -282,6 +282,21 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   assert.equal(okBadges, 2, 'the two clean items must still show their own clean badge');
 });
 
+test('a drafter-refused Gate 2 item is summarized as not approvable, not as an ordinary factual-review failure', () => {
+  const refused = {
+    ...gate2Item('refused-item', { reviewsPassed: false }),
+    content: JSON.stringify({
+      status: 'BLOCKED',
+      reason: 'missing required source records',
+      requiredInputs: ['all source records with URLs and verification dates'],
+    }),
+  };
+  const manifest = gate2Manifest([refused]);
+  const body = renderGateIssueBody(manifest);
+  assert.ok(body.includes('drafter refused to write this item (not approvable)'), 'the summary table reason must classify refusal as not approvable');
+  assert.ok(!body.includes('including the 1 below'), 'the mixed-item bare-approve warning must not be shown when a refused item is not approvable');
+});
+
 test('a Gate 2 item shows badge, target, and the approve command before any digest -- the binding table is collapsed, not a wall between them', () => {
   // Found live 2026-08-17, TWICE: the owner rejected the same issue twice
   // because the badge/summary fix (previous test above) was necessary but
@@ -594,4 +609,3 @@ test.after(() => {
     try { rmSync(directory, { recursive: true, force: true }); } catch { /* the OS will collect it */ }
   }
 });
-
