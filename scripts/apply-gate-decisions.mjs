@@ -80,7 +80,7 @@ export function currentStateOf(db, itemId) {
     return db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(itemId)?.current_state ?? null;
 }
 
-const ITEM_IN_COMMAND = /\/orchard gate[12] (?:approve|deny|defer|request-changes) item=([0-9a-f-]{36})\b/;
+const ITEM_IN_COMMAND = /\/orchard gate[12] (?:approve|approved|deny|denied|defer|request-changes) item=([0-9a-f-]{36})\b/;
 
 /**
  * Every batch manifest belonging to one full manifest, gathered across issues.

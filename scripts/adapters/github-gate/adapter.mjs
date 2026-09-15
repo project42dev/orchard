@@ -36,7 +36,7 @@ const REPOSITORY = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 // The command grammar, only far enough to learn which item is being decided.
 // The authoritative parse is parseDecisionCommand in capture-gate-decision.mjs
 // and this must never disagree with it about the item id.
-const ITEM = /\/orchard gate[12] (?:approve|deny|defer|request-changes) item=([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/;
+const ITEM = /\/orchard gate[12] (?:approve|approved|deny|denied|defer|request-changes) item=([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\b/;
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
 
 // ADR-0025, amendment 2026-08-16. A comment whose entire body, trimmed, is
