@@ -282,6 +282,17 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             const proposalMatch = runProposals.find((p) => p.file === entry.file);
             const proposalPath = join(proposalRoot, entry.file);
             const proposal = JSON.parse(readFileSync(proposalPath, "utf8"));
+            const failedReviews = (proposal.modelStages ?? []).filter((stage) =>
+                ["factual-verification", "assessment-review"].includes(stage.stage) && stage.status === "failed");
+            if (failedReviews.length > 0) {
+                summary.held += 1;
+                log("warn", "gate2evidence.held", {
+                    item: itemId, code: "evidence.failed-review",
+                    reason: `Authoring review failed: ${failedReviews.map((stage) => stage.stage).join(", ")}`,
+                    effect: "no prepared commit or Gate 2 approval issue is created",
+                });
+                continue;
+            }
             // The artifact to publish is the DRAFTER's output ("curriculum-writing",
             // STAGE_ROLE "writer"), not the finalizer's ("release-proposal",
             // STAGE_ROLE "final-reviewer"). Found live 2026-08-17: every real item
