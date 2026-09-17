@@ -334,7 +334,8 @@ export function buildEvidenceDocument({ handoffs, binding, target, commit, propo
     const reviewFor = (stageId) => {
         const handoff = handoffs.find((entry, index) => STAGE_ORDER[index] === stageId);
         const status = handoff.status === "passed" ? "passed" : handoff.status === "failed" ? "failed" : "human-review";
-        const finding = handoff.findings?.[0]?.summary;
+        const stage = proposal.modelStages?.find((entry) => entry.stage === stageId);
+        const finding = (stage ? reconstructStageContent(stage).content : "") || handoff.findings?.[0]?.summary;
         return {
             status,
             evidence_ref: `orchard:handoff:${handoff.handoff_id}`,

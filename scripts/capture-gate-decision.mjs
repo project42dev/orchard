@@ -13,7 +13,7 @@ import { openStateStore } from './lib/state-store.mjs';
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const DIGEST = 'sha256:[a-f0-9]{64}';
 const DATE = '\\d{4}-\\d{2}-\\d{2}';
-const BASE = `\\/orchard (gate1|gate2) (approve|deny|defer|request-changes) item=(${UUID}) revision=([1-9][0-9]*) digest=(${DIGEST})`;
+const BASE = `\\/orchard (gate1|gate2) (approve|approved|deny|denied|defer|request-changes) item=(${UUID}) revision=([1-9][0-9]*) digest=(${DIGEST})`;
 const COMMAND = new RegExp(`^${BASE}(?: reason="([^"\\r\\n]+)")?(?: review-after=(${DATE}))?$`);
 const NEXT_STATE = Object.freeze({
     'gate-1': Object.freeze({ approve: 'gate1-approved', deny: 'denied', defer: 'deferred', 'request-changes': 'changes-requested' }),
@@ -29,7 +29,8 @@ export function parseDecisionCommand(text) {
     if (typeof text !== 'string') fail('command.type', 'comment body must be a string');
     const match = COMMAND.exec(text);
     if (!match) fail('command.grammar', 'comment is not one exact Orchard item decision command');
-    const [, gateToken, decision, itemId, revision, digest, reason, reviewAfter] = match;
+    const [, gateToken, rawDecision, itemId, revision, digest, reason, reviewAfter] = match;
+    const decision = rawDecision === 'approved' ? 'approve' : rawDecision === 'denied' ? 'deny' : rawDecision;
     if (decision === 'approve' && (reason || reviewAfter)) fail('command.approve-extra', 'approve accepts no reason or review-after');
     if (['deny', 'defer', 'request-changes'].includes(decision) && !reason) fail('command.reason-required', `${decision} requires reason="..."`);
     if (decision === 'defer' && !reviewAfter) fail('command.review-after-required', 'defer requires review-after=YYYY-MM-DD');
