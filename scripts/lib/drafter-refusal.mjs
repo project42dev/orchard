@@ -1,5 +1,6 @@
 // A drafter's refusal is not a draft, and it must never be offered for
 // approval as one.
+import { generateUuidV7, sha256Digest } from "./identity.mjs";
 //
 // FOUND LIVE 2026-09-13. Item 01a024de-1918-7baf-985c-252d89570314 was sent
 // back at Gate 2, redrafted as revision 5, and re-announced on issue #238 with
@@ -117,6 +118,28 @@ export function refusalTransitionReason(refusal) {
 
 export function drafterRefusalReference(itemId, revision) {
     return `${DRAFTER_REFUSAL_REFERENCE_PREFIX}${itemId}:r${Number(revision)}`;
+}
+
+/** Persist the refusal and move its current revision to blocked. */
+export async function recordDrafterRefusal({ store, itemId, revision, runId, fromState, refusal, target, now, actor }) {
+    const record = {
+        kind: "drafter-refusal", item_id: itemId, item_revision: Number(revision), target,
+        code: refusal.code, reason: refusal.reason, required_inputs: refusal.requiredInputs,
+        unknowns: refusal.unknowns, document: refusal.document, recorded_at: now,
+    };
+    await store.recordObservation({
+        observation_id: generateUuidV7(), run_id: runId, item_id: itemId,
+        item_revision: Number(revision), evidence_reference: drafterRefusalReference(itemId, revision),
+        evidence_digest: sha256Digest(record), observed_at: now, drafter_refusal: record,
+    });
+    await store.recordTransition({
+        schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: runId,
+        item_id: itemId, item_revision: Number(revision), from_state: fromState,
+        to_state: "blocked", cause: "policy-block", reason: refusalTransitionReason(refusal),
+        actor, occurred_at: now, correlation_id: generateUuidV7(),
+    });
+    return { item: itemId, revision: Number(revision), code: refusal.code, reason: refusal.reason,
+        requiredInputs: refusal.requiredInputs, unknowns: refusal.unknowns };
 }
 
 /**
