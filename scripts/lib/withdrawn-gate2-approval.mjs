@@ -4,7 +4,7 @@
 import { generateUuidV7 } from "./identity.mjs";
 
 const WITHDRAWABLE = new Set(["gate2-approved", "publication-preparing", "publication-validating", "publication-pr-open"]);
-const STALE_PUBLICATION = new Set(["publication-pr-open", "published"]);
+const STALE_PUBLICATION = new Set(["publication-pr-open", "publication-merging", "published"]);
 
 async function holdApprovedRevisions({ store, items, states, reason, now, actor, skipIneligible = false }) {
     const held = [];

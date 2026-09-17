@@ -60,10 +60,10 @@ test("a closed stale PR blocks its exact approved revision", async () => {
     store.close();
 });
 
-test("a publication later reverted on main is blocked for rework", async () => {
+for (const state of ["publication-merging", "published"]) test(`a reverted ${state} revision is blocked for rework`, async () => {
     const { store, runId } = await estate();
     const [itemId] = await seedGateItems(store, runId, ["reverted-publication"]);
-    await walkTo(store, runId, itemId, "published");
+    await walkTo(store, runId, itemId, state);
     const eventId = generateUuidV7();
     store.db.prepare(`INSERT INTO decision_event
       (event_id, gate, run_id, item_id, item_revision, digest, decision,
@@ -72,7 +72,7 @@ test("a publication later reverted on main is blocked for rework", async () => {
       VALUES (?, 'gate-2', ?, ?, 1, ?, 'approve', 'github', '42', ?, 1, ?, ?, ?, ?, ?)`)
         .run(eventId, runId, itemId, `sha256:${"a".repeat(64)}`, "project42dev/orchard", "123", generateUuidV7(), eventId, NOW, "{}");
     const result = await holdStalePublicationApprovals({ store, items: [{ itemId, revision: 1 }], now: NOW });
-    assert.equal(result.held[0].previousState, "published");
+    assert.equal(result.held[0].previousState, state);
     assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(itemId).current_state, "blocked");
     store.close();
 });
