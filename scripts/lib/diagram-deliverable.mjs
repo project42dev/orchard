@@ -146,7 +146,7 @@ function describeTags(tagsFound) {
     return `the fenced blocks present are tagged: ${tagsFound.map((tag) => (tag === "" ? "(untagged)" : tag)).join(", ")}`;
 }
 
-// The final catalogue fence is often a two-backtick pseudo-fence followed by
+// The final catalogue fence is often a one- or two-backtick pseudo-fence followed by
 // the drafter's prose. Keep only the first complete JSON object when that
 // marker follows it; the marker and prose cannot enter either deliverable.
 // A second object or prose directly after the object, before a fence marker,
@@ -169,7 +169,7 @@ function catalogueJsonText(body) {
             depth -= 1;
             if (depth === 0) {
                 const tail = text.slice(i + 1);
-                if (/^\s*$/.test(tail) || /^\s*`{2,}[ \t]*(?:\r?\n[\s\S]*)?$/.test(tail)) return text.slice(0, i + 1);
+                if (/^\s*$/.test(tail) || /^\s*`+[ \t]*(?:\r?\n[\s\S]*)?$/.test(tail)) return text.slice(0, i + 1);
                 return body;
             }
         }
@@ -259,8 +259,8 @@ export function splitDiagramDeliverable({ path, content }) {
     let parsed;
     try {
         // The same drafter sometimes ends its final catalogue block with a
-        // two-backtick pseudo-fence. Strip only that terminal line; JSON.parse
-        // and validateCatalogueEntry still reject every incomplete entry.
+        // one- or two-backtick pseudo-fence. Strip only after a complete JSON
+        // object; JSON.parse and validation reject every incomplete entry.
         const catalogueBody = catalogueJsonText(entries[0].body);
         parsed = JSON.parse(catalogueBody);
     } catch (error) {

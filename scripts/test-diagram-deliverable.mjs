@@ -186,6 +186,8 @@ test("the observed two-backtick mermaid opener is repaired only with complete de
     assert.equal(splitDiagramDeliverable({ path: DIAGRAM_PATH, content: `${eofCatalogue}extra prose` }).ok, false);
     const shortCloser = `${eofCatalogue.trimEnd()}\n\`\`\n`;
     assert.deepEqual(splitDiagramDeliverable({ path: DIAGRAM_PATH, content: shortCloser }).catalogueEntry, ENTRY);
+    const liveSingleTickCloser = `${eofCatalogue.trimEnd()}\n\``;
+    assert.deepEqual(splitDiagramDeliverable({ path: DIAGRAM_PATH, content: liveSingleTickCloser }).catalogueEntry, ENTRY);
     const shortCloserWithProse = `${eofCatalogue.trimEnd()}\n\`\`\nThis is the finished diagram.`;
     assert.deepEqual(splitDiagramDeliverable({ path: DIAGRAM_PATH, content: shortCloserWithProse }).catalogueEntry, ENTRY);
     const secondObject = `${eofCatalogue.trimEnd()}\n${JSON.stringify(ENTRY)}`;
