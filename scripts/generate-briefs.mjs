@@ -929,8 +929,20 @@ export function blockedNoteFor(db, itemId) {
       ORDER BY occurred_at DESC, transition_id DESC LIMIT 1`,
   ).get(itemId);
   if (!row) return null;
-  const reason = JSON.parse(row.record_json).reason;
+  let reason = JSON.parse(row.record_json).reason;
   if (typeof reason !== 'string' || !reason) return null;
+  const reviewRow = db.prepare(
+    `SELECT record_json FROM observation_event
+      WHERE item_id = ? AND evidence_reference = ?
+      ORDER BY item_revision DESC, observed_at DESC LIMIT 1`,
+  ).get(itemId, `orchard/gate-manifest/gate-2:${itemId}`);
+  if (reviewRow) {
+    const manifest = JSON.parse(reviewRow.record_json).manifest_item;
+    const findings = ['factual_review', 'accessibility_review']
+      .filter((name) => manifest?.[name]?.status === 'failed' && manifest[name].finding)
+      .map((name) => `${name}: ${manifest[name].finding}`);
+    if (findings.length) reason += `\nPrevious Gate 2 review findings:\n${findings.join('\n').slice(0, 8000)}`;
+  }
   return reason.startsWith(BLOCKED_RETRY_PREFIX) ? reason : `${BLOCKED_RETRY_PREFIX}${reason}`;
 }
 export function parseBlockedRetryNote(note) {
