@@ -180,7 +180,7 @@ const PREPARED_COMMIT = "3".repeat(40);
 
 // prepareRealCommit's real Git Data API sequence: GET ref, GET base commit,
 // POST blob, POST tree, POST commit.
-function commitFetchMock() {
+function commitFetchMock(existingModule = null) {
     const calls = [];
     return {
         calls,
@@ -189,6 +189,9 @@ function commitFetchMock() {
             const respond = (status, body) => ({ ok: status < 300, status, text: async () => JSON.stringify(body) });
             if (url.endsWith("/git/ref/heads/main")) return respond(200, { object: { sha: BASE_COMMIT } });
             if (url.includes(`/git/commits/${BASE_COMMIT}`)) return respond(200, { tree: { sha: "2".repeat(40) } });
+            if (url.includes(`/contents/${MODULE_PATH}?ref=${BASE_COMMIT}`)) return existingModule
+                ? respond(200, { content: Buffer.from(JSON.stringify(existingModule)).toString("base64"), encoding: "base64" })
+                : respond(404, { message: "Not Found" });
             if (url.endsWith("/git/blobs")) return respond(201, { sha: "b".repeat(40) });
             if (url.endsWith("/git/trees")) return respond(201, { sha: "t".repeat(40) });
             if (url.endsWith("/git/commits") && options?.method === "POST") return respond(201, { sha: PREPARED_COMMIT });
@@ -217,7 +220,18 @@ test("prepareRealCommit still prepares a real commit when the content matches it
     });
     assert.equal(commit.preparedCommit, PREPARED_COMMIT);
     assert.equal(commit.baseCommit, BASE_COMMIT);
-    assert.equal(calls.length, 5, "the whole Git Data sequence still runs for a well-formed artifact");
+    assert.equal(calls.length, 6, "a module checks the existing lesson before the Git Data writes");
+});
+
+test("an update cannot delete an existing lesson activity or instructor script", async () => {
+    const original = learningModule({ activity: { title: "Try it" }, instructorScript: { opening: "Introduce the topic" } });
+    const { impl, calls } = commitFetchMock(original);
+    await assert.rejects(
+        () => prepareRealCommit({ repository: "project42dev/project42-content", path: MODULE_PATH,
+            content: JSON.stringify(learningModule()), token: "test-token-literal", fetchImpl: impl }),
+        (error) => error.code === "evidence.course-component-removed",
+    );
+    assert.equal(calls.length, 3, "no blob, tree, or commit is written");
 });
 
 test("the escalation path's opt-out is honoured, and is the only way past the guard", async () => {
@@ -305,6 +319,26 @@ test("a Markdown draft bound for a .json module path holds the item and never to
 
     const row = store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(id);
     assert.equal(row.current_state, "gate2-ready", "the item stays exactly where a re-authored revision can still find it");
+    store.close();
+});
+
+test("a failed factual review cannot create a Gate 2 approval issue", async () => {
+    const { store, id, proposalRoot, file } = await gate2ReadyFixture("rag", JSON.stringify(learningModule()));
+    const proposalPath = join(proposalRoot, file);
+    const proposal = passingProposal(JSON.stringify(learningModule()));
+    proposal.modelStages.find((stage) => stage.stage === "factual-verification").status = "failed";
+    writeFileSync(proposalPath, JSON.stringify(proposal));
+    const events = [];
+    const summary = await attemptGate2Evidence({ store,
+        applied: [{ subjectId: id, from: "executing", to: "gate2-ready", file }],
+        runRecordDir: proposalRoot, proposalRoot, now: "2026-08-19T00:00:00.000Z", env: {},
+        log: (level, event, detail) => events.push({ level, event, detail }),
+        fetchImpl: async () => { throw new Error("a failed review must not reach GitHub"); },
+    });
+    assert.equal(summary.held, 1);
+    assert.equal(summary.prepared, 0);
+    assert.equal(events.find((entry) => entry.event === "gate2evidence.held").detail.code, "evidence.failed-review");
+    assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(id).current_state, "gate2-ready");
     store.close();
 });
 

@@ -227,6 +227,26 @@ export async function prepareRealCommit({ repository, path, content, registratio
     const commit = await call(`/repos/${repository}/git/commits/${baseCommit}`);
     const baseTree = commit.tree.sha;
 
+    // An update must retain the existing lesson's teaching components. A
+    // parseable replacement can otherwise silently remove its activity or
+    // instructor script, as the September 15 draft for ai-mental-models did.
+    if (!materializeContent && validateFormat === assertArtifactFormat && /^modules\/.*\.json$/i.test(path)) {
+        const existingResponse = await fetchImpl(`${API}/repos/${repository}/contents/${path}?ref=${baseCommit}`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Orchard-Gate2-Evidence/1.0" },
+        });
+        if (existingResponse.status !== 404) {
+            const existingFile = JSON.parse(await existingResponse.text());
+            if (!existingResponse.ok) fail("evidence.github-api", `GitHub GET ${path} returned ${existingResponse.status}: ${existingFile?.message ?? "unknown error"}`);
+            const original = JSON.parse(Buffer.from(existingFile.content ?? "", existingFile.encoding ?? "base64").toString("utf8"));
+            const proposed = JSON.parse(content);
+            for (const field of ["activity", "instructorScript"]) {
+                if (original[field] != null && proposed[field] == null) {
+                    fail("evidence.course-component-removed", `${path} removes existing ${field}; the full lesson must be preserved`);
+                }
+            }
+        }
+    }
+
     // A catalogue finding authors one entry, not the whole registry. Read the
     // protected-main base, replace only that entry, and bind the resulting
     // complete registry to the Gate 2 prepared tree.
