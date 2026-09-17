@@ -71,7 +71,8 @@ import { recoverReworkItems } from "./lib/rework-recovery.mjs";
 import { prepareRemovalCommit } from "./lib/prepare-gate2-evidence.mjs";
 import { buildRemovalEvidence, buildRemovalRecord, deregistrationFor, inboundReferences, redirectFor, removedIdForTarget } from "./lib/removal.mjs";
 import { readGateToken } from "./announce-gates.mjs";
-import { inspectDrafterRefusal, refusalTransitionReason, drafterRefusalReference, DRAFTER_REFUSAL_PREFIX } from "./lib/drafter-refusal.mjs";
+import { inspectDrafterRefusal, recordDrafterRefusal, DRAFTER_REFUSAL_PREFIX } from "./lib/drafter-refusal.mjs";
+export { recordDrafterRefusal } from "./lib/drafter-refusal.mjs";
 
 /**
  * Record a drafter refusal as what it is: a block, with the drafter's own
@@ -90,46 +91,6 @@ import { inspectDrafterRefusal, refusalTransitionReason, drafterRefusalReference
  * here only to put the drafter's words where the retry path reads them, and
  * the rejection gate does not count it as another attempt.
  */
-export async function recordDrafterRefusal({ store, itemId, revision, runId, fromState, refusal, target, now, actor }) {
-    const record = {
-        kind: "drafter-refusal",
-        item_id: itemId,
-        item_revision: Number(revision),
-        target,
-        code: refusal.code,
-        reason: refusal.reason,
-        required_inputs: refusal.requiredInputs,
-        unknowns: refusal.unknowns,
-        document: refusal.document,
-        recorded_at: now,
-    };
-    await store.recordObservation({
-        observation_id: generateUuidV7(),
-        run_id: runId,
-        item_id: itemId,
-        item_revision: Number(revision),
-        evidence_reference: drafterRefusalReference(itemId, revision),
-        evidence_digest: sha256Digest(record),
-        observed_at: now,
-        drafter_refusal: record,
-    });
-    await store.recordTransition({
-        schema_version: "1.0.0",
-        transition_id: generateUuidV7(),
-        run_id: runId,
-        item_id: itemId,
-        item_revision: Number(revision),
-        from_state: fromState,
-        to_state: "blocked",
-        cause: "policy-block",
-        reason: refusalTransitionReason(refusal),
-        actor,
-        occurred_at: now,
-        correlation_id: generateUuidV7(),
-    });
-    return { item: itemId, revision: Number(revision), code: refusal.code, reason: refusal.reason, requiredInputs: refusal.requiredInputs, unknowns: refusal.unknowns };
-}
-
 function argOf(argv, name, fallback = null) {
     const index = argv.indexOf(`--${name}`);
     return index === -1 ? fallback : argv[index + 1];

@@ -17,6 +17,7 @@ import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
 import { announceRunSummary, runVerdict } from "./lib/run-summary.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
+import { quarantineGate2Refusals } from "./lib/quarantine-gate2-refusals.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
 import { chainNextRoles, continueAuthoringChain } from "./lib/job-chain.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
@@ -239,6 +240,7 @@ async function runAzure(track, log) {
             // named, with the move that is actually open from the state they
             // are in, on every run until a human acts.
             reportUnpublishableTargets({ store: decisionStore, log });
+            await quarantineGate2Refusals({ store: decisionStore, track, log });
             await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
         } finally {
             decisionStore.close();
@@ -442,6 +444,7 @@ async function runRoleAzure(role, log) {
             // named, with the move that is actually open from the state they
             // are in, on every run until a human acts.
             reportUnpublishableTargets({ store: decisionStore, log });
+            await quarantineGate2Refusals({ store: decisionStore, track, log });
             await applyGateDecisionsForRun({ store: decisionStore, track, log, token: gateToken });
         } finally {
             decisionStore.close();
@@ -714,4 +717,3 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
-
