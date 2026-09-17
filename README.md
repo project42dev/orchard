@@ -10,7 +10,7 @@ Orchard is an enterprise-grade content lifecycle engine designed for continuous 
 
 - **Dual Independent Tracks**:
   - **Track 1 (Discovery)**: Bounded, ethical surveys across 78+ verified technical documentation sources.
-  - **Track 2 (Currency)**: Complete, 100% inspection of 183 canonical curriculum modules to detect and correct drift.
+  - **Track 2 (Currency)**: Complete, 100% inspection of the pinned canonical curriculum corpus to detect and correct drift.
 - **5-Model Adversarial Authoring Ensemble**:
   - Automatically orchestrates specialized frontier LLMs in Azure AI Foundry: **Drafter** (`gpt-5-6-sol`), **Verifier** (`grok-4-20-reasoning`), **Adversary** (`deepseek-v4-pro`), **Arbiter** (`mistral-large-3`), and **Finalizer** (`gpt-5-6-luna`).
 - **Cryptographic Human-in-the-Loop Gates**:

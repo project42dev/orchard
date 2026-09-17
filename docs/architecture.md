@@ -55,7 +55,7 @@ Orchard separates discovery of *new opportunities* from *maintenance of existing
 ### **Track 2: Content Currency & Drift Maintenance**
 - **Objective**: Perform an exhaustive, 100% inspection of every canonical corpus item against active provider documentation and standards.
 - **Cadence**: Automatically scheduled on the **15th of each month at 06:00 UTC** (`caj-p42orch-t2-sch-prod-eus-01`) or triggered manually on demand (`caj-p42orch-t2-man-prod-eus-01`).
-- **Coverage**: Inspects all 183 canonical corpus items across modules, code labs, diagrams, resources, and standards.
+- **Coverage**: Inspects every item in the pinned canonical corpus across modules, code labs, diagrams, resources, and standards.
 - **Gate 1 Batching**: Batches drift items into review issues (max 16 items/issue) with complete proposed corrections, sources, and affected learning paths.
 
 ---

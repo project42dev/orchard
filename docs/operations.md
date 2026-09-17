@@ -19,7 +19,7 @@ az containerapp job start \
 ```
 
 ### **Manual Track 2 (Full Corpus Currency Inspection)**
-To inspect all 183 canonical corpus items against live provider documentation and create Gate 1 drift review batches:
+To inspect every item in the pinned canonical corpus against live provider documentation and create Gate 1 drift review batches:
 
 ```bash
 az containerapp job start \
