@@ -269,7 +269,7 @@ export function createBoundedFetchAdapter(options = {}) {
         // because an unbounded read is still a way to be hurt by a host.
         maxBytes: positiveInteger(options.maxBytes, "maxBytes", 3_000_000),
         timeoutMs: positiveInteger(options.timeoutMs, "timeoutMs", 15_000),
-        maxRetries: Number.isSafeInteger(options.maxRetries ?? 2) && (options.maxRetries ?? 2) >= 0 ? (options.maxRetries ?? 2) : 2,
+        maxRetries: Number.isSafeInteger(options.maxRetries ?? 1) && (options.maxRetries ?? 1) >= 0 ? (options.maxRetries ?? 1) : 1,
     };
     return async function boundedFetch(source) {
         const started = Date.now();
@@ -297,20 +297,6 @@ export function createBoundedFetchAdapter(options = {}) {
                         }
                         url = next.href;
                         continue;
-                    }
-                    if (response.status === 429) {
-                        await response.body?.cancel?.();
-                        if (retry < limits.maxRetries) {
-                            const retryAfter = response.headers.get("retry-after");
-                            const seconds = Number(retryAfter);
-                            const dateDelay = Date.parse(retryAfter ?? "") - Date.now();
-                            const suggestedMs = retryAfter !== null && Number.isFinite(seconds) && seconds >= 0
-                                ? seconds * 1_000
-                                : Number.isFinite(dateDelay) && dateDelay >= 0 ? dateDelay : 2_000 * (2 ** retry);
-                            await delay(Math.min(suggestedMs, 30_000));
-                            break;
-                        }
-                        return { kind: "rate-limited", status: 429, finalUrl: url, redirects, bytes: 0, durationMs: Date.now() - started };
                     }
                     const declaredLength = Number.parseInt(response.headers.get("content-length") ?? "0", 10);
                     if (declaredLength > limits.maxBytes) return { kind: "blocked", reason: "byte-cap", status: response.status, finalUrl: url, redirects, bytes: declaredLength, durationMs: Date.now() - started };
