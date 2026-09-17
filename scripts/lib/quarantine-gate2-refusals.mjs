@@ -12,15 +12,18 @@ export async function quarantineGate2Refusals({ store, track, log = () => {}, no
         const refusal = manifestItemRefusal(item);
         if (!refusal) continue;
         const row = store.db.prepare(
-            `SELECT w.current_state, w.current_revision, r.run_id, r.target_repository, r.target_path,
-                    r.artifact_digest
+            `SELECT w.current_state, w.current_revision, r.run_id, r.target_repository, r.target_path
                FROM workflow_item w JOIN item_revision r
                  ON r.item_id = w.item_id AND r.item_revision = w.current_revision
               WHERE w.item_id = ?`,
         ).get(item.item_id);
+        // Gate 2 preparation persists the immutable digest in artifact_binding.
+        // Historical item_revision rows legitimately have artifact_digest NULL.
+        const binding = store.getArtifactBinding(item.item_id, item.item_revision);
         if (row?.current_state !== "gate2-pending"
             || Number(row.current_revision) !== Number(item.item_revision)
-            || row.artifact_digest !== item.artifact_digest
+            || binding?.artifact_digest !== item.artifact_digest
+            || binding?.run_id !== row.run_id
             || row.target_repository !== item.target?.repository
             || row.target_path !== item.target?.path) {
             summary.errors += 1;

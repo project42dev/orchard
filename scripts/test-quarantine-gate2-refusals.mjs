@@ -15,6 +15,8 @@ test("legacy refusal leaves Gate 2 without recording a human decision or touchin
     const directory = mkdtempSync(join(tmpdir(), "orchard-refusal-recovery-"));
     const store = openStateStore(join(directory, "state.db"));
     try {
+        const bindings = new Map();
+        store.getArtifactBinding = (id) => bindings.get(id) ?? null;
         const runId = generateUuidV7();
         const timestamp = "2026-09-16T00:00:00.000Z";
         await store.recordRun(createTrack2RunRecord({
@@ -34,8 +36,9 @@ test("legacy refusal leaves Gate 2 without recording a human decision or touchin
             store.db.prepare(`INSERT INTO item_revision
                 (item_id,item_revision,run_id,proposal_digest,artifact_digest,target_repository,target_path,lifecycle_key,record_json,created_at)
                 VALUES (?,1,?,?,?,?,?,?,?,?)`)
-                .run(id, runId, DIGEST, artifact, TARGET.repository, TARGET.path, id,
+                .run(id, runId, DIGEST, null, TARGET.repository, TARGET.path, id,
                     JSON.stringify({ proposal_digest: DIGEST, artifact_digest: artifact, target: TARGET }), timestamp);
+            bindings.set(id, { run_id: runId, artifact_digest: artifact });
             store.recordObservation({ observation_id: generateUuidV7(), run_id: runId,
                 item_id: id, item_revision: 1,
                 evidence_reference: `orchard/gate-manifest/gate-2:${id}`,
@@ -43,6 +46,8 @@ test("legacy refusal leaves Gate 2 without recording a human decision or touchin
             return id;
         };
         const refused = add(JSON.stringify({ status: "BLOCKED", reason: "Existing source was missing", requiredInputs: ["source"] }));
+        const stale = add(JSON.stringify({ status: "BLOCKED", reason: "Different digest" }));
+        bindings.set(stale, { run_id: runId, artifact_digest: DIGEST });
         const valid = add(JSON.stringify({
             id: "valid", slug: "valid", title: "Existing draft", summary: "summary",
             category: "test", format: "checklist", audience: [], level: "beginner",
@@ -50,12 +55,13 @@ test("legacy refusal leaves Gate 2 without recording a human decision or touchin
             lastVerified: "2026-09-16", tags: [], sections: [], sources: [],
         }));
         const result = await quarantineGate2Refusals({ store, track: "track-2", now: timestamp });
-        assert.deepEqual(result, { scanned: 2, blocked: 1, errors: 0 });
+        assert.deepEqual(result, { scanned: 3, blocked: 1, errors: 1 });
         assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(refused).current_state, "blocked");
+        assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(stale).current_state, "gate2-pending");
         assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(valid).current_state, "gate2-pending");
         assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM decision_event").get().n, 0);
         assert.deepEqual(await quarantineGate2Refusals({ store, track: "track-2", now: timestamp }),
-            { scanned: 1, blocked: 0, errors: 0 });
+            { scanned: 2, blocked: 0, errors: 1 });
     } finally {
         store.close();
         rmSync(directory, { recursive: true, force: true });
