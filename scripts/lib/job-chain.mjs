@@ -72,8 +72,11 @@ const CHAIN_HOPS = [
 /**
  * Look at what the run just left behind and start whichever next role has
  * real waiting work. A hop with no configured job id is silently off (lets
- * an adopter or a partial deploy enable chaining one hop at a time). Each
- * hop is independent and a failure on one does not stop the others.
+ * an adopter or a partial deploy enable chaining one hop at a time). Start
+ * only one successful hop per handoff: all roles share one fenced state lease,
+ * so starting two together makes one fail before it can do useful work. If
+ * a start itself fails, try the next eligible hop so a broken job id does not
+ * stop unrelated work.
  *
  * currentRole, if given, is never triggered by its own hop: a role that HELD
  * an item rather than advancing it (gate2-prep with no evidence yet is the
@@ -102,6 +105,7 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
             const started = await startJob({ jobResourceId, tokenProvider, fetchImpl });
             triggered.push(hop.role);
             log?.("info", "chain.triggered", { role: hop.role, state: hop.state, waiting, execution: started?.name });
+            break;
         } catch (error) {
             log?.("error", "chain.trigger-failed", { role: hop.role, state: hop.state, waiting, statusCode: error.statusCode ?? null, error: error.message });
         }
