@@ -336,3 +336,37 @@ test("bounded fetch cancels a streaming body as soon as the byte cap is crossed"
     assert.equal(result.reason, "byte-cap");
     assert.equal(cancelled, true);
 });
+
+test("bounded fetch retries an HTTP 429 within its cap", async () => {
+    let calls = 0;
+    let cancelled = 0;
+    const adapter = createBoundedFetchAdapter({
+        maxRetries: 1,
+        fetchImpl: async () => {
+            calls += 1;
+            return calls === 1
+                ? { status: 429, ok: false, headers: new Headers({ "retry-after": "0" }), body: { cancel: async () => { cancelled += 1; } } }
+                : new Response("usable", { status: 200 });
+        },
+    });
+    const source = loadApprovedSourceRegistry(registry(1)).sources[0];
+    const result = await adapter(source);
+    assert.equal(result.kind, "success");
+    assert.equal(calls, 2);
+    assert.equal(cancelled, 1);
+});
+
+test("bounded fetch reports a persistent HTTP 429 after the configured attempts", async () => {
+    let calls = 0;
+    const adapter = createBoundedFetchAdapter({
+        maxRetries: 1,
+        fetchImpl: async () => {
+            calls += 1;
+            return new Response("", { status: 429, headers: { "retry-after": "0" } });
+        },
+    });
+    const source = loadApprovedSourceRegistry(registry(1)).sources[0];
+    const result = await adapter(source);
+    assert.equal(result.kind, "rate-limited");
+    assert.equal(calls, 2);
+});
