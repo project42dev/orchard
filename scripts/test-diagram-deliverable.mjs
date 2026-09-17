@@ -174,6 +174,18 @@ test("the observed two-backtick mermaid opener is repaired only with complete de
     const refused = splitDiagramDeliverable({ path: DIAGRAM_PATH, content: unclosed });
     assert.equal(refused.ok, false);
     assert.notEqual(refused.source, COMMITTED);
+
+    // The live retry ended after a complete catalogue JSON object without its
+    // final Markdown fence. JSON parsing and field validation still bind the
+    // entry exactly; a prose tail or partial object remains a refusal.
+    const eofCatalogue = malformed.replace(/\n```\n?$/, "\n");
+    const recovered = splitDiagramDeliverable({ path: DIAGRAM_PATH, content: eofCatalogue });
+    assert.equal(recovered.ok, true);
+    assert.equal(recovered.source, COMMITTED);
+    assert.deepEqual(recovered.catalogueEntry, ENTRY);
+    assert.equal(splitDiagramDeliverable({ path: DIAGRAM_PATH, content: `${eofCatalogue}extra prose` }).ok, false);
+    const shortCloser = `${eofCatalogue.trimEnd()}\n\`\`\n`;
+    assert.deepEqual(splitDiagramDeliverable({ path: DIAGRAM_PATH, content: shortCloser }).catalogueEntry, ENTRY);
 });
 
 test("a preamble outside the fences is ignored rather than refused, and can never become either deliverable", () => {

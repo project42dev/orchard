@@ -225,13 +225,13 @@ export function splitDiagramDeliverable({ path, content }) {
             `${path} registers one catalogue entry and the output carries ${entries.length} \`\`\`${CATALOGUE_FENCE_TAG} blocks, so which one is the record is a guess`,
         );
     }
-    if (!entries[0].closed) {
-        return deny("diagram-deliverable.unclosed-catalogue-block", `${path} has no closing fence for its catalogue entry`);
-    }
-
     let parsed;
     try {
-        parsed = JSON.parse(entries[0].body);
+        // The same drafter sometimes ends its final catalogue block with a
+        // two-backtick pseudo-fence. Strip only that terminal line; JSON.parse
+        // and validateCatalogueEntry still reject every incomplete entry.
+        const catalogueBody = entries[0].body.replace(/\r?\n\s*``\s*$/, "");
+        parsed = JSON.parse(catalogueBody);
     } catch (error) {
         return deny(
             "diagram-deliverable.catalogue-unparsable",
