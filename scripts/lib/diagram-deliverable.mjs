@@ -146,6 +146,37 @@ function describeTags(tagsFound) {
     return `the fenced blocks present are tagged: ${tagsFound.map((tag) => (tag === "" ? "(untagged)" : tag)).join(", ")}`;
 }
 
+// The final catalogue fence is often a two-backtick pseudo-fence followed by
+// the drafter's prose. Keep only the first complete JSON object when that
+// marker follows it; the marker and prose cannot enter either deliverable.
+// A second object or prose directly after the object, before a fence marker,
+// remains ambiguous.
+function catalogueJsonText(body) {
+    const text = String(body).trimStart();
+    if (!text.startsWith("{")) return body;
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let i = 0; i < text.length; i += 1) {
+        const ch = text[i];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (ch === "\\") escaped = true;
+            else if (ch === '"') quoted = false;
+        } else if (ch === '"') quoted = true;
+        else if (ch === "{") depth += 1;
+        else if (ch === "}") {
+            depth -= 1;
+            if (depth === 0) {
+                const tail = text.slice(i + 1);
+                if (/^\s*$/.test(tail) || /^\s*`{2,}[ \t]*(?:\r?\n[\s\S]*)?$/.test(tail)) return text.slice(0, i + 1);
+                return body;
+            }
+        }
+    }
+    return body;
+}
+
 /**
  * Split a drafted diagram deliverable into the mermaid source that gets
  * committed and the catalogue entry that gets registered.
@@ -230,12 +261,14 @@ export function splitDiagramDeliverable({ path, content }) {
         // The same drafter sometimes ends its final catalogue block with a
         // two-backtick pseudo-fence. Strip only that terminal line; JSON.parse
         // and validateCatalogueEntry still reject every incomplete entry.
-        const catalogueBody = entries[0].body.replace(/\r?\n\s*``\s*$/, "");
+        const catalogueBody = catalogueJsonText(entries[0].body);
         parsed = JSON.parse(catalogueBody);
     } catch (error) {
+        const position = /position (\d+)/.exec(error.message);
+        const nearby = position ? ` Near the error: ${JSON.stringify(entries[0].body.slice(Number(position[1]), Number(position[1]) + 80))}.` : "";
         return deny(
             "diagram-deliverable.catalogue-unparsable",
-            `the \`\`\`${CATALOGUE_FENCE_TAG} block for ${path} is not valid JSON (${error.message}). It begins: ${head(entries[0].body)}`,
+            `the \`\`\`${CATALOGUE_FENCE_TAG} block for ${path} is not valid JSON (${error.message}). It begins: ${head(entries[0].body)}.${nearby}`,
         );
     }
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
