@@ -45,7 +45,7 @@ az containerapp job start \
 ### **Gate 1 Approvals (Discovery & Currency Batches)**
 Gate 1 issues appear on GitHub labeled with `orchard-gate-1`.
 - **Whole Issue Approval**: Commenting `approved` or `approve` authorizes all items in that issue for AI authoring and Azure DevOps synchronization.
-- Authoring claims at most three items per execution. When approved items remain, each execution starts the next only after it has claimed work; check the authoring logs for `chain.continue.triggered` or a stated stop reason.
+- Authoring claims at most three items per execution. When approved items remain, each execution starts the next only after it has claimed work; Gate 2 preparation starts after this queue drains. Check the authoring logs for `chain.continue.triggered` or a stated stop reason.
 - **Specific Item Approval**:
   ```text
   /orchard gate1 approve item=<item-id>

@@ -499,31 +499,21 @@ async function runRoleAzure(role, log) {
         await announceGatesForRun({ stateDbPath: state.path, track, runId: execution, log, token: gateToken });
         return { statePath: state.path, value: { role, track } };
     });
-    // Chained strictly AFTER the fenced session above has fully returned (its
-    // own finally block already released the lease): a downstream execution
-    // triggered here acquires a fresh lease of its own, never contending with
-    // this run for the one it just gave up. A lease-free peek, not the write
-    // path, so this never blocks on or interferes with a concurrent writer.
-    // currentRole: this role must never re-trigger itself -- proven live and
-    // necessary: gate2-prep holding an item for missing evidence left the
-    // same waiting count behind every time, and re-triggered itself in an
-    // unbounded loop before this guard existed.
-    try {
-        const counts = await adapter.peekStateCounts(track);
-        await chainNextRoles({ counts, log, currentRole: role });
-    } catch (error) {
-        log("warn", "chain.peek-failed", { error: error.message });
-    }
-    // Authoring's OWN continuation, on a SEPARATE try/catch from the
-    // counts-based hops above: it needs no blob peek at all (roleResult
-    // already carries run-authoring.mjs's strandedRecovery summary), so a
-    // transient peekStateCounts failure must not also take this down.
-    // continueAuthoringChain is itself bounded (job-chain.mjs) -- it refuses
-    // to fire when the sweep recovered nothing, and logs why.
+    await handoffAfterRole({ role, roleResult, adapter, track, log });
+    return outcome;
+}
+
+// A role releases its state lease before starting its successor. While
+// authoring still has a claimable queue, start only its next run; Gate 2
+// preparation waits for the last batch. Starting both races them for the
+// single track lease and turns one into a failed execution.
+export async function handoffAfterRole({ role, roleResult, adapter, track, log,
+    continueAuthoring = continueAuthoringChain, chain = chainNextRoles }) {
+    let continued = false;
     if (role === "authoring") {
         if (roleResult) {
             try {
-                await continueAuthoringChain({ freshQueue: roleResult.freshQueue, strandedRecovery: roleResult.strandedRecovery, reworkRecovery: roleResult.reworkRecovery, log });
+                continued = await continueAuthoring({ freshQueue: roleResult.freshQueue, strandedRecovery: roleResult.strandedRecovery, reworkRecovery: roleResult.reworkRecovery, log });
             } catch (error) {
                 log("error", "chain.continue.failed", { error: error.message });
             }
@@ -535,7 +525,16 @@ async function runRoleAzure(role, log) {
             log("warn", "chain.continue.skipped", { role, reason: "no strandedRecovery summary is available; the run did not complete" });
         }
     }
-    return outcome;
+    if (continued) {
+        log("info", "chain.downstream.deferred", { role, reason: "authoring continuation started; Gate 2 preparation follows after the queue drains" });
+        return;
+    }
+    try {
+        const counts = await adapter.peekStateCounts(track);
+        await chain({ counts, log, currentRole: role });
+    } catch (error) {
+        log("warn", "chain.peek-failed", { error: error.message });
+    }
 }
 
 // A blocked item was refused by the ensemble's own internal review, not by a
