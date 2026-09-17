@@ -66,6 +66,7 @@ Gate 2 issues appear on GitHub labeled with `orchard-gate-2`.
   ```text
   /orchard gate2 request-changes item=<item-id> revision=<rev> reason="Update source URL to official docs"
   ```
+- If a publication PR conflicts because its approved target changed on `main`, close that PR and hold its exact `publication-pr-open` revision with the one-off `--admin-hold-stale-publication <item@revision,...>` runtime action on Track 2. The hold records that a new artifact and Gate 2 review are required; it does not reuse the old approval.
 - **Several Items in One Comment**: the GitHub Actions reviewer
   (`scripts/gate2-review.mjs`, driven by
   `.github/workflows/orchard-human-review.yml`) accepts up to 20 decisions in

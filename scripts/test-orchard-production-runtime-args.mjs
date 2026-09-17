@@ -50,6 +50,13 @@ throws(() => parseRuntimeArgs(["--track", "track-1", "--admin-retry-blocked", "x
 }
 throws(() => parseRuntimeArgs(["--admin-withdraw-gate2", "bad"]),
   "withdrawal refuses an unbound item");
+{
+  const r = parseRuntimeArgs(["--admin-hold-stale-publication", "01a01d34-7172-797b-9a21-10dc8ee80c1a@4"]);
+  ok(r.adminHoldStalePublication?.length === 1 && r.adminHoldStalePublication[0].revision === 4,
+    "stale publication hold names the exact approved revision");
+}
+throws(() => parseRuntimeArgs(["--admin-hold-stale-publication", "bad"]),
+  "stale publication hold refuses an unbound item");
 
 console.log(
   failures === 0

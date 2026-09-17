@@ -24,7 +24,7 @@ import { applyRetry } from "./apply-blocked-retry.mjs";
 import { reportUnmappedPublicationTargets } from "./lib/publication-target-migration.mjs";
 import { reportUnpublishableTargets } from "./lib/publishable-target.mjs";
 import { blockedNoteFor } from "./generate-briefs.mjs";
-import { holdWithdrawnGate2Approvals } from "./lib/withdrawn-gate2-approval.mjs";
+import { holdWithdrawnGate2Approvals, holdStalePublicationApprovals } from "./lib/withdrawn-gate2-approval.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -73,15 +73,15 @@ export function parseRuntimeArgs(argv) {
     const separator = argv.indexOf("--");
     const runtime = separator === -1 ? argv : argv.slice(0, separator);
     const controller = separator === -1 ? [] : argv.slice(separator + 1);
-    if (runtime[0] === "--admin-withdraw-gate2") {
-        if (runtime.length !== 2 || controller.length) throw new TypeError("runtime accepts only --admin-withdraw-gate2 <item@revision,...>");
+    if (runtime[0] === "--admin-withdraw-gate2" || runtime[0] === "--admin-hold-stale-publication") {
+        if (runtime.length !== 2 || controller.length) throw new TypeError("runtime accepts only the admin action and <item@revision,...>");
         const items = runtime[1].split(",").map((part) => {
             const match = /^([0-9a-f-]{36})@(\d+)$/.exec(part);
             if (!match) throw new TypeError("withdrawal requires item@revision pairs");
             return { itemId: match[1], revision: Number(match[2]) };
         });
         if (!items.length || new Set(items.map((item) => item.itemId)).size !== items.length) throw new TypeError("withdrawal requires distinct items");
-        return { adminWithdrawGate2: items, controller };
+        return { [runtime[0] === "--admin-withdraw-gate2" ? "adminWithdrawGate2" : "adminHoldStalePublication"]: items, controller };
     }
     // A one-off human decision (retry a blocked item), not a survey or a role
     // in the pipeline -- kept as its own form rather than folded into --role
@@ -546,19 +546,19 @@ export async function handoffAfterRole({ role, roleResult, adapter, track, log,
 // other write this runtime makes. ORCHARD_ADMIN_RETRY_TRACK selects the scope
 // (state is partitioned per track); it defaults to track-1 because every
 // blocked item observed in this estate so far is track-1's.
-async function runWithdrawnGate2Azure(items, log) {
+async function runApprovalHoldAzure(items, log, hold = holdWithdrawnGate2Approvals, event = "admin.withdrawn-gate2.held", defaultTrack = "track-1") {
     const clients = blobClients();
     const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
     mkdirSync(root, { recursive: true });
-    const track = process.env.ORCHARD_ADMIN_RETRY_TRACK ?? "track-1";
+    const track = process.env.ORCHARD_ADMIN_RETRY_TRACK ?? defaultTrack;
     if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ADMIN_RETRY_TRACK must be track-1 or track-2");
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
     await withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state }) => {
         const store = openStateStore(state.path);
         try {
-            const held = await holdWithdrawnGate2Approvals({ store, items });
-            log("warn", "admin.withdrawn-gate2.held", { track, held });
-            return { statePath: state.path, value: held };
+            const result = await hold({ store, items });
+            log("warn", event, { track, held: result.held ?? result, skipped: result.skipped ?? [] });
+            return { statePath: state.path, value: result };
         } finally {
             store.close();
         }
@@ -698,14 +698,17 @@ async function runShowReasonAzure(itemId, log) {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-    const { track, role, adminRetryBlocked, adminShowReason, adminWithdrawGate2, controller } = parseRuntimeArgs(argv);
-    const logRole = role ?? (adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : null);
+    const { track, role, adminRetryBlocked, adminShowReason, adminWithdrawGate2, adminHoldStalePublication, controller } = parseRuntimeArgs(argv);
+    const logRole = role ?? (adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : null);
     const log = createStructuredLogger({ base: { service: "orchard", ...(logRole ? { role: logRole } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
-        if (adminWithdrawGate2) {
+        if (adminHoldStalePublication) {
+            if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-hold-stale-publication requires ORCHARD_RUNTIME_CONFIG=azure");
+            await runApprovalHoldAzure(adminHoldStalePublication, log, holdStalePublicationApprovals, "admin.stale-publication.held", "track-2");
+        } else if (adminWithdrawGate2) {
             if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-withdraw-gate2 requires ORCHARD_RUNTIME_CONFIG=azure");
-            await runWithdrawnGate2Azure(adminWithdrawGate2, log);
+            await runApprovalHoldAzure(adminWithdrawGate2, log);
         } else if (adminRetryBlocked) {
             if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-retry-blocked requires ORCHARD_RUNTIME_CONFIG=azure; there is no local state to retry against");
             await runBlockedRetryAzure(adminRetryBlocked, log);
