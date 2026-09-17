@@ -34,6 +34,11 @@ import { manifestItemRefusal } from "./lib/drafter-refusal.mjs";
 const GATES = Object.freeze(["gate-1", "gate-2"]);
 const PENDING = Object.freeze({ "gate-1": "gate1-pending", "gate-2": "gate2-pending" });
 
+export function failedReviewItemIds(items) {
+    return items.filter((item) => item.factual_review?.status === "failed"
+        || item.accessibility_review?.status === "failed").map((item) => item.item_id);
+}
+
 // The state each gate's approval path must reach before its issue is done:
 // proof that the NEXT process took the item, not just that it was approved.
 // Gate 1 hands to ado-sync.mjs, which creates the tracker item (ado-linked).
@@ -261,6 +266,18 @@ export async function applyGateDecisions({ store, track, repo, token, log = () =
                     // correctly (deny a few individually, then bare-approve
                     // the rest, or the reverse).
                     const pending = manifest.items.filter((item) => currentStateOf(store.db, item.item_id) === PENDING[gate]);
+                    if (gate === "gate-2" && bareDecision === "approve") {
+                        const flagged = failedReviewItemIds(pending);
+                        if (flagged.length) {
+                            summary.refused += 1;
+                            log("warn", "gate.apply.bare-approval-flagged", {
+                                gate, issue: issue.number, comment: comment.id,
+                                items: flagged,
+                                effect: "whole-issue approval refused; no item on this issue was approved",
+                            });
+                            continue;
+                        }
+                    }
                     if (pending.length === 0) {
                         summary.unchanged += 1;
                         log("info", "gate.apply.bare-decision-nothing-pending", { gate, issue: issue.number, comment: comment.id, decision: bareDecision });

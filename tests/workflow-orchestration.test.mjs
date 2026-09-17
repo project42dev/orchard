@@ -103,8 +103,8 @@ test("the Gate 2 reviewer's several-decisions-per-comment contract is what the w
 });
 
 test("the Gate 2 operations guide matches the mixed-issue whole-approval semantics", () => {
-    assert.match(operations, /Commenting `approved` or `approve` approves every still-pending item on that issue/);
-    assert.match(operations, /On a mixed issue, use the per-item commands instead/);
+    assert.match(operations, /whole-issue approval is refused/);
+    assert.match(operations, /use per-item commands after reading the findings/);
     assert.doesNotMatch(operations, /whose evidence passed review/);
 });
 
