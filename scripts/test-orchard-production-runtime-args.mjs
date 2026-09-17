@@ -57,6 +57,11 @@ throws(() => parseRuntimeArgs(["--admin-withdraw-gate2", "bad"]),
 }
 throws(() => parseRuntimeArgs(["--admin-hold-stale-publication", "bad"]),
   "stale publication hold refuses an unbound item");
+{
+  const r = parseRuntimeArgs(["--admin-hold-unsafe-gate2", "01a01d34-7172-797b-9a21-10dc8ee80c1a@4"]);
+  ok(r.adminHoldUnsafeGate2?.length === 1 && r.adminHoldUnsafeGate2[0].revision === 4,
+    "unsafe Gate 2 hold names the exact pending revision");
+}
 
 console.log(
   failures === 0
