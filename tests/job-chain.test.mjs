@@ -210,6 +210,32 @@ test("continueAuthoringChain starts another authoring run while stranded work re
     assert.ok(logs.some((l) => l.event === "chain.continue.triggered" && l.detail.remaining === 91 && l.detail.recovered === 2));
 });
 
+test("continueAuthoringChain drains the capped fresh authoring queue", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "next-authoring" }) }; };
+    const logs = [];
+    const triggered = await continueAuthoringChain({
+        freshQueue: { remaining: 43, claimed: 3 },
+        strandedRecovery: { remaining: 10, recovered: [] },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl,
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.equal(triggered, true);
+    assert.equal(started.length, 1);
+    assert.deepEqual(logs.find((entry) => entry.event === "chain.continue.triggered").detail.backlogs, ["fresh"]);
+});
+
+test("continueAuthoringChain stops when fresh items cannot be claimed", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "unexpected" }) }; };
+    const triggered = await continueAuthoringChain({
+        freshQueue: { remaining: 43, claimed: 0 }, strandedRecovery: { remaining: 0, recovered: [] },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" }, tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.equal(triggered, false);
+    assert.equal(started.length, 0);
+});
+
 test("continueAuthoringChain stops, and says why, when a run recovers 0 items", async () => {
     const started = [];
     const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };

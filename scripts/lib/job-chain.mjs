@@ -145,12 +145,13 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
 // target is refused every run and is not a backlog -- and a reopened rework
 // item cannot return to changes-requested without a new human decision, so
 // this cannot self-trigger forever.
-export async function continueAuthoringChain({ strandedRecovery, reworkRecovery = null, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log }) {
+export async function continueAuthoringChain({ freshQueue = null, strandedRecovery, reworkRecovery = null, env = process.env, tokenProvider = defaultArmTokenProvider(env), fetchImpl = fetch, log }) {
     const jobResourceId = env.ORCHARD_CHAIN_AUTHORING_JOB_ID;
     if (!jobResourceId) return false;
-    const backlogs = [["stranded", strandedRecovery], ["rework", reworkRecovery]]
+    const backlogs = [["fresh", freshQueue], ["stranded", strandedRecovery], ["rework", reworkRecovery]]
         .filter(([, summary]) => summary)
-        .map(([name, summary]) => ({ name, remaining: summary.remaining ?? 0, recovered: summary.recovered?.length ?? 0 }));
+        .map(([name, summary]) => ({ name, remaining: summary.remaining ?? 0,
+            recovered: name === "fresh" ? (summary.claimed ?? 0) : (summary.recovered?.length ?? 0) }));
     if (backlogs.length === 0) return false;
     const waiting = backlogs.filter((backlog) => backlog.remaining > 0);
     const remaining = waiting.reduce((sum, backlog) => sum + backlog.remaining, 0);
@@ -177,4 +178,3 @@ export async function continueAuthoringChain({ strandedRecovery, reworkRecovery 
         return false;
     }
 }
-
