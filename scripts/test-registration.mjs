@@ -50,7 +50,7 @@ const ENTRY = {
     takeaways: ["Retrieval and answer composition are distinct stages."],
 };
 
-const learningModule = (id = "rag") => JSON.stringify({ id, title: "Retrieval-augmented generation", level: "intermediate" });
+const learningModule = (id = "rag") => JSON.stringify({ id, title: "Retrieval-augmented generation", level: "intermediate", sources: [] });
 
 // --- reading the surface off the path, rather than off a second column ------
 
@@ -208,6 +208,9 @@ function commitFetchMock({ registryText = CATALOG } = {}) {
         if (url.includes("/git/ref/heads/")) return respond(200, { object: { sha: BASE_COMMIT } });
         if (url.includes(`/git/commits/${BASE_COMMIT}`)) return respond(200, { tree: { sha: "2".repeat(40) } });
         if (url.includes("/contents/")) {
+            if (url.includes("/contents/source-registry.json?")) return respond(200, {
+                content: Buffer.from(JSON.stringify({ sources: [] }), "utf8").toString("base64"), encoding: "base64",
+            });
             if (registryText === null) return respond(404, { message: "Not Found" });
             return respond(200, { content: Buffer.from(registryText, "utf8").toString("base64"), encoding: "base64" });
         }
@@ -260,12 +263,12 @@ test("a registration that cannot be built costs no blob, no tree and no commit o
 test("a surface that needs no registration still prepares exactly the commit it always did", async () => {
     const mock = commitFetchMock();
     const result = await prepareRealCommit({
-        repository: "project42dev/project42-content", path: "resources/discovery/x.json", content: "{}",
+        repository: "project42dev/project42-content", path: "resources/discovery/x.json", content: '{"sources":[]}',
         registration: null, token: "test-token-literal", fetchImpl: mock.impl,
     });
     assert.deepEqual(mock.trees[0].map((entry) => entry.path), ["resources/discovery/x.json"]);
     assert.equal(result.registeredIn, null);
-    assert.equal(mock.calls.filter((call) => call.url.includes("/contents/")).length, 0, "no registry is read for a surface that has none");
+    assert.equal(mock.calls.filter((call) => call.url.includes("/contents/")).length, 1, "only the source registry is read for a resource without catalogue registration");
 });
 
 test("a module already listed adds no second blob, and the commit names only the artifact", async () => {

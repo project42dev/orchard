@@ -233,6 +233,19 @@ export async function prepareRealCommit({ repository, path, content, registratio
     const commit = await call(`/repos/${repository}/git/commits/${baseCommit}`);
     const baseTree = commit.tree.sha;
 
+    if (!materializeContent && validateFormat === assertArtifactFormat && /^(modules|resources)\/.*\.json$/i.test(path)) {
+        const file = await call(`/repos/${repository}/contents/source-registry.json?ref=${baseCommit}`);
+        const registry = JSON.parse(Buffer.from(file.content ?? "", file.encoding ?? "base64").toString("utf8"));
+        const sources = JSON.parse(content).sources;
+        if (!Array.isArray(sources)) fail("evidence.sources-missing", `${path} must contain a sources array`);
+        const registered = [...registry.sources].sort((a, b) => b.urlPrefix.length - a.urlPrefix.length);
+        for (const source of sources) {
+            const match = registered.find((entry) => source?.url?.startsWith(entry.urlPrefix));
+            if (!match) fail("evidence.source-unregistered", `${path} cites an unregistered source: ${source?.url ?? "(missing URL)"}`);
+            if (source.publisher !== match.publisher) fail("evidence.source-publisher", `${path} cites ${source.url} as ${source.publisher}, but its registered publisher is ${match.publisher}`);
+        }
+    }
+
     // An update must retain the existing lesson's teaching components. A
     // parseable replacement can otherwise silently remove its activity or
     // instructor script, as the September 15 draft for ai-mental-models did.
