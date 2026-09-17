@@ -163,6 +163,19 @@ test("a compliant envelope splits into pure mermaid and a structured catalogue e
     assert.equal(format.ok, true, "the .mmd committed is pure mermaid");
 });
 
+test("the observed two-backtick mermaid opener is repaired only with complete deliverables", () => {
+    const malformed = envelope().replace("```mermaid", "``mermaid");
+    const split = splitDiagramDeliverable({ path: DIAGRAM_PATH, content: malformed });
+    assert.equal(split.ok, true);
+    assert.equal(split.source, COMMITTED);
+    assert.deepEqual(split.catalogueEntry, ENTRY);
+
+    const unclosed = malformed.replace(`${SOURCE}\n\`\`\``, `${SOURCE}\n\`\``);
+    const refused = splitDiagramDeliverable({ path: DIAGRAM_PATH, content: unclosed });
+    assert.equal(refused.ok, false);
+    assert.notEqual(refused.source, COMMITTED);
+});
+
 test("a preamble outside the fences is ignored rather than refused, and can never become either deliverable", () => {
     const split = splitDiagramDeliverable({
         path: DIAGRAM_PATH,
