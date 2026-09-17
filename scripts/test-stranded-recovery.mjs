@@ -77,6 +77,22 @@ test('the sweep is capped per run, and says how much is left', async () => {
     }
 });
 
+test('an execution-only item allowlist retries only named stalled items', async () => {
+    const { store, runId, dbPath } = await estate();
+    const [selected, untouched] = await strandItems(store, runId, ['selected', 'untouched']);
+    const events = [];
+    const summary = await recoverStrandedItems({
+        store, now: NOW,
+        env: { ORCHARD_STRANDED_RECOVERY_ITEM_IDS: `${selected},missing-item` },
+        log: (_level, event, fields) => events.push({ event, fields }),
+    });
+    store.close();
+    assert.deepEqual(summary.recovered.map((entry) => entry.item), [selected]);
+    assert.equal(summary.stranded, 1);
+    assert.equal(stateOf(dbPath, untouched).current_state, 'gate2-ready');
+    assert.deepEqual(events.find((entry) => entry.event === 'gate2.stranded.selection').fields.absent, ['missing-item']);
+});
+
 test('an item that keeps coming back is named for a human, not retried forever', async () => {
     const { store, runId, dbPath } = await estate();
     const [id] = await strandItems(store, runId, ['stranded-stubborn']);
@@ -234,12 +250,12 @@ test('items this run just moved are left to this run, and the bounds have conser
     assert.deepEqual(summary.recovered.map((entry) => entry.item), [older]);
     assert.equal(stateOf(dbPath, fresh).current_state, 'gate2-ready');
 
-    assert.deepEqual(resolveRecoveryBounds({}), { maxItems: DEFAULT_MAX_ITEMS, maxAttempts: DEFAULT_MAX_ATTEMPTS });
+    assert.deepEqual(resolveRecoveryBounds({}), { maxItems: DEFAULT_MAX_ITEMS, maxAttempts: DEFAULT_MAX_ATTEMPTS, itemIds: null });
     assert.equal(DEFAULT_MAX_ITEMS, 5, 'small on purpose: each recovered item is re-drafted and that spends');
     // A malformed override must not silently widen the cap.
     assert.deepEqual(
         resolveRecoveryBounds({ ORCHARD_STRANDED_RECOVERY_MAX_ITEMS: 'lots' }),
-        { maxItems: DEFAULT_MAX_ITEMS, maxAttempts: DEFAULT_MAX_ATTEMPTS },
+        { maxItems: DEFAULT_MAX_ITEMS, maxAttempts: DEFAULT_MAX_ATTEMPTS, itemIds: null },
     );
     assert.equal(resolveRecoveryBounds({ ORCHARD_STRANDED_RECOVERY_MAX_ITEMS: '0' }).maxItems, 0, 'the sweep can be switched off');
 });

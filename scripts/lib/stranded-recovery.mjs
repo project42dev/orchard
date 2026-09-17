@@ -81,6 +81,9 @@ export function resolveRecoveryBounds(env = process.env) {
     return {
         maxItems: positiveInteger(env.ORCHARD_STRANDED_RECOVERY_MAX_ITEMS, DEFAULT_MAX_ITEMS),
         maxAttempts: positiveInteger(env.ORCHARD_STRANDED_RECOVERY_MAX_ATTEMPTS, DEFAULT_MAX_ATTEMPTS),
+        itemIds: env.ORCHARD_STRANDED_RECOVERY_ITEM_IDS
+            ? new Set(env.ORCHARD_STRANDED_RECOVERY_ITEM_IDS.split(",").map((id) => id.trim()).filter(Boolean))
+            : null,
     };
 }
 
@@ -153,7 +156,7 @@ export async function recoverStrandedItems({
     store, track = null, now = null, exclude = [], env = process.env,
     log = () => { }, retry = applyRetry,
 } = {}) {
-    const { maxItems, maxAttempts } = resolveRecoveryBounds(env);
+    const { maxItems, maxAttempts, itemIds } = resolveRecoveryBounds(env);
     const skipIds = exclude instanceof Set ? exclude : new Set(exclude);
     const summary = { stranded: 0, recovered: [], refused: [], remaining: 0, maxItems, maxAttempts };
 
@@ -165,7 +168,15 @@ export async function recoverStrandedItems({
           ORDER BY w.updated_at, w.item_id`,
     ).all(track, track);
 
-    const candidates = rows.filter((row) => !skipIds.has(row.item_id));
+    const candidates = rows.filter((row) => !skipIds.has(row.item_id) && (!itemIds || itemIds.has(row.item_id)));
+    if (itemIds) {
+        const found = new Set(candidates.map((row) => row.item_id));
+        log("info", `${RECOVERY_EVENT}.selection`, {
+            requested: itemIds.size, eligible: candidates.length,
+            absent: [...itemIds].filter((id) => !found.has(id)),
+            effect: "this execution retries only the named stalled items",
+        });
+    }
     summary.stranded = candidates.length;
     if (candidates.length === 0) {
         log("info", `${RECOVERY_EVENT}.none`, { track, effect: "no item is waiting at gate2-ready from an earlier run" });
