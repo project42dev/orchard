@@ -986,7 +986,9 @@ export class StateStore {
         }
         return record;
     }
-    listTransitions(itemId) { return this.db.prepare("SELECT record_json FROM state_transition_event WHERE item_id = ? ORDER BY occurred_at, transition_id").all(itemId).map(parseRecord); }
+    // UUIDs created in one millisecond need not sort in insertion order. The
+    // rowid breaks timestamp ties in the append order the state machine wrote.
+    listTransitions(itemId) { return this.db.prepare("SELECT record_json FROM state_transition_event WHERE item_id = ? ORDER BY occurred_at, rowid").all(itemId).map(parseRecord); }
     listDecisions(itemId) { return this.db.prepare("SELECT record_json FROM decision_event WHERE item_id = ? ORDER BY occurred_at, event_id").all(itemId).map(parseRecord); }
     getGateDecisionAuthority(eventId) {
         const row = this.db.prepare("SELECT * FROM gate_decision_authority WHERE event_id = ?").get(eventId);
