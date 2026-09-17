@@ -82,6 +82,18 @@ export const CATALOGUE_FENCE_TAG = "orchard-catalogue-entry";
 const FENCE_OPEN = /^\s*(`{3,})[ \t]*([A-Za-z0-9_-]*)[ \t]*$/;
 const HEAD_LENGTH = 160;
 
+// A live drafter twice emitted ``mermaid as its first line while keeping the
+// closing fence and the separate catalogue block. Repair only that exact
+// opening typo; the parsed source and catalogue still pass every check below.
+function repairLeadingMermaidFence(content) {
+    const lines = String(content ?? "").split(/\r?\n/);
+    const first = lines.findIndex((line) => line.trim() !== "");
+    if (first >= 0 && /^\s*``mermaid[ \t]*$/.test(lines[first])) {
+        lines[first] = lines[first].replace("``mermaid", "```mermaid");
+    }
+    return lines.join("\n");
+}
+
 function head(content) {
     const firstLine = String(content).split("\n", 1)[0].trim();
     return firstLine.length > HEAD_LENGTH ? `${firstLine.slice(0, HEAD_LENGTH)}...` : firstLine;
@@ -163,7 +175,7 @@ export function splitDiagramDeliverable({ path, content }) {
     }
 
     const contentHead = head(content);
-    const blocks = fencedBlocks(content);
+    const blocks = fencedBlocks(repairLeadingMermaidFence(content));
     const tagsFound = blocks.map((block) => block.tag.toLowerCase());
     const deny = (code, reason) => refusal({ path, code, reason, tagsFound, contentHead });
 
@@ -181,6 +193,9 @@ export function splitDiagramDeliverable({ path, content }) {
             "diagram-deliverable.multiple-source-blocks",
             `${path} is one file and the output carries ${sources.length} \`\`\`${MERMAID_FENCE_TAG} blocks, so which one the reader would see is a guess`,
         );
+    }
+    if (!sources[0].closed) {
+        return deny("diagram-deliverable.unclosed-source-block", `${path} has no closing fence for its mermaid source`);
     }
     // Trimmed, then given back exactly one trailing newline. All 11 published
     // .mmd files in project42dev/project42-content end with one, and a
@@ -209,6 +224,9 @@ export function splitDiagramDeliverable({ path, content }) {
             "diagram-deliverable.multiple-catalogue-blocks",
             `${path} registers one catalogue entry and the output carries ${entries.length} \`\`\`${CATALOGUE_FENCE_TAG} blocks, so which one is the record is a guess`,
         );
+    }
+    if (!entries[0].closed) {
+        return deny("diagram-deliverable.unclosed-catalogue-block", `${path} has no closing fence for its catalogue entry`);
     }
 
     let parsed;
