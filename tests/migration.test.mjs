@@ -84,7 +84,7 @@ test("009 rotates the gate trust anchor only, and the anchor stays immutable aft
     db.close();
 
     const outcome = migrateContentDb(path);
-    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor", "010-superseded-item-uniqueness", "011-repoint-publication-targets"]);
+    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor", "010-superseded-item-uniqueness", "011-repoint-publication-targets", "012-rotate-gate-trust-anchor"]);
     assert.ok(outcome.verification.ok, JSON.stringify(outcome.verification));
 
     const after = new DatabaseSync(path);
@@ -95,6 +95,32 @@ test("009 rotates the gate trust anchor only, and the anchor stays immutable aft
     // The trigger must still be enforcing immutability after the migration
     // that used its own sanctioned bypass: this was a deliberate, versioned
     // exception, not a general-purpose door left open.
+    assert.throws(() => after.exec("DELETE FROM protected_trust_anchor WHERE scope = 'publication'"), /immutable/);
+    after.close();
+});
+
+test("012 rotates the deployed gate alias adapter anchor without changing publication authority", (t) => {
+    const path = join(temporary(t), "gate-alias-rotation.db");
+    migrateContentDb(path);
+    const before = new DatabaseSync(path);
+    // Migration 012 only changes the gate anchor, so omitting its ledger row
+    // recreates the exact version-11 state relevant to this upgrade.
+    before.prepare("DELETE FROM schema_migration WHERE version = 12").run();
+    for (const scope of ["gate", "publication", "closure"]) {
+        const digest = `sha256:${scope === "gate" ? "a" : scope === "publication" ? "b" : "c"}`.padEnd(71, scope === "gate" ? "a" : scope === "publication" ? "b" : "c");
+        const record = JSON.stringify({ scope, adapter_identity: `test:${scope}:v1`, adapter_digest: digest, adapter_path: null, policy_digest: null, policy: null, provisioned_at: "2026-09-16T00:00:00Z" });
+        before.prepare("INSERT INTO protected_trust_anchor (scope, adapter_identity, adapter_digest, adapter_path, policy_digest, policy_json, provisioned_at, record_json) VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?)")
+            .run(scope, `test:${scope}:v1`, digest, "2026-09-16T00:00:00Z", record);
+    }
+    assert.throws(() => before.exec("DELETE FROM protected_trust_anchor WHERE scope = 'gate'"), /immutable/);
+    before.close();
+
+    const result = migrateContentDb(path);
+    assert.deepEqual(result.applied, [{ version: 12, name: "012-rotate-gate-trust-anchor" }]);
+    assert.ok(result.verification.ok);
+    const after = new DatabaseSync(path);
+    assert.equal(after.prepare("SELECT 1 FROM protected_trust_anchor WHERE scope = 'gate'").get(), undefined);
+    assert.equal(after.prepare("SELECT count(*) AS n FROM protected_trust_anchor WHERE scope IN ('publication', 'closure')").get().n, 2);
     assert.throws(() => after.exec("DELETE FROM protected_trust_anchor WHERE scope = 'publication'"), /immutable/);
     after.close();
 });
