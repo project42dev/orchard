@@ -1024,7 +1024,9 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         retried: rejectionRecovery.retried, escalated: rejectionRecovery.escalated,
         drafterRefusals: refusals.map((entry) => ({ item: entry.item, revision: entry.revision, code: entry.code, reason: entry.reason, requiredInputs: entry.requiredInputs })),
     });
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length, gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary, drafterRefusals: refusals };
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length,
+        freshQueue: { remaining: briefs.notReached, claimed: briefs.claimed.length },
+        gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary, drafterRefusals: refusals };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) await main();
