@@ -361,7 +361,7 @@ test("the sweep is capped per run, counts only eligible work as remaining, and r
     assert.equal(spent, 1, "the cap bounds spend, and the unpublishable item never reaches the drafter");
     assert.equal(summary.recovered.length, 1);
     assert.equal(summary.remaining, 1, "the one eligible item left is the backlog; the refused one is not");
-    assert.match(summary.refused[0].reason, /registration\.unrecognized-target/);
+    assert.match(summary.refused[0].reason, /catalogue\.selector-missing/);
     assert.equal(stateOf(dbPath, bad).current_state, "changes-requested");
     assert.equal([a, b].filter((id) => stateOf(dbPath, id).current_state === "executing").length, 1);
 

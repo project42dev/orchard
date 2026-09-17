@@ -121,19 +121,16 @@ test("the three registration checks decide publishability, and they agree with w
     assert.equal(publishableTargetRefusal("resources/resource-a.json"), null);
     assert.equal(publishableTargetRefusal("diagrams/diagram-a.mmd"), null);
 
-    assert.equal(publishableTargetRefusal("catalog.json").code, "registration.unrecognized-target",
-        "the catalogue itself is not a surface anything publishes to");
-    assert.equal(publishableTargetRefusal("diagrams/catalogue.json").code, "registration.unrecognized-diagram-path",
-        "the diagram catalogue is a registry, not a diagram");
+    assert.equal(publishableTargetRefusal("catalog.json"), null, "a selected catalogue record now has a publication route");
+    assert.equal(publishableTargetRefusal("diagrams/catalogue.json"), null, "the registry has a bounded publication route");
     assert.equal(publishableTargetRefusal("modules/module-a.json").code, "registration.unrecognized-module-path",
         "a module outside a learning path directory has no URL, so it is not publishable either");
 });
 
 test("a currency candidate for an item with no publishable artifact is refused where the target is decided", () => {
     for (const [stableId, sourcePath, expectedCode] of [
-        ["catalogue:content", "content/catalog.json", "registration.unrecognized-target"],
-        ["learning-path:path-a", "content/catalog.json", "registration.unrecognized-target"],
-        ["catalogue:guide-diagrams", "content/diagrams/catalogue.json", "registration.unrecognized-diagram-path"],
+        ["catalogue:content", "content/catalog.json", "catalogue.aggregate-finding"],
+        ["catalogue:guide-diagrams", "content/diagrams/catalogue.json", "catalogue.aggregate-finding"],
     ]) {
         let error = null;
         try {
@@ -146,6 +143,9 @@ test("a currency candidate for an item with no publishable artifact is refused w
         assert.equal(error.registrationCode, expectedCode,
             "the refusal carries registration's own code, because that is the fact a human needs");
     }
+    assert.equal(currencyCandidateFor(item("learning-path:path-a", "content/catalog.json"), { classification: "update", evidence: ["e:1"] }, "2026-09-12T00:00:00.000Z").targetPath, "catalog.json");
+    assert.throws(() => currencyCandidateFor(item("learning-path:path-a", "content/catalog.json"), { classification: "removal", evidence: ["e:1"] }, "2026-09-12T00:00:00.000Z"),
+        (error) => error.registrationCode === "catalogue.removal-unimplemented");
     // The control: the same builder, the same classification, a file-backed item.
     assert.equal(
         currencyCandidateFor(item("learning-module:module-a", "content/modules/path-a/module-a.json"), { classification: "update", evidence: ["e:1"] }, "2026-09-12T00:00:00.000Z").targetPath,
@@ -184,33 +184,33 @@ test("a run holds the publishable findings and carries the rest out as unroutabl
     const stages = [];
     const result = await runTrack2(options(root, store, { onStage: (event, fields) => stages.push([event, fields]) }));
 
-    assert.equal(result.findings.persisted, 3, "module, resource and diagram each have a file to publish");
+    assert.equal(result.findings.persisted, 5, "file and selected catalogue-entry findings reach Gate 1");
     assert.deepEqual(
         result.findings.items.map((entry) => entry.target.path).sort(),
-        ["diagrams/diagram-a.mmd", "modules/path-a/module-a.json", "resources/resource-a.json"],
+        ["catalog.json", "catalog.json", "diagrams/diagram-a.mmd", "modules/path-a/module-a.json", "resources/resource-a.json"],
     );
     assert.deepEqual(
         result.findings.unroutable.map((entry) => entry.stableId).sort(),
-        ["catalogue:content", "catalogue:guide-diagrams", "learning-module:ghost-module", "learning-path:path-a"],
-        "the catalogue, the diagram catalogue, the learning path and the catalog entry with no file all have nowhere to publish",
+        ["catalogue:content", "catalogue:guide-diagrams"],
+        "aggregate findings remain reported until they are split into scoped entry decisions",
     );
     // The findings object is REPLACED by persistDiscoveryItems on any run that
     // has candidates, which is every run that matters. Asserted on a run that
     // persisted three, not on an empty one.
     assert.ok(result.findings.persisted > 0 && result.findings.unroutable.length > 0);
 
-    const entry = result.findings.unroutable.find((candidate) => candidate.stableId === "learning-path:path-a");
+    const entry = result.findings.unroutable.find((candidate) => candidate.stableId === "catalogue:content");
     assert.equal(entry.classification, "update");
     assert.equal(entry.targetPath, "catalog.json");
-    assert.equal(entry.code, "registration.unrecognized-target");
+    assert.equal(entry.code, "catalogue.aggregate-finding");
     assert.ok(entry.evidence.length > 0, "the evidence the inspection gave is carried with the finding, not dropped with it");
     assert.equal(entry.sourcePath, "content/catalog.json");
 
     const announced = stages.find(([event]) => event === "track2.findings.unroutable");
     assert.ok(announced, "the run log says it, on the run, whatever the summary later does with it");
-    assert.equal(announced[1].count, 4);
+    assert.equal(announced[1].count, 2);
 
-    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM workflow_item").get().n, 3,
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM workflow_item").get().n, 5,
         "nothing unpublishable is written into the lifecycle, so nothing new can strand");
     assert.ok(store.verify().ok);
 });
@@ -230,7 +230,7 @@ test("a drifted run still reports what has no publishable artifact, because that
     }));
     assert.equal(result.drift, true);
     assert.equal(result.findings.persisted, 0, "a proposal from a corpus that moved is still not held");
-    assert.equal(result.findings.unroutable.length, 4,
+    assert.equal(result.findings.unroutable.length, 2,
         "but a finding whose target has no surface is unpublishable whatever the bytes did, and a month of silence is not the right answer");
 });
 
@@ -346,12 +346,41 @@ test("every live item already recorded against an unpublishable target is named 
     assert.equal(entry.item, stranded.items[0].item_id);
     assert.equal(entry.path, "catalog.json");
     assert.equal(entry.state, "gate1-pending");
-    assert.equal(entry.code, "registration.unrecognized-target");
+    assert.equal(entry.code, "catalogue.selector-missing");
     assert.match(entry.action, /deny it at Gate 1/, "a Gate 1 item is closable by the owner today, and the report says so");
 
     assert.ok(logged.some(([level, event]) => level === "warn" && event.endsWith(".held")),
         "it is a warning, every run, until a human acts");
     assert.ok(logged.some(([level, event]) => level === "warn" && event.endsWith(".summary")));
+});
+
+test("a stranded legacy catalogue item is superseded by a new scoped Gate 1 proposal", async (t) => {
+    const store = stateEstate(t);
+    const runId = "01930000-0000-7000-8000-000000000003";
+    await store.recordRun(createTrack2RunRecord(
+        { runId, mode: "full", partitionSize: 50, concurrency: 4, contentCommit: "0".repeat(40) },
+        { expected: 1, enumerated: 1, inspected: 1, gaps: 0 }, "running", "2026-09-12T00:00:00.000Z", null,
+    ));
+    const old = await holdUnpublishableItem(store, runId, "catalog.json", "learning-path:path-a");
+    const oldId = old.items[0].item_id;
+    store.db.prepare("UPDATE workflow_item SET current_state = 'gate2-ready' WHERE item_id = ?").run(oldId);
+    const newItem = await persistDiscoveryItems({
+        store, runId, track: "track-2", now: "2026-09-17T00:00:00.000Z",
+        candidates: [{
+            subject: "learning-path:path-a", canonicalContentId: "learning-path:path-a", surface: "learning",
+            outcome: "currency-finding", scope: "content", proposalKind: "track-2-currency-proposal",
+            category: "update", title: "update: learning-path:path-a", term: "path-a", level: null,
+            targetPath: "catalog.json", evidence: ["e:2"], rationale: "Scoped catalogue update",
+            evidenceRefs: [{ reference: "content/catalog.json", digest: sha256Digest("new") }],
+            observedAt: "2026-09-17T00:00:00.000Z", semanticIdentity: `sid:v1:${sha256Digest("learning-path:path-a").slice(7)}`,
+        }],
+    });
+    assert.equal(newItem.persisted, 1);
+    assert.equal(newItem.superseded, 1);
+    assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(oldId).current_state, "superseded");
+    const successor = store.db.prepare("SELECT record_json FROM item_revision WHERE item_id = ? AND item_revision = 1").get(newItem.items[0].item_id);
+    assert.equal(JSON.parse(successor.record_json).canonical_content_id, "learning-path:path-a");
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM decision_event WHERE item_id = ?").get(newItem.items[0].item_id).n, 0);
 });
 
 test("the production runtime actually runs the backlog pass, on both of its decision paths", () => {

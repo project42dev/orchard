@@ -75,6 +75,8 @@ export const DIAGRAM_CATEGORIES = Object.freeze([
  */
 export function surfaceForTargetPath(targetPath) {
     const path = String(targetPath ?? "");
+    if (path === "catalog.json") return "learning";
+    if (path === "diagrams/catalogue.json") return "guide-diagram";
     if (/^modules\//.test(path)) return "learning";
     if (/^resources\//.test(path)) return "guide";
     if (/^diagrams\//.test(path)) return "guide-diagram";
@@ -247,6 +249,10 @@ export function registerDiagram({ registryText, targetPath, entry }) {
  * artifact nothing indexes.
  */
 export function registrationFor({ surface, targetPath, artifact, catalogueEntry = null }) {
+    // A currency correction to the registry itself is materialized from one
+    // selected entry by catalogue-deliverable.mjs. Registering it again would
+    // write the same path twice in a prepared tree.
+    if (targetPath === "catalog.json" || targetPath === "diagrams/catalogue.json") return null;
     const registryPath = REGISTRY_BY_SURFACE[surface];
     if (registryPath === null) return null;
     if (registryPath === undefined) {

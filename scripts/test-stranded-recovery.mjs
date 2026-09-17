@@ -171,8 +171,8 @@ test('a target path no surface publishes to is refused before a single token is 
     assert.equal(spent, 0, 'the drafter is never reached, which is the entire point of the check');
     assert.equal(summary.recovered.length, 0);
     assert.equal(summary.refused.length, 1);
-    assert.match(summary.refused[0].reason, /registration\.unrecognized-target/, 'the refusal names the code, so a human can act on it');
-    assert.match(summary.refused[0].reason, /re-authoring cannot change the target/);
+    assert.match(summary.refused[0].reason, /no canonical entry selector/, 'legacy catalogue work cannot guess which record to edit');
+    assert.match(summary.refused[0].reason, /re-authoring cannot safely choose one/);
     assert.ok(events.includes('gate2.stranded.refused'));
     assert.equal(stateOf(dbPath, id).current_state, 'gate2-ready', 'it stays put, visibly, for a human to re-target');
 });

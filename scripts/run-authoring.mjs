@@ -64,6 +64,7 @@ import { buildHandoffsFromProposal, reconstructStageContent, selectContentStage,
 import { inspectArtifactFormat, SKIP_ARTIFACT_FORMAT_CHECK } from "./lib/artifact-format.mjs";
 import { registrationFor, surfaceForTargetPath, RegistrationError } from "./lib/registration.mjs";
 import { splitDiagramDeliverable } from "./lib/diagram-deliverable.mjs";
+import { applyCatalogueDraft, parseCatalogueDraft, isCatalogueTarget, CatalogueDeliverableError } from "./lib/catalogue-deliverable.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { prepareItem as prepareGate2Item, evidencePathFor, persistGate2Evidence } from "./run-gate2-prep.mjs";
 import { recoverStrandedItems } from "./lib/stranded-recovery.mjs";
@@ -237,7 +238,7 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
                 "SELECT item_id, track, current_state, current_revision, origin_run_id FROM workflow_item WHERE item_id = ?",
             ).get(itemId);
             const revision = store.db.prepare(
-                "SELECT run_id, proposal_digest, target_repository, target_path FROM item_revision WHERE item_id = ? AND item_revision = ?",
+                "SELECT run_id, proposal_digest, target_repository, target_path, record_json FROM item_revision WHERE item_id = ? AND item_revision = ?",
             ).get(itemId, Number(row.current_revision));
             if (!revision?.target_repository || !revision?.target_path) {
                 summary.held += 1;
@@ -373,6 +374,23 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             // prepareRealCommit re-asserts the same rule as a throwing choke
             // point, so no future caller can reach GitHub around this.
             const target = { repository: revision.target_repository, path: revision.target_path };
+            const revisionRecord = JSON.parse(revision.record_json);
+            const canonicalId = revisionRecord.canonical_content_id;
+            const expectedEntryDigest = revisionRecord.evidence?.find((e) => e.reference === `catalogue-entry:${canonicalId}`)?.digest ?? null;
+            if (isCatalogueTarget(target.path)) {
+                if (!expectedEntryDigest) {
+                    summary.held += 1;
+                    log("warn", "gate2evidence.held", { item: itemId, code: "catalogue.baseline-missing", reason: "no inspected entry digest is bound to this catalogue proposal", target: target.path });
+                    continue;
+                }
+                try { parseCatalogueDraft({ path: target.path, canonicalId, content: reconstructed.content }); }
+                catch (error) {
+                    if (!(error instanceof CatalogueDeliverableError)) throw error;
+                    summary.held += 1;
+                    log("warn", "gate2evidence.held", { item: itemId, code: error.code, reason: error.message, target: target.path });
+                    continue;
+                }
+            }
 
             // TWO DELIVERABLES, ONE CONTENT SLOT. A diagram is a .mmd source
             // AND a catalogue entry, and until 2026-09-12 the pipeline could
@@ -461,9 +479,14 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
 
             let commit;
             try {
-                commit = await prepareRealCommit({ repository: target.repository, path: target.path, content: publishable, registration, token, fetchImpl });
+                commit = await prepareRealCommit({
+                    repository: target.repository, path: target.path, content: publishable, registration, token, fetchImpl,
+                    materializeContent: isCatalogueTarget(target.path)
+                        ? (registryText) => applyCatalogueDraft({ path: target.path, canonicalId, content: publishable, registryText, expectedEntryDigest })
+                        : null,
+                });
             } catch (error) {
-                if (!(error instanceof RegistrationError)) throw error;
+                if (!(error instanceof RegistrationError || error instanceof CatalogueDeliverableError)) throw error;
                 summary.held += 1;
                 log("warn", "gate2evidence.held", { item: itemId, reason: error.message, code: error.code, target: target.path });
                 continue;

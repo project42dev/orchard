@@ -45,6 +45,7 @@ import { isoDateOf, isFalseFutureDateClaim } from './lib/inspection-dates.mjs';
 // what the pipeline can consume have to be the same thing by construction.
 import { MERMAID_FENCE_TAG, CATALOGUE_FENCE_TAG } from './lib/diagram-deliverable.mjs';
 import { DIAGRAM_CATEGORIES } from './lib/registration.mjs';
+import { isCatalogueTarget, selectedCatalogueContent, CatalogueDeliverableError } from './lib/catalogue-deliverable.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_MAP_PATH = resolve(HERE, '..', 'config', 'model-map.json');
@@ -692,8 +693,25 @@ export function existingFileCitations(existing) {
     .sort((a, b) => String(a.last_verified ?? '').localeCompare(String(b.last_verified ?? '')));
 }
 
+function selectedExistingCatalogue(existing, targetPath, canonicalId) {
+  if (!existing || existing.status !== 'supplied') return existing;
+  try {
+    const entry = selectedCatalogueContent({ path: targetPath, canonicalId, registry: existing.parsed });
+    return { ...existing, catalogueEntry: true, canonicalId, content: JSON.stringify(entry, null, 2), parsed: entry, partial: false, omittedPaths: [] };
+  } catch (error) {
+    if (!(error instanceof CatalogueDeliverableError)) throw error;
+    return unavailable(existing, error.message);
+  }
+}
+
 function existingContentLines(existing, target, today) {
   const lines = [];
+  if (existing?.catalogueEntry) {
+    lines.push('', `THE EXISTING ${existing.canonicalId} ENTRY from ${existing.sourcePath} at inspection commit ${existing.inspectionCommit ?? 'unknown'}:`,
+      'Return one complete corrected JSON object for this entry only. Preserve its id and every existing field. Orchard will replace only this entry in the current protected-main registry and will show that exact diff at Gate 2.',
+      '````json', existing.content, '````');
+    return lines;
+  }
   if (target?.path) {
     const id = basename(target.path).replace(/\.[^.]+$/, '');
     lines.push('', `The file to correct is ${target.repository ? `${target.repository}/` : ''}${target.path}. Its id and slug are "${id}", taken from that filename; keep them exactly.`);
@@ -839,8 +857,14 @@ export function buildPrompt(item, evidence, citations, surfaceConfig, findings =
     );
   }
 
-  const form = FORM_INSTRUCTIONS[formFor(item.surface, surfaceConfig)];
-  if (form) lines.push(...form);
+  if (isCatalogueTarget(item.recordedTarget?.path)) {
+    lines.push('', 'FORM. Return exactly one JSON object for the selected catalogue record. No fence, wrapper, prose, or whole-registry rewrite.',
+      `The selected record is ${item.record?.canonical_content_id ?? '(missing selector)'} in ${item.recordedTarget.path}. Keep its id and all existing fields. Change only fields the inspection finding supports.`,
+      'For a catalogue-wide finding, return only the existing non-array top-level metadata keys; Orchard preserves every array unchanged.');
+  } else {
+    const form = FORM_INSTRUCTIONS[formFor(item.surface, surfaceConfig)];
+    if (form) lines.push(...form);
+  }
 
   lines.push('', 'Constraints:');
   for (const c of STANDING_CONSTRAINTS) lines.push(`- ${c}`);
@@ -955,6 +979,11 @@ export function surfaceCriteriaFor(surface) {
 }
 
 export function buildAcceptanceCriteria(item, evidence) {
+  if (isCatalogueTarget(item.recordedTarget?.path)) return [
+    'The output is exactly one valid JSON object for the selected catalogue record.',
+    'Its id and all existing fields remain present, and only findings supported by evidence are corrected.',
+    'No unrelated catalogue entry or registry array is rewritten.',
+  ];
   const criteria = [
     'Every source is listed at the end of the piece, with a URL that resolves over https.',
     'No tool name, version number, or configuration key appears that the supplied material does not establish.',
@@ -1209,6 +1238,10 @@ export async function generateBriefs({
           skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: 'a removal needs the publication target recorded at Gate 1, and this revision carries none' });
           continue;
         }
+        if (isCatalogueTarget(item.recordedTarget.path)) {
+          skipped.push({ subjectId: item.subject_id, surface: item.surface, reason: 'catalogue entry removal is not implemented; deleting this target would delete the whole registry' });
+          continue;
+        }
         if (removals.length >= limit) { notReached += 1; continue; }
         removals.push({
           subjectId: item.subject_id,
@@ -1252,9 +1285,12 @@ export async function generateBriefs({
       // they do not reach a drafter.
       const findings = (item.currencyFindings ?? []).filter((finding) => !isFalseFutureDateClaim(finding, today));
       const inspectionCommit = item.kind === 'needs-updating' ? inspectionCommitFor(db, item.origin_run_id) : null;
-      const existing = item.kind === 'needs-updating'
+      let existing = item.kind === 'needs-updating'
         ? existingContentFor({ corpusRoot, record: item.record, inspectionCommit, findings })
         : null;
+      if (item.kind === 'needs-updating' && isCatalogueTarget(item.recordedTarget?.path)) {
+        existing = selectedExistingCatalogue(existing, item.recordedTarget.path, item.record.canonical_content_id);
+      }
       // For a corpus-backed update the sources ARE in the file: the item
       // record's only evidence is the corpus path, which is not a citation.
       const recordCitations = evidenceCitations(item.record);

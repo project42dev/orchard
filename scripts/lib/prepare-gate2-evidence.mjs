@@ -200,8 +200,9 @@ export async function buildHandoffsFromProposal({ proposal, binding, runStartedA
  * and the one caller that passes a different one (the rejection-gate
  * escalation path) names its opt-out SKIP_ARTIFACT_FORMAT_CHECK and says why.
  */
-export async function prepareRealCommit({ repository, path, content, registration = null, baseBranch = "main", token, fetchImpl = fetch, validateFormat = assertArtifactFormat }) {
-    validateFormat({ path, content });
+export async function prepareRealCommit({ repository, path, content, registration = null, materializeContent = null, baseBranch = "main", token, fetchImpl = fetch, validateFormat = assertArtifactFormat }) {
+    if (materializeContent && registration) fail("evidence.catalogue-registration", "registry-only content cannot also register another file");
+    if (!materializeContent) validateFormat({ path, content });
 
     async function call(apiPath, { method = "GET", body } = {}) {
         const response = await fetchImpl(`${API}${apiPath}`, {
@@ -225,6 +226,16 @@ export async function prepareRealCommit({ repository, path, content, registratio
     const baseCommit = ref.object.sha;
     const commit = await call(`/repos/${repository}/git/commits/${baseCommit}`);
     const baseTree = commit.tree.sha;
+
+    // A catalogue finding authors one entry, not the whole registry. Read the
+    // protected-main base, replace only that entry, and bind the resulting
+    // complete registry to the Gate 2 prepared tree.
+    if (materializeContent) {
+        const file = await call(`/repos/${repository}/contents/${path}?ref=${baseCommit}`);
+        const currentText = Buffer.from(file.content ?? "", file.encoding ?? "base64").toString("utf8");
+        content = materializeContent(currentText);
+        validateFormat({ path, content });
+    }
 
     // REGISTRATION IS PART OF THE SAME COMMIT. A module the learning catalog
     // does not list, or a diagram the diagram catalogue does not list, is a
@@ -270,7 +281,7 @@ export async function prepareRealCommit({ repository, path, content, registratio
         treeSha: tree.sha,
         preparedTreeDigest,
         preparedCommit: preparedCommit.sha,
-        registeredIn: registrationEntry?.path ?? null,
+        registeredIn: registrationEntry?.path ?? (materializeContent ? path : null),
     };
 }
 

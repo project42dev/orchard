@@ -73,7 +73,7 @@ export function resolveReworkBounds(env = process.env) {
  */
 export function classifyReworkItems(db, { track = null } = {}) {
     const rows = db.prepare(
-        `SELECT w.item_id, w.track, w.current_state, w.current_revision, r.target_repository, r.target_path
+        `SELECT w.item_id, w.track, w.current_state, w.current_revision, r.target_repository, r.target_path, r.record_json
            FROM workflow_item w
            JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
           WHERE w.current_state IN ('changes-requested', 'stale-approval') AND (? IS NULL OR w.track = ?)
@@ -100,7 +100,11 @@ export function classifyReworkItems(db, { track = null } = {}) {
             });
             continue;
         }
-        const targetRefusal = publishableTargetRefusal(row.target_path);
+        const missingSelector = (row.target_path === "catalog.json" || row.target_path === "diagrams/catalogue.json")
+            && !JSON.parse(row.record_json).canonical_content_id;
+        const targetRefusal = missingSelector
+            ? { code: "catalogue.selector-missing", message: "legacy catalogue item has no canonical entry selector" }
+            : publishableTargetRefusal(row.target_path);
         if (targetRefusal) {
             refused.push({
                 item: row.item_id, state: row.current_state,
