@@ -922,6 +922,20 @@ export function reworkNoteFor(db, itemId) {
 // says why the last attempt failed instead of asking the ensemble to repeat
 // its own mistake blind.
 export const BLOCKED_RETRY_PREFIX = 'blocked retry: ';
+export function failedReviewNoteFor(db, itemId, currentRevision) {
+  const rows = db.prepare(
+    `SELECT role, record_json FROM agent_handoff
+      WHERE item_id = ? AND item_revision = ? AND status = 'failed'
+        AND role IN ('factual-verifier', 'assessment-reviewer', 'accessibility-reviewer')
+      ORDER BY completed_at DESC`,
+  ).all(itemId, currentRevision - 1);
+  const findings = rows.map((row) => {
+    const summary = JSON.parse(row.record_json).findings?.[0]?.summary;
+    return typeof summary === 'string' && summary.trim() ? `${row.role}: ${summary.trim()}` : null;
+  }).filter(Boolean);
+  if (!findings.length) return null;
+  return `${BLOCKED_RETRY_PREFIX}Previous authoring review findings:\n${findings.join('\n').slice(0, 8000)}`;
+}
 export function blockedNoteFor(db, itemId) {
   const row = db.prepare(
     `SELECT record_json FROM state_transition_event
@@ -1202,7 +1216,9 @@ export async function generateBriefs({
         // REWORK. An item returned by Gate 2 with request-changes carries the
         // reviewer's reason on that recorded transition. It reaches the brief
         // or the denial loop burns money without converging.
-        note: reworkNoteFor(db, row.item_id) ?? blockedNoteFor(db, row.item_id),
+        note: reworkNoteFor(db, row.item_id)
+          ?? failedReviewNoteFor(db, row.item_id, Number(row.current_revision))
+          ?? blockedNoteFor(db, row.item_id),
         // The currency inspector's own words about this item, carried on the
         // Gate 1 manifest item as `evidence_refs` (gate-queue.mjs builds them
         // from the candidate's `evidence`, which for a Track 2 currency
