@@ -152,7 +152,7 @@ function renderGateSummary(manifest) {
     const clean = manifest.items.length - attention.length;
     const lines = [
         `**${attention.length} of ${manifest.items.length} item${manifest.items.length === 1 ? '' : 's'} need${attention.length === 1 ? 's' : ''} attention before you approve.**`,
-        `Commenting the bare word \`approve\` or \`approved\` approves EVERY item on this issue, including the ${attention.length} below -- for a mixed issue like this one, use the per-item command instead.`,
+        `A bare \`approve\` or \`approved\` is refused on this issue because ${attention.length} item${attention.length === 1 ? ' failed' : 's failed'} review. Use per-item decisions after reading the findings below.`,
         '',
     ];
     if (clean > 0) lines.push(`${clean} item${clean === 1 ? ' passed every review and is safe' : 's passed every review and are safe'} to approve individually.`, '');

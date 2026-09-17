@@ -43,6 +43,14 @@ throws(() => parseRuntimeArgs(["--admin-retry-blocked", "x", "--track", "track-1
 throws(() => parseRuntimeArgs(["--track", "track-1", "--admin-retry-blocked", "x"]),
   "--admin-retry-blocked cannot trail another flag");
 
+{
+  const r = parseRuntimeArgs(["--admin-withdraw-gate2", "01a01d34-7172-797b-9a21-10dc8ee80c1a@7,01a01d34-718c-74f0-acff-b1de8c7c0cf3@7"]);
+  ok(r.adminWithdrawGate2?.length === 2 && r.adminWithdrawGate2[0].revision === 7,
+    "a withdrawn Gate 2 approval names exact distinct revisions");
+}
+throws(() => parseRuntimeArgs(["--admin-withdraw-gate2", "bad"]),
+  "withdrawal refuses an unbound item");
+
 console.log(
   failures === 0
     ? `PASS. ${assertions} assertions on the runtime's CLI parsing.`

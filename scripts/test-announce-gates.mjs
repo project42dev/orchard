@@ -268,16 +268,15 @@ test('a Gate 2 issue with one failed review warns against bare-approve and names
   // factual review, buried in a table cell identical in style to the two
   // that passed, with no summary distinguishing them -- "how the fuck do I
   // read this to approve" was the exact, fair reaction. A bare `approve`
-  // comment approves every item on the issue, so silence here is not neutral,
-  // it is a trap: the reader has no way to know a bare approve would also
-  // approve the failed one.
+  // comment used to approve every item on the issue, so the summary and the
+  // decision path must now refuse it when a review failed.
   const failing = gate2Item('c-failed-item', { reviewsPassed: false });
   const manifest = gate2Manifest([gate2Item('a-clean-item', { reviewsPassed: true }), gate2Item('b-clean-item', { reviewsPassed: true }), failing]);
   const body = renderGateIssueBody(manifest);
   assert.ok(body.includes('2 of 3 items need') === false, 'exactly ONE item is bad here, the count must say 1 of 3, not 2 of 3');
   assert.ok(body.includes('1 of 3 item'), 'the summary must state the exact count needing attention');
-  assert.ok(/bare word `approve` or `approved`.*approves EVERY item.*including the 1 below/s.test(body) || body.includes('including the 1 below'),
-    'the summary must explicitly warn that bare-approve would also approve the failed item, not just mention attention is needed');
+  assert.ok(body.includes('bare `approve` or `approved` is refused on this issue'),
+    'the summary must state that whole-issue approval is refused when review failed');
   assert.ok(body.includes('c-failed-item') && body.includes('factual review failed'),
     'the summary table must name the specific item and the specific reason, not a generic "needs review"');
   assert.ok(body.includes('⚠️ NEEDS ATTENTION -- factual review failed'), 'the failed item\'s own section must carry a visible badge, not just the summary table');

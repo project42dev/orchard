@@ -15,7 +15,15 @@ import { generateGateManifests } from './lib/gates.mjs';
 import { generateUuidV7, sha256Digest } from './lib/identity.mjs';
 import { protectedAdapterDigest } from './lib/protected-adapter.mjs';
 import { adapterIdentity } from './adapters/github-gate/adapter.mjs';
-import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor, itemHandedOff } from './apply-gate-decisions.mjs';
+import { applyGateDecisions, applyGateDecisionsForRun, currentStateOf, ensureGateTrustAnchor, fullManifestItemsFor, itemHandedOff, failedReviewItemIds } from './apply-gate-decisions.mjs';
+
+test('whole-issue Gate 2 approval identifies failed reviews before applying any item', () => {
+    assert.deepEqual(failedReviewItemIds([
+        { item_id: 'clean', factual_review: { status: 'passed' } },
+        { item_id: 'failed-fact', factual_review: { status: 'failed' } },
+        { item_id: 'failed-access', accessibility_review: { status: 'failed' } },
+    ]), ['failed-fact', 'failed-access']);
+});
 
 const REPO = 'project42dev/orchard';
 const OWNER_ID = 4242;
