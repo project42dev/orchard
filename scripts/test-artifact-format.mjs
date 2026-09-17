@@ -189,6 +189,7 @@ function commitFetchMock(existingModule = null) {
             const respond = (status, body) => ({ ok: status < 300, status, text: async () => JSON.stringify(body) });
             if (url.endsWith("/git/ref/heads/main")) return respond(200, { object: { sha: BASE_COMMIT } });
             if (url.includes(`/git/commits/${BASE_COMMIT}`)) return respond(200, { tree: { sha: "2".repeat(40) } });
+            if (url.includes("/contents/source-registry.json?")) return respond(200, { content: Buffer.from(JSON.stringify({ sources: [{ urlPrefix: "https://example.invalid/", publisher: "Example" }] })).toString("base64"), encoding: "base64" });
             if (url.includes(`/contents/${MODULE_PATH}?ref=${BASE_COMMIT}`)) return existingModule
                 ? respond(200, { content: Buffer.from(JSON.stringify(existingModule)).toString("base64"), encoding: "base64" })
                 : respond(404, { message: "Not Found" });
@@ -231,7 +232,7 @@ test("prepareRealCommit still prepares a real commit when the content matches it
     });
     assert.equal(commit.preparedCommit, PREPARED_COMMIT);
     assert.equal(commit.baseCommit, BASE_COMMIT);
-    assert.equal(calls.length, 6, "a module checks the existing lesson before the Git Data writes");
+    assert.equal(calls.length, 7, "a module checks its sources and existing lesson before the Git Data writes");
 });
 
 test("an update cannot delete an existing lesson activity or instructor script", async () => {
@@ -242,7 +243,22 @@ test("an update cannot delete an existing lesson activity or instructor script",
             content: JSON.stringify(learningModule()), token: "test-token-literal", fetchImpl: impl }),
         (error) => error.code === "evidence.course-component-removed",
     );
-    assert.equal(calls.length, 3, "no blob, tree, or commit is written");
+    assert.equal(calls.length, 4, "no blob, tree, or commit is written");
+});
+
+test("an unregistered or misattributed source cannot enter a prepared course commit", async () => {
+    for (const source of [
+        { title: "Other", url: "https://unregistered.example/doc", publisher: "Other" },
+        { title: "Example", url: "https://example.invalid/rag", publisher: "Wrong" },
+    ]) {
+        const { impl, calls } = commitFetchMock();
+        await assert.rejects(
+            () => prepareRealCommit({ repository: "project42dev/project42-content", path: MODULE_PATH,
+                content: JSON.stringify(learningModule({ sources: [source] })), token: "test-token-literal", fetchImpl: impl }),
+            (error) => ["evidence.source-unregistered", "evidence.source-publisher"].includes(error.code),
+        );
+        assert.equal(calls.length, 3, "source validation finishes before any GitHub write");
+    }
 });
 
 test("the escalation path's opt-out is honoured, and is the only way past the guard", async () => {

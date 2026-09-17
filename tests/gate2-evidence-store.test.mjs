@@ -175,6 +175,10 @@ function githubStub() {
         const method = options.method ?? "GET";
         if (url.endsWith("/git/ref/heads/main")) return reply({ object: { sha: "a".repeat(40) } });
         if (url.includes("/git/commits/") && method === "GET") return reply({ tree: { sha: "b".repeat(40) } });
+        if (url.includes("/contents/source-registry.json?")) return reply({
+            content: Buffer.from(JSON.stringify({ sources: [{ urlPrefix: "https://example.com/", publisher: "Example" }] })).toString("base64"),
+            encoding: "base64",
+        });
         if (url.endsWith("/git/blobs")) return reply({ sha: "c".repeat(40) });
         if (url.endsWith("/git/trees")) return reply({ sha: "d".repeat(40) });
         if (url.endsWith("/git/commits")) return reply({ sha: "e".repeat(40) });
