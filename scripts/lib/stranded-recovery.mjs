@@ -121,7 +121,11 @@ function automaticAttempts(db, itemId) {
  * forever. The wording below stays here because it is this sweep's reason --
  * what it costs to retry -- not the path's.
  */
-function permanentTargetRefusal(targetPath) {
+function permanentTargetRefusal(targetPath, recordJson = null) {
+    if (targetPath === "catalog.json" || targetPath === "diagrams/catalogue.json") {
+        const selector = recordJson ? JSON.parse(recordJson).canonical_content_id : null;
+        if (!selector) return `its recorded target ${targetPath} has no canonical entry selector; re-authoring cannot safely choose one`;
+    }
     const refusal = publishableTargetRefusal(targetPath);
     if (!refusal) return null;
     return `its recorded target path ${targetPath} is refused before any draft exists (${refusal.code}: ${refusal.message}); `
@@ -154,7 +158,7 @@ export async function recoverStrandedItems({
     const summary = { stranded: 0, recovered: [], refused: [], remaining: 0, maxItems, maxAttempts };
 
     const rows = store.db.prepare(
-        `SELECT w.item_id, w.track, w.current_revision, r.target_repository, r.target_path
+        `SELECT w.item_id, w.track, w.current_revision, r.target_repository, r.target_path, r.record_json
            FROM workflow_item w
            JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
           WHERE w.current_state = 'gate2-ready' AND (? IS NULL OR w.track = ?)
@@ -192,7 +196,7 @@ export async function recoverStrandedItems({
         // Checked before the attempt cap and before anything is spent, for the
         // same reason the repository check above is: the outcome is already
         // decided and re-drafting only pays to rediscover it.
-        const refusal = permanentTargetRefusal(row.target_path);
+        const refusal = permanentTargetRefusal(row.target_path, row.record_json);
         if (refusal) {
             refuse(row, refusal);
             continue;

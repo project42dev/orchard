@@ -282,7 +282,9 @@ function evidenceRecordsFor(candidate) {
  * two live items for one subject and block the successor from ever existing.
  */
 export function findLiveItem(db, track, semanticIdentity) {
-    return db.prepare("SELECT item_id, current_state, current_revision, outcome FROM workflow_item WHERE track = ? AND semantic_identity = ? AND current_state NOT IN ('closed', 'superseded')")
+    return db.prepare(`SELECT w.item_id, w.current_state, w.current_revision, w.outcome, r.record_json
+      FROM workflow_item w JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
+      WHERE w.track = ? AND w.semantic_identity = ? AND w.current_state NOT IN ('closed', 'superseded')`)
         .get(track, semanticIdentity) ?? null;
 }
 
@@ -315,6 +317,15 @@ export function findLiveItem(db, track, semanticIdentity) {
  */
 export function supersessionTarget(existing, candidate) {
     if (!existing) return null;
+    // A legacy catalogue item could pass Gate 1 but had no way to produce a
+    // registry edit. The new scoped-entry route is a materially different
+    // publication proposal: retire that stranded revision and ask for a new
+    // Gate 1 decision. Never carry its old approval into the new route.
+    if (["gate1-pending", "gate2-ready"].includes(existing.current_state) && candidate.canonicalContentId
+        && ["catalog.json", "diagrams/catalogue.json"].includes(candidate.targetPath)) {
+        const old = JSON.parse(existing.record_json);
+        if (old.target?.path === candidate.targetPath && !old.canonical_content_id) return existing;
+    }
     if (existing.current_state !== "gate1-pending") return null;
     const proposedOutcome = candidate.category ?? OUTCOME_BY_SURFACE[candidate.surface];
     return existing.outcome === proposedOutcome ? null : existing;
@@ -392,7 +403,9 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
             // that already exists.
             const baseRationale = candidate.rationale ?? rationaleFor(candidate);
             const rationale = supersede
-                ? `${baseRationale} This replaces item ${supersede.item_id}, which was held at this gate proposing "${supersede.outcome}" for the same subject and has been superseded: the assessment changed to "${proposal.category}", so the earlier question is no longer the one to answer.`
+                ? supersede.current_state === "gate2-ready"
+                    ? `${baseRationale} This replaces legacy item ${supersede.item_id}, which was approved for a catalogue target before Orchard could prepare a scoped registry edit. Its old approval is not reused; this exact publication route needs a fresh Gate 1 decision.`
+                    : `${baseRationale} This replaces item ${supersede.item_id}, which was held at this gate proposing "${supersede.outcome}" for the same subject and has been superseded: the assessment changed to "${proposal.category}", so the earlier question is no longer the one to answer.`
                 : predecessor
                     ? `${baseRationale} This subject has been through the lifecycle before: item ${predecessor.item_id} is closed, and this proposal supersedes it as a fresh item with a fresh decision.`
                     : baseRationale;
@@ -448,6 +461,7 @@ export async function persistDiscoveryItems({ store, runId, track = "track-1", c
                     track,
                     item_revision: 1,
                     semantic_identity: candidate.semanticIdentity,
+                    canonical_content_id: candidate.canonicalContentId ?? null,
                     surface: candidate.surface,
                     outcome: proposal.category,
                     state: "observed",

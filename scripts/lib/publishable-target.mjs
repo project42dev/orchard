@@ -1,55 +1,11 @@
-// A FINDING WITH NOWHERE TO PUBLISH IT IS STILL A FINDING. IT IS NOT A PROPOSAL.
-//
-// FOUND 2026-09-12, by execution against the pinned corpus. Track 2 enumerates
-// 212 canonical items from the platform checkout, and 29 of them have no
-// publishable artifact at all:
-//
-//   catalogue:content          the catalogue itself       -> catalog.json
-//   catalogue:guide-diagrams   the diagram catalogue      -> diagrams/catalogue.json
-//   learning-path:* (14)       a catalog `paths[]` entry  -> catalog.json
-//   learning-module:* (6)      a catalog `modules[]` entry with no backing file
-//   guide:* (7)                a catalog `resources[]` entry with no backing file
-//
-// Every one of them is a real thing to inspect -- a learning path whose
-// description has gone stale is exactly the kind of rot currency exists to
-// find -- and every one of them has the SAME sourcePath: the catalogue that
-// declares it. contentRepositoryPathFor maps that to `catalog.json` (or
-// `diagrams/catalogue.json`), and no surface publishes to either:
-// surfaceForTargetPath refuses `catalog.json` with
-// registration.unrecognized-target, and diagramIdForTarget refuses
-// `diagrams/catalogue.json` with registration.unrecognized-diagram-path.
-//
-// So Track 2 emitted a PUBLISHABLE Gate 1 item for a finding that can never be
-// published. It passed Gate 1 on a human's approval, spent Foundry credit on
-// authoring, reached the identical structural hold, and sat there. a069ece
-// stopped the spending (permanentTargetRefusal, below) but left the item in the
-// backlog forever, and the finding itself -- the thing a human actually needed
-// to hear -- went nowhere.
-//
-// WHY THE FIX IS "DO NOT PROPOSE IT", NOT "TEACH PUBLICATION TO EDIT A REGISTRY".
-//
-//   1. contracts/schemas/item-record.schema.json and
-//      gate-1-issue-manifest.schema.json are closed: additionalProperties
-//      false, `surface` a three-value enum, `outcome` and `category` fixed
-//      enums. A "registry-edit" finding kind is a contract change in a
-//      repository whose own comment on TARGET_REPOSITORY says these are
-//      "fixed by contract, not by configuration".
-//   2. Publication is ONE blob at ONE path plus that surface's registry entry
-//      (lib/registration.mjs, and item_revision.target_path is a single
-//      scalar). A registry-only edit has no blob, so it needs a second
-//      lifecycle branch through authoring, Gate 2 and prepareRealCommit that
-//      does not exist and would be entered by nothing else.
-//   3. The item that IS publishable for most of these findings already exists
-//      and is separately inspected. A stale learning-path description is a
-//      catalog edit; a catalog entry pointing at a file that is not there is a
-//      catalog edit. Neither is content this pipeline authors.
-//
-// AND WHY IT IS NOT A SILENT DROP. A real finding that disappears is its own
-// defect, and a worse one, because nothing measures it. So the refusal is
-// carried out of the controller as data (runTrack2's findings.unroutable), said
-// in the run log, and printed in the Track 2 run summary issue -- the thing the
-// owner actually reads -- naming the item, the classification, the evidence,
-// the target that has no surface, and the refusal code. See lib/run-summary.mjs.
+// A finding that cannot be scoped to a publishable change remains visible.
+// Track 2 now routes individual path/module/resource records in catalog.json
+// through the normal two-gate lifecycle. catalogue-deliverable.mjs limits each
+// prepared commit to one selected record and binds it to the inspected digest.
+// The two catalogue-wide inspection subjects aggregate defects across several
+// records, so they remain report-only until split into individual decisions.
+// Legacy approvals recorded before entry selectors existed are reported and
+// superseded by fresh scoped Gate 1 proposals, never silently carried over.
 
 import {
     RegistrationError, surfaceForTargetPath, diagramIdForTarget, learningPathIdForTarget,
@@ -106,8 +62,8 @@ export class UnpublishableTargetError extends Error {
 export function publishableTargetRefusal(targetPath) {
     try {
         const surface = surfaceForTargetPath(targetPath);
-        if (surface === "guide-diagram") diagramIdForTarget(targetPath);
-        if (surface === "learning") learningPathIdForTarget(targetPath);
+        if (surface === "guide-diagram" && targetPath !== "diagrams/catalogue.json") diagramIdForTarget(targetPath);
+        if (surface === "learning" && targetPath !== "catalog.json") learningPathIdForTarget(targetPath);
         return null;
     } catch (error) {
         if (!(error instanceof RegistrationError)) throw error;
@@ -141,7 +97,7 @@ export function assertPublishableTarget(targetPath) {
 export function reportUnpublishableTargets({ store, log = () => { } } = {}) {
     if (!store?.db) throw new TypeError("reportUnpublishableTargets requires an open state store");
     const rows = store.db.prepare(
-        `SELECT r.item_id, r.item_revision, r.target_repository, r.target_path, w.track, w.current_state
+        `SELECT r.item_id, r.item_revision, r.target_repository, r.target_path, r.record_json, w.track, w.current_state
            FROM item_revision r
            JOIN workflow_item w ON w.item_id = r.item_id
           WHERE r.item_revision = w.current_revision
@@ -151,7 +107,10 @@ export function reportUnpublishableTargets({ store, log = () => { } } = {}) {
 
     const summary = { scanned: rows.length, unpublishable: [] };
     for (const row of rows) {
-        const refusal = publishableTargetRefusal(row.target_path);
+        const selector = JSON.parse(row.record_json).canonical_content_id;
+        const refusal = (row.target_path === "catalog.json" || row.target_path === "diagrams/catalogue.json") && !selector
+            ? { code: "catalogue.selector-missing", message: "legacy catalogue item has no canonical entry selector" }
+            : publishableTargetRefusal(row.target_path);
         if (!refusal) continue;
         const entry = {
             item: row.item_id,

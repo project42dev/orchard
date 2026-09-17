@@ -4,7 +4,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { canonicalJson, generateUuidV7, sha256Digest } from "./identity.mjs";
 import { verifyCorpusSnapshot } from "./corpus-snapshot.mjs";
 import { persistDiscoveryItems } from "./gate-queue.mjs";
-import { assertPublishableTarget, UNPUBLISHABLE_TARGET_CODE } from "./publishable-target.mjs";
+import { assertPublishableTarget, UNPUBLISHABLE_TARGET_CODE, UnpublishableTargetError } from "./publishable-target.mjs";
 import { semanticCandidateIdentity } from "./track-1-controller.mjs";
 
 export const TRACK_2_CLASSIFICATIONS = Object.freeze([
@@ -208,26 +208,32 @@ export function currencyCandidateFor(item, inspection, observedAt) {
     }
     // THE TARGET IS CHECKED HERE, WHERE IT IS DECIDED.
     //
-    // A candidate IS a proposal to publish, and a proposal to publish to a path
-    // no surface publishes to is not a proposal at all. Twenty-nine canonical
-    // items -- the catalogue itself, all fourteen learning paths, and every
-    // catalog entry with no backing file -- map to `catalog.json` or
-    // `diagrams/catalogue.json`, and both are refused by lib/registration.mjs.
-    // Before 2026-09-12 they became Gate 1 items anyway, were approved, were
-    // authored at cost, and stopped dead at the registration hold with no way
-    // out of the backlog.
+    // A candidate is a proposal to publish. Selected catalogue entries now
+    // have a bounded registry-only route; other paths still must be accepted
+    // by the same publication target check before Gate 1.
     //
     // The finding is not lost by this throw: currencyFindingCandidates catches
     // exactly this code and carries it out of the run as an unroutable finding,
     // which the run summary issue names for the owner. See
     // lib/publishable-target.mjs.
     const targetPath = assertPublishableTarget(contentRepositoryPathFor(item.sourcePath));
+    // These two inspection subjects summarize defects spanning several
+    // entries. A single-entry authoring brief would silently fix only part of
+    // the finding, so keep the aggregate report visible. Each separately
+    // inspected path/module/resource entry can now enter Gate 1 on its own.
+    if (item.stableId === "catalogue:content" || item.stableId === "catalogue:guide-diagrams") {
+        throw new UnpublishableTargetError(targetPath, "catalogue.aggregate-finding", "the finding spans multiple catalogue entries and needs separate scoped decisions");
+    }
+    if ((targetPath === "catalog.json" || targetPath === "diagrams/catalogue.json") && inspection.classification === "removal") {
+        throw new UnpublishableTargetError(targetPath, "catalogue.removal-unimplemented", "the deterministic removal role deletes whole files; a catalogue entry needs a separate scoped removal rule");
+    }
     // The gate manifest contract caps evidence entries at 1000 characters.
     // Long inspector prose is truncated rather than allowed to fail the whole
     // item's persistence at announce time.
     const evidence = [...new Set((inspection.evidence ?? []).map((entry) => String(entry).slice(0, 1000)))].sort();
     const candidate = {
         subject: item.stableId,
+        canonicalContentId: item.stableId,
         surface: item.surface,
         outcome: "currency-finding",
         scope: "content",
@@ -238,7 +244,12 @@ export function currencyCandidateFor(item, inspection, observedAt) {
         level: null,
         targetPath,
         evidence,
-        evidenceRefs: [{ reference: item.sourcePath, digest: item.sourceDigest }],
+        evidenceRefs: [
+            { reference: item.sourcePath, digest: item.sourceDigest },
+            ...(targetPath === "catalog.json" || targetPath === "diagrams/catalogue.json"
+                ? [{ reference: `catalogue-entry:${item.stableId}`, digest: item.digest }]
+                : []),
+        ],
         rationale: [
             `The currency inspection of ${item.stableId} (${item.sourcePath} in the inspected corpus, ${targetPath} in ${"project42dev/project42-content"}) classified the published content as needing ${inspection.classification},`,
             `on ${evidence.length} recorded evidence entr${evidence.length === 1 ? "y" : "ies"}.`,
