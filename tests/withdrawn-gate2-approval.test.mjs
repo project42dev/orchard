@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, after } from "node:test";
 import { estate, seedGateItems, walkTo, cleanupFixtures, NOW } from "../scripts/test-fixtures.mjs";
 import { generateUuidV7 } from "../scripts/lib/identity.mjs";
-import { holdWithdrawnGate2Approvals, holdStalePublicationApprovals } from "../scripts/lib/withdrawn-gate2-approval.mjs";
+import { holdWithdrawnGate2Approvals, holdStalePublicationApprovals, holdUnsafeGate2Drafts } from "../scripts/lib/withdrawn-gate2-approval.mjs";
 
 after(cleanupFixtures);
 
@@ -22,6 +22,19 @@ test("a withdrawn approval blocks the exact open publication revision", async ()
     assert.equal(held[0].previousState, "publication-pr-open");
     assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(itemId).current_state, "blocked");
     await assert.rejects(() => holdWithdrawnGate2Approvals({ store, items: [{ itemId, revision: 1 }], now: NOW }), /not a holdable approval/);
+    store.close();
+});
+
+test("unsafe pending Gate 2 evidence can be held without approving it", async () => {
+    const { store, runId } = await estate();
+    const [itemId] = await seedGateItems(store, runId, ["unsafe-gate2"]);
+    await walkTo(store, runId, itemId, "gate2-pending");
+    const result = await holdUnsafeGate2Drafts({ store, items: [{ itemId, revision: 1 }], now: NOW });
+    assert.equal(result.held.length, 1);
+    assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(itemId).current_state, "blocked");
+    const replay = await holdUnsafeGate2Drafts({ store, items: [{ itemId, revision: 1 }], now: NOW });
+    assert.equal(replay.held.length, 0);
+    assert.equal(replay.skipped[0].state, "blocked");
     store.close();
 });
 

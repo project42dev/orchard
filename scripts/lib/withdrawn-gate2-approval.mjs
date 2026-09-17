@@ -49,3 +49,32 @@ export async function holdStalePublicationApprovals({ store, items, now = new Da
     return holdApprovedRevisions({ store, items, states: STALE_PUBLICATION, now, actor, skipIneligible: true,
         reason: "Approved target changed on content main after the Gate 2 base; the conflicting publication PR was closed unmerged. Re-author against current main and obtain a new Gate 2 approval." });
 }
+
+// A review batch can be withdrawn before any Gate 2 decision. This is used
+// when the evidence is unsafe: failed factual reviews or a draft that drops
+// existing course components. Exact revision and pending state are required,
+// so a later revised artifact cannot be caught by an old incident action.
+export async function holdUnsafeGate2Drafts({ store, items, now = new Date().toISOString(), actor = "orchard/admin-unsafe-gate2" }) {
+    const held = [];
+    const skipped = [];
+    for (const { itemId, revision } of items) {
+        const row = store.db.prepare(
+            `SELECT w.current_state, w.current_revision, r.run_id FROM workflow_item w
+             JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
+             WHERE w.item_id = ?`,
+        ).get(itemId);
+        if (!row || Number(row.current_revision) !== Number(revision) || row.current_state !== "gate2-pending") {
+            skipped.push({ itemId, revision, state: row?.current_state ?? null });
+            continue;
+        }
+        await store.recordTransition({
+            schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: row.run_id,
+            item_id: itemId, item_revision: Number(revision), from_state: "gate2-pending",
+            to_state: "blocked", cause: "policy-block",
+            reason: "Owner halted the Gate 2 batch: factual review failed on 14 drafts and a passing course draft removed existing teaching components. Re-author and review before publication.",
+            actor, occurred_at: now, correlation_id: generateUuidV7(),
+        });
+        held.push({ itemId, revision: Number(revision) });
+    }
+    return { held, skipped };
+}
