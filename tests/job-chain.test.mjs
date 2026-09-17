@@ -90,6 +90,19 @@ test("chainNextRoles keeps trying remaining hops when one hop's trigger fails", 
     assert.ok(logs.some((l) => l.event === "chain.triggered" && l.detail.role === "gate2-prep"));
 });
 
+test("chainNextRoles starts one role when authoring and Gate 2 preparation both have work", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await chainNextRoles({
+        counts: { "ado-linked": 1, "gate2-ready": 1 },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth", ORCHARD_CHAIN_GATE2PREP_JOB_ID: "/jobs/caj-g2p" },
+        tokenProvider: fakeToken(), fetchImpl,
+    });
+    assert.deepEqual(triggered, ["authoring"]);
+    assert.equal(started.length, 1);
+    assert.match(started[0], /caj-auth\/start/);
+});
+
 test("chainNextRoles does nothing when no hop is configured", async () => {
     const triggered = await chainNextRoles({ counts: { "ado-linked": 99 }, env: {}, tokenProvider: fakeToken() });
     assert.deepEqual(triggered, []);
