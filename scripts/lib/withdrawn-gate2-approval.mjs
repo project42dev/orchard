@@ -4,7 +4,7 @@
 import { generateUuidV7 } from "./identity.mjs";
 
 const WITHDRAWABLE = new Set(["gate2-approved", "publication-preparing", "publication-validating", "publication-pr-open"]);
-const STALE_PUBLICATION = new Set(["publication-pr-open"]);
+const STALE_PUBLICATION = new Set(["publication-pr-open", "published"]);
 
 async function holdApprovedRevisions({ store, items, states, reason, now, actor, skipIneligible = false }) {
     const held = [];
@@ -47,7 +47,7 @@ export async function holdWithdrawnGate2Approvals({ store, items, now = new Date
 
 export async function holdStalePublicationApprovals({ store, items, now = new Date().toISOString(), actor = "orchard/admin-stale-publication" }) {
     return holdApprovedRevisions({ store, items, states: STALE_PUBLICATION, now, actor, skipIneligible: true,
-        reason: "Approved target changed on content main after the Gate 2 base; the conflicting publication PR was closed unmerged. Re-author against current main and obtain a new Gate 2 approval." });
+        reason: "The approved publication artifact is no longer the accepted content on main. Re-author against current main and obtain a new Gate 2 approval before publication." });
 }
 
 // A review batch can be withdrawn before any Gate 2 decision. This is used

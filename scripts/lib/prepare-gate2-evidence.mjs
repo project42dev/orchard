@@ -203,6 +203,12 @@ export async function buildHandoffsFromProposal({ proposal, binding, runStartedA
 export async function prepareRealCommit({ repository, path, content, registration = null, materializeContent = null, baseBranch = "main", token, fetchImpl = fetch, validateFormat = assertArtifactFormat }) {
     if (materializeContent && registration) fail("evidence.catalogue-registration", "registry-only content cannot also register another file");
     if (!materializeContent) validateFormat({ path, content });
+    if (!materializeContent && validateFormat === assertArtifactFormat && /^(modules|resources)\/.*\.json$/i.test(path)) {
+        const draft = JSON.parse(content);
+        if (typeof draft.summary === "string" && /^UNKNOWN\s*:/i.test(draft.summary.trim())) {
+            fail("evidence.placeholder-course", `${path} is a placeholder for missing research, not a publishable lesson or resource`);
+        }
+    }
 
     async function call(apiPath, { method = "GET", body } = {}) {
         const response = await fetchImpl(`${API}${apiPath}`, {

@@ -961,7 +961,7 @@ const SURFACE_CRITERIA = {
     'The Mermaid source is syntactically valid and renders on its own, without a legend explaining what the shapes mean, and carries accTitle and accDescr.',
     `The catalogue entry carries a title, a category drawn from the published list (${DIAGRAM_CATEGORIES.join(', ')}), summary, description, altText, caption, and three takeaways, and declares neither id nor source.`,
     'The altText describes the flow for a reader who cannot see the image, naming the nodes and the direction of travel, and is not a repeat of the caption.',
-    'The diagram is provider-neutral. No vendor is named unless the subject of the diagram is that vendor.',
+    'Vendor names appear only where they identify a real component of the depicted system or the subject itself.',
     'No SVG is authored by hand. The rendered image is generated from the source.',
   ],
 };
@@ -985,7 +985,9 @@ export function buildAcceptanceCriteria(item, evidence) {
     'No unrelated catalogue entry or registry array is rewritten.',
   ];
   const criteria = [
-    'Every source is listed at the end of the piece, with a URL that resolves over https.',
+    ['visual-guide', 'guide-diagram'].includes(item.surface)
+      ? 'The two required fenced blocks contain the complete diagram deliverable; do not add a third source-list block.'
+      : 'Every source is listed in the JSON sources array, with a URL that resolves over https.',
     'No tool name, version number, or configuration key appears that the supplied material does not establish.',
     'Any claim the supplied material cannot support is marked UNKNOWN and omitted rather than asserted.',
     `The piece is written for ${evidence?.level ?? item.level ?? 'intermediate'} level and says so.`,
@@ -993,8 +995,8 @@ export function buildAcceptanceCriteria(item, evidence) {
   criteria.push(...surfaceCriteriaFor(item.surface));
   if (item.kind === 'needs-updating') {
     criteria.push(
-      'The update states which cited source changed and what that change affected.',
-      'Material unaffected by the change is left as it was, so the diff shows the correction and nothing else.',
+      'If a cited source changed, the update identifies it and corrects only claims that the source supports.',
+      'Existing teaching components and fields remain present in the corrected artifact.',
     );
   }
   return criteria;

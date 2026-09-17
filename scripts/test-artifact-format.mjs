@@ -212,6 +212,17 @@ test("prepareRealCommit refuses malformed content before the first API call, lea
     assert.equal(calls.length, 0, "no ref read, no blob, no tree, no commit object: the refusal costs nothing");
 });
 
+test("a missing-research placeholder cannot be prepared as course content", async () => {
+    const { impl, calls } = commitFetchMock();
+    await assert.rejects(
+        () => prepareRealCommit({ repository: "project42dev/project42-content", path: MODULE_PATH,
+            content: JSON.stringify(learningModule({ summary: "UNKNOWN: documentation needed" })),
+            token: "test-token-literal", fetchImpl: impl }),
+        (error) => error.code === "evidence.placeholder-course",
+    );
+    assert.equal(calls.length, 0);
+});
+
 test("prepareRealCommit still prepares a real commit when the content matches its path", async () => {
     const { impl, calls } = commitFetchMock();
     const commit = await prepareRealCommit({
