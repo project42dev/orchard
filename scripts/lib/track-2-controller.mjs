@@ -19,7 +19,7 @@ export const TRACK_2_CLASSIFICATIONS = Object.freeze([
 export const TRACK_2_ACTIONABLE_CLASSIFICATIONS = Object.freeze(
     TRACK_2_CLASSIFICATIONS.filter((classification) => classification !== "evidence-backed-no-change"),
 );
-export const TRACK_2_EXPECTED_CANONICAL_ITEMS = 183;
+export const TRACK_2_EXPECTED_CANONICAL_ITEMS = 212;
 
 function posixRelative(root, path) { return relative(root, path).split(sep).join("/"); }
 
