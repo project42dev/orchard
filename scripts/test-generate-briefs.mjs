@@ -238,8 +238,8 @@ const base = { dbPath, mapPath: goodMap, targetsPath, inventoryPath, registryPat
     update.prompt.includes('This is an update, not a rewrite'));
   check('and hands it the recorded evidence references it has to check',
     update.prompt.includes('https://vendor.example/page'));
-  check('and the criteria require the diff to show the correction and nothing else',
-    update.acceptanceCriteria.some((c) => c.includes('left as it was')));
+  check('and the criteria require preservation of existing fields',
+    update.acceptanceCriteria.some((c) => c.includes('Existing teaching components and fields remain present')));
 }
 
 // --- stranded work is counted, not stopped at ---------------------------------
