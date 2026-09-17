@@ -134,6 +134,22 @@ const stateOf = (store, id) =>
 
 // --- the ensemble's refusal reason reaches the brief, same as a Gate 2 rework does ---
 {
+  const { store, id } = await blockedFixture("review-finding-retry");
+  const row = store.db.prepare("SELECT origin_run_id FROM workflow_item WHERE item_id = ?").get(id);
+  const manifestItem = { factual_review: { status: "failed", finding: "The citation does not support the numeric claim." } };
+  await store.recordObservation({
+    observation_id: generateUuidV7(), run_id: row.origin_run_id, item_id: id, item_revision: 1,
+    evidence_reference: `${GATE_MANIFEST_REFERENCE_PREFIX}gate-2:${id}`,
+    evidence_digest: sha256Digest(manifestItem), observed_at: "2026-08-15T00:00:00.000Z",
+    gate: "gate-2", manifest_item: manifestItem,
+  });
+  const note = blockedNoteFor(store.db, id);
+  ok(note.includes("factual_review: The citation does not support the numeric claim."),
+    "a held Gate 2 draft carries its actual failed review into the retry brief");
+  store.close();
+}
+
+{
   const { store, id } = await blockedFixture();
   await applyRetry(store, { item: id });
   const note = blockedNoteFor(store.db, id);
