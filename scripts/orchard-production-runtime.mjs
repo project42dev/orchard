@@ -836,7 +836,9 @@ async function runInspectionInvalidationAzure(log) {
 }
 
 async function runExternalPublicationReconciliationAzure(log) {
-    const reportPath = join(import.meta.dirname, '..', 'operations', 'reconciliation', '2026-09-18-reviewed-direct-release.json');
+    const reportName = process.env.ORCHARD_EXTERNAL_PUBLICATION_REPORT ?? '2026-09-18-reviewed-direct-release.json';
+    if (!/^\d{4}-\d{2}-\d{2}-[a-z0-9-]+\.json$/.test(reportName)) throw new TypeError('external publication report must name a checked-in dated manifest');
+    const reportPath = join(import.meta.dirname, '..', 'operations', 'reconciliation', reportName);
     const report = JSON.parse(readFileSync(reportPath, 'utf8'));
     const liveResponse = await fetch('https://project-42.dev/release-facts.json', { headers: { 'Cache-Control': 'no-cache' } });
     if (!liveResponse.ok) throw new Error(`live release facts are unavailable (HTTP ${liveResponse.status})`);
@@ -857,7 +859,9 @@ async function runExternalPublicationReconciliationAzure(log) {
         maxArchiveBytes: integer('ORCHARD_MAX_CORPUS_ARCHIVE_BYTES', 268_435_456),
     });
     const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
-    return withFencedState(adapter, { scope: 'track-2', owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? 'local'}:${process.pid}` }, async ({ state, assertCurrent }) => {
+    const options = { scope: 'track-2', owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? 'local'}:${process.pid}` };
+    // Publish the authoritative transition before mirroring it into external trackers.
+    const result = await withFencedState(adapter, options, async ({ state }) => {
         const store = openStateStore(state.path);
         let applied;
         try {
@@ -867,14 +871,18 @@ async function runExternalPublicationReconciliationAzure(log) {
         } finally {
             store.close();
         }
-        for (const entry of applied) log('info', 'admin.external-publication.item', entry);
-        log('info', 'admin.external-publication.finished', { applied: applied.filter((entry) => !entry.replay).length, replayed: applied.filter((entry) => entry.replay).length });
+        return { statePath: state.path, value: { applied } };
+    });
+    await withFencedState(adapter, options, async ({ state, assertCurrent }) => {
         const gateToken = await readGateToken({ log });
         await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
         await assertCurrent();
         await announceGatesForRun({ stateDbPath: state.path, track: 'track-2', runId: process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? 'local-execution', log, token: gateToken });
-        return { statePath: state.path, value: { applied } };
+        return { statePath: state.path, value: { synchronized: true } };
     });
+    for (const entry of result.result.applied) log('info', 'admin.external-publication.item', entry);
+    log('info', 'admin.external-publication.finished', { applied: result.result.applied.filter((entry) => !entry.replay).length, replayed: result.result.applied.filter((entry) => entry.replay).length });
+    return result;
 }
 
 export async function main(argv = process.argv.slice(2)) {
