@@ -709,10 +709,29 @@ async function runShowReasonAzure(itemId, log) {
         log("info", "admin.show-reason", {
             item: itemId, currentState: row.current_state, currentRevision: Number(row.current_revision),
             reason: reason ?? "(no blocked transition on record for this item)",
-            rejectionEvidence: rejectionEvidence ?? "(no rejection evidence recorded -- either this item predates that capture, or it was never blocked)",
+            rejectionEvidence: rejectionEvidence ? {
+                draftPresent: Boolean(rejectionEvidence.draft),
+                draftComplete: rejectionEvidence.draftComplete,
+                verifierVerdict: rejectionEvidence.verifierVerdict,
+                adversaryVerdict: rejectionEvidence.adversaryVerdict,
+            } : "(no rejection evidence recorded -- either this item predates that capture, or it was never blocked)",
             failedReviewFindings: failedReviewFindings.length ? failedReviewFindings : "(no failed review handoff found for this item)",
             publicationDiagnostic: publicationDiagnostic ?? "(item has no recorded gate-2 approval)",
         });
+        // Azure console records truncate long lines. Emit review text in bounded
+        // chunks so the finding remains visible even when the draft is large.
+        for (const field of ["verifierFinding", "adversaryFinding"]) {
+            const finding = rejectionEvidence?.[field];
+            if (!finding) continue;
+            const chunkSize = 3000;
+            for (let offset = 0; offset < finding.length; offset += chunkSize) {
+                log("info", "admin.show-reason.finding", {
+                    item: itemId, field, chunk: offset / chunkSize + 1,
+                    chunks: Math.ceil(finding.length / chunkSize),
+                    text: finding.slice(offset, offset + chunkSize),
+                });
+            }
+        }
         return { statePath: state.path, value: { row, reason, rejectionEvidence, failedReviewFindings, publicationDiagnostic } };
     });
 }
