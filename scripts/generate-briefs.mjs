@@ -136,7 +136,7 @@ export const BRIEF_ID_PREFIX = 'p42';
 // ceiling before request one.
 export const ROLE_TOKEN_BUDGET = {
   researcher: 4096,
-  drafter: 8192,
+  drafter: 16384,
   verifier: 8192,
   adversary: 8192,
   arbiter: 8192,
