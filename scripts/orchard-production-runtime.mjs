@@ -25,6 +25,7 @@ import { reportUnmappedPublicationTargets } from "./lib/publication-target-migra
 import { reportUnpublishableTargets } from "./lib/publishable-target.mjs";
 import { blockedNoteFor } from "./generate-briefs.mjs";
 import { holdWithdrawnGate2Approvals, holdStalePublicationApprovals, holdUnsafeGate2Drafts } from "./lib/withdrawn-gate2-approval.mjs";
+import { invalidateDisprovedPathFindings } from "./lib/inspection-invalidation.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -113,6 +114,10 @@ export function parseRuntimeArgs(argv) {
     if (runtime[0] === "--admin-status-report") {
         if (runtime.length !== 1 || controller.length) throw new TypeError("runtime accepts only --admin-status-report, alone");
         return { adminStatusReport: true, controller };
+    }
+    if (runtime[0] === "--admin-invalidate-false-paths") {
+        if (runtime.length !== 1 || controller.length) throw new TypeError("runtime accepts only --admin-invalidate-false-paths, alone");
+        return { adminInvalidateFalsePaths: true, controller };
     }
     const trackIndex = runtime.indexOf("--track");
     const roleIndex = runtime.indexOf("--role");
@@ -791,13 +796,36 @@ async function runStatusReportAzure(log) {
     });
 }
 
+async function runInspectionInvalidationAzure(log) {
+    const reportPath = join(import.meta.dirname, '..', 'operations', 'reconciliation', '2026-09-18-effective-catalogue.json');
+    const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+    const clients = blobClients();
+    const root = process.env.ORCHARD_STATE_ROOT ?? '/var/lib/orchard';
+    mkdirSync(root, { recursive: true });
+    const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    return withFencedState(adapter, { scope: 'track-2', owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? 'local'}:${process.pid}` }, async ({ state }) => {
+        const store = openStateStore(state.path);
+        try {
+            const applied = await invalidateDisprovedPathFindings({ store, report });
+            for (const entry of applied) log('info', 'admin.inspection-invalidated.item', entry);
+            log('info', 'admin.inspection-invalidated.finished', { applied: applied.length });
+            return { statePath: state.path, value: { applied } };
+        } finally {
+            store.close();
+        }
+    });
+}
+
 export async function main(argv = process.argv.slice(2)) {
-    const { track, role, adminRetryBlocked, adminShowReason, adminStatusReport, adminWithdrawGate2, adminHoldStalePublication, adminHoldUnsafeGate2, controller } = parseRuntimeArgs(argv);
-    const logRole = role ?? (adminHoldUnsafeGate2 ? "admin-hold-unsafe-gate2" : adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : adminStatusReport ? "admin-status-report" : null);
+    const { track, role, adminRetryBlocked, adminShowReason, adminStatusReport, adminInvalidateFalsePaths, adminWithdrawGate2, adminHoldStalePublication, adminHoldUnsafeGate2, controller } = parseRuntimeArgs(argv);
+    const logRole = role ?? (adminInvalidateFalsePaths ? "admin-invalidate-false-paths" : adminHoldUnsafeGate2 ? "admin-hold-unsafe-gate2" : adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : adminStatusReport ? "admin-status-report" : null);
     const log = createStructuredLogger({ base: { service: "orchard", ...(logRole ? { role: logRole } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
-        if (adminHoldUnsafeGate2) {
+        if (adminInvalidateFalsePaths) {
+            if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-invalidate-false-paths requires ORCHARD_RUNTIME_CONFIG=azure");
+            await runInspectionInvalidationAzure(log);
+        } else if (adminHoldUnsafeGate2) {
             if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-hold-unsafe-gate2 requires ORCHARD_RUNTIME_CONFIG=azure");
             await runApprovalHoldAzure(adminHoldUnsafeGate2, log, holdUnsafeGate2Drafts, "admin.unsafe-gate2.held", "track-2");
         } else if (adminHoldStalePublication) {

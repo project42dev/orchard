@@ -105,6 +105,7 @@ COPY --chown=delivery:delivery seed-inputs/ ./seed-inputs/
 
 # ---- Schema files (SQL, JSON schemas) ----
 COPY --chown=delivery:delivery schema/ ./schema/
+COPY --chown=delivery:delivery operations/reconciliation/ ./operations/reconciliation/
 
 # ---- Writeable directories ----
 RUN mkdir -p /app/private /app/proposals /app/run-records \

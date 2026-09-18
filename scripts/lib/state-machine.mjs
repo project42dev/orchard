@@ -23,7 +23,7 @@ export const ALLOWED_LIFECYCLE_TRANSITIONS = Object.freeze(directTransitions.map
 
 // States reachable only through the exception rules in isTransitionAllowed
 // below, never through the direct transition table.
-const exceptionStates = ["denied", "deferred", "changes-requested", "stale-approval", "blocked", "superseded"];
+const exceptionStates = ["denied", "deferred", "changes-requested", "stale-approval", "blocked", "superseded", "invalidated"];
 
 // The complete current_state vocabulary, derived from the transition table
 // plus the exception states, so it cannot drift from the machine itself.
@@ -63,8 +63,9 @@ export function isTransitionAllowed(transition) {
     if (pendingStates.has(from) && cause === "decision-deferred" && to === "deferred") return true;
     if (pendingStates.has(from) && cause === "decision-requested-changes" && to === "changes-requested") return true;
     if (["gate1-approved", "gate2-approved"].includes(from) && cause === "approval-stale" && to === "stale-approval") return true;
-    if (!["closed", "denied", "superseded"].includes(from) && blockCauses.has(cause) && to === "blocked") return true;
-    if (!["closed", "superseded"].includes(from) && cause === "superseded" && to === "superseded" && transition.superseding_item_id) return true;
+    if (!["closed", "denied", "superseded", "invalidated"].includes(from) && blockCauses.has(cause) && to === "blocked") return true;
+    if (!["closed", "superseded", "invalidated"].includes(from) && cause === "superseded" && to === "superseded" && transition.superseding_item_id) return true;
+    if (from === "ado-linked" && to === "invalidated" && cause === "inspection-invalidated") return true;
     if (from === "deferred" && cause === "review-resumed") {
         return to === expectedRecoveryState(transition.recovery_gate, "gate1-pending", "gate2-pending");
     }

@@ -67,6 +67,7 @@
                 "review-resumed",
                 "superseded",
                 "no-change-reviewed",
+                "inspection-invalidated",
                 "escalated-for-human-review"
             ]
         },
@@ -81,6 +82,10 @@
                 "null"
             ],
             "maxLength": 2000
+        },
+        "evidence_ref": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "superseding_item_id": {
             "oneOf": [
@@ -636,6 +641,28 @@
                     "const": "no-change-reviewed"
                 }
             }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "ado-linked"
+                },
+                "to_state": {
+                    "const": "invalidated"
+                },
+                "cause": {
+                    "const": "inspection-invalidated"
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "evidence_ref": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+            },
+            "required": ["reason", "evidence_ref"]
         }
     ],
     "allOf": [
@@ -671,7 +698,8 @@
                             "denied",
                             "deferred",
                             "changes-requested",
-                            "blocked"
+                            "blocked",
+                            "invalidated"
                         ]
                     }
                 },
@@ -743,7 +771,8 @@
                 "changes-requested",
                 "stale-approval",
                 "blocked",
-                "superseded"
+                "superseded",
+                "invalidated"
             ]
         }
     }
