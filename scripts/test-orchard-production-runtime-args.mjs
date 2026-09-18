@@ -44,6 +44,16 @@ throws(() => parseRuntimeArgs(["--track", "track-1", "--admin-retry-blocked", "x
   "--admin-retry-blocked cannot trail another flag");
 
 {
+  const r = parseRuntimeArgs(["--admin-status-report"]);
+  ok(r.adminStatusReport === true && r.controller.length === 0,
+    "read-only status report parses without a pipeline role");
+}
+throws(() => parseRuntimeArgs(["--admin-status-report", "extra"]),
+  "status report refuses extra arguments");
+throws(() => parseRuntimeArgs(["--admin-status-report", "--", "--track", "track-2"]),
+  "status report refuses controller arguments");
+
+{
   const r = parseRuntimeArgs(["--admin-withdraw-gate2", "01a01d34-7172-797b-9a21-10dc8ee80c1a@7,01a01d34-718c-74f0-acff-b1de8c7c0cf3@7"]);
   ok(r.adminWithdrawGate2?.length === 2 && r.adminWithdrawGate2[0].revision === 7,
     "a withdrawn Gate 2 approval names exact distinct revisions");

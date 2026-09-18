@@ -110,6 +110,10 @@ export function parseRuntimeArgs(argv) {
         if (!item) throw new TypeError("--admin-show-reason requires an item id");
         return { adminShowReason: item, controller };
     }
+    if (runtime[0] === "--admin-status-report") {
+        if (runtime.length !== 1 || controller.length) throw new TypeError("runtime accepts only --admin-status-report, alone");
+        return { adminStatusReport: true, controller };
+    }
     const trackIndex = runtime.indexOf("--track");
     const roleIndex = runtime.indexOf("--role");
     if (trackIndex !== -1 && roleIndex !== -1) throw new TypeError("runtime accepts --track or --role, never both");
@@ -713,9 +717,50 @@ async function runShowReasonAzure(itemId, log) {
     });
 }
 
+// The state blob is private by design, but the owner needs an inventory that
+// says where every item actually stopped. This reads the authoritative SQLite
+// snapshot inside the private network and emits bounded structured log lines;
+// it does not edit state or create GitHub issues.
+async function runStatusReportAzure(log) {
+    const clients = blobClients();
+    const root = process.env.ORCHARD_STATE_ROOT ?? "/var/lib/orchard";
+    mkdirSync(root, { recursive: true });
+    const track = process.env.ORCHARD_ADMIN_RETRY_TRACK ?? "track-2";
+    if (!TRACK_ENTRY_POINTS[track]) throw new Error("ORCHARD_ADMIN_RETRY_TRACK must be track-1 or track-2");
+    const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    return withFencedState(adapter, { scope: track, owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? "local"}:${process.pid}` }, async ({ state }) => {
+        const store = openStateStore(state.path);
+        let rows;
+        try {
+            rows = store.db.prepare(
+                `SELECT w.item_id, w.origin_run_id, w.current_state, w.current_revision,
+                        w.surface, w.outcome, w.updated_at, r.target_repository, r.target_path,
+                        (SELECT e.external_id FROM external_link e
+                          WHERE e.item_id = w.item_id AND e.provider = 'ado'
+                          ORDER BY e.item_revision DESC, e.linked_at DESC LIMIT 1) AS ado_id
+                   FROM workflow_item w
+                   JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
+                  WHERE w.track = ? ORDER BY w.updated_at DESC, w.item_id`,
+            ).all(track);
+        } finally {
+            store.close();
+        }
+        const states = {};
+        for (const row of rows) states[row.current_state] = (states[row.current_state] ?? 0) + 1;
+        log("info", "admin.status.summary", { track, total: rows.length, states });
+        for (const row of rows) log("info", "admin.status.item", {
+            track, item: row.item_id, run: row.origin_run_id, state: row.current_state,
+            revision: row.current_revision, surface: row.surface, outcome: row.outcome,
+            updatedAt: row.updated_at, repository: row.target_repository, path: row.target_path,
+            adoId: row.ado_id ?? null,
+        });
+        return { statePath: state.path, value: { track, total: rows.length, states } };
+    });
+}
+
 export async function main(argv = process.argv.slice(2)) {
-    const { track, role, adminRetryBlocked, adminShowReason, adminWithdrawGate2, adminHoldStalePublication, adminHoldUnsafeGate2, controller } = parseRuntimeArgs(argv);
-    const logRole = role ?? (adminHoldUnsafeGate2 ? "admin-hold-unsafe-gate2" : adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : null);
+    const { track, role, adminRetryBlocked, adminShowReason, adminStatusReport, adminWithdrawGate2, adminHoldStalePublication, adminHoldUnsafeGate2, controller } = parseRuntimeArgs(argv);
+    const logRole = role ?? (adminHoldUnsafeGate2 ? "admin-hold-unsafe-gate2" : adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : adminStatusReport ? "admin-status-report" : null);
     const log = createStructuredLogger({ base: { service: "orchard", ...(logRole ? { role: logRole } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
@@ -734,6 +779,9 @@ export async function main(argv = process.argv.slice(2)) {
         } else if (adminShowReason) {
             if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-show-reason requires ORCHARD_RUNTIME_CONFIG=azure; there is no local state to read");
             await runShowReasonAzure(adminShowReason, log);
+        } else if (adminStatusReport) {
+            if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-status-report requires ORCHARD_RUNTIME_CONFIG=azure; there is no local state to read");
+            await runStatusReportAzure(log);
         } else if (process.env.ORCHARD_RUNTIME_CONFIG === "azure") await (role ? runRoleAzure(role, log) : runAzure(track, log));
         else await runController(role ?? track, controller, log);
         log("info", "runtime.completed");
