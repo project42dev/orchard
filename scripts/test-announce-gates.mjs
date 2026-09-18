@@ -385,6 +385,25 @@ test('a CLEAN gate-2 item still shows its actual content, not just a passed badg
   assert.ok(contentIndex >= 0 && contentIndex < detailsIndex, 'content must appear before the collapsed binding details');
 });
 
+test('a large course draft keeps one full reviewable copy and its bindable manifest', () => {
+  const content = 'course section '.repeat(2500);
+  const manifest = gate2Manifest([{ ...gate2Item('large-course'), content }]);
+  const marker = gateMarker({ track: 'track-1', gate: 'gate-2', runId: manifest.run_id, batchDigest: heldSetDigest('gate-2', manifest.items) });
+  const body = renderGateIssue({ gate: 'gate-2', track: 'track-1', items: manifest.items, marker, runId: manifest.run_id, manifest });
+  assert.ok(body.length <= 60_000);
+  assert.equal(body.split(content).length - 1, 1, 'compact view must not duplicate the whole course');
+  assert.ok(body.includes('Review the proposed content in full'));
+  const embedded = /```json\n(.*)\n```/s.exec(body);
+  assert.ok(embedded, 'the approval-binding manifest remains on the issue');
+  assert.equal(JSON.parse(embedded[1]).items[0].content, content);
+});
+
+test('an artifact too large even for the compact view cannot create an unapprovable issue', () => {
+  const manifest = gate2Manifest([{ ...gate2Item('impossibly-large-course'), content: 'x'.repeat(70_000) }]);
+  const marker = gateMarker({ track: 'track-1', gate: 'gate-2', runId: manifest.run_id, batchDigest: heldSetDigest('gate-2', manifest.items) });
+  assert.throws(() => renderGateIssue({ gate: 'gate-2', track: 'track-1', items: manifest.items, marker, runId: manifest.run_id, manifest }), /no unapprovable issue was created/);
+});
+
 test('an item with no captured content (evidence predates this field) renders without a fabricated content section', () => {
   const item = gate2Item('no-content-item', { reviewsPassed: true });
   const manifest = gate2Manifest([item]);
