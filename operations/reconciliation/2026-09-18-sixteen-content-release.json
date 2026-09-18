@@ -1,0 +1,250 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "external-publication-reconciliation",
+  "content_commit": "3fb86dda79c282b4885437e017bdf0d41a1a1ce4",
+  "platform_commit": "e4366396ac8937647a7ff65342e0bf8c634e466a",
+  "site_commit": "f9353d3a45309a6158c94a3aba7c0119ac17d28d",
+  "platform_version": "0.116.14",
+  "items": [
+    {
+      "item_id": "01a0adbd-c8f1-7803-99c4-e98a689258f9",
+      "ado_id": 9246,
+      "revision": 1,
+      "path": "modules/agentic-systems-and-mcp/agent-architecture-spectrum.json",
+      "content_digest": "sha256:390dd351d91136f5af17b7b251f05cc6e651bb753ddbd56ffcb60a3aa7d6052c",
+      "live_url": "https://project-42.dev/learn/agentic-systems-and-mcp/agent-architecture-spectrum",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c8fd-7093-835e-cb53d4b5f9d2",
+      "ado_id": 9247,
+      "revision": 1,
+      "path": "modules/agentic-systems-and-mcp/agent-safety-and-spend-brakes.json",
+      "content_digest": "sha256:3051a3a5b24c99519b44d5738f14a9927b9713e689f6ef1fdda5e7a4e3ce6d7d",
+      "live_url": "https://project-42.dev/learn/agentic-systems-and-mcp/agent-safety-and-spend-brakes",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c912-75cf-875d-75f95c81d25a",
+      "ado_id": 9248,
+      "revision": 1,
+      "path": "modules/ai-security-and-governance/ai-compliance-and-crypto-receipts.json",
+      "content_digest": "sha256:eb72629c9c91df18f21a891770c3b795d55fce3064711c948fdb61d2154a7bde",
+      "live_url": "https://project-42.dev/learn/ai-security-and-governance/ai-compliance-and-crypto-receipts",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c923-7376-bd5e-5699bcf3e91e",
+      "ado_id": 9250,
+      "revision": 1,
+      "path": "modules/rag-and-fine-tuning-engineering/dpo-and-model-evaluation.json",
+      "content_digest": "sha256:f20a26a5c906a49e8b20d661a1170032c52573f3049026165f0b0ff6ae8f4c3c",
+      "live_url": "https://project-42.dev/learn/rag-and-fine-tuning-engineering/dpo-and-model-evaluation",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c92f-75ef-a05a-e2eaa754f2b2",
+      "ado_id": 9251,
+      "revision": 1,
+      "path": "modules/developer-and-practitioner-ai/function-calling-and-tools.json",
+      "content_digest": "sha256:22863bfa28b5d060b8d95628823f4b1e23bf9504a20449cb25e8a9e506d89e0e",
+      "live_url": "https://project-42.dev/learn/developer-and-practitioner-ai/function-calling-and-tools",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c93c-798a-963e-d5973cb68491",
+      "ado_id": 9252,
+      "revision": 1,
+      "path": "modules/rag-and-fine-tuning-engineering/graph-rag-and-knowledge-graphs.json",
+      "content_digest": "sha256:903c7a63136f889b559b8c2965eee4fef01c3badf4ff1e93debe13fc9499f8f1",
+      "live_url": "https://project-42.dev/learn/rag-and-fine-tuning-engineering/graph-rag-and-knowledge-graphs",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c946-7a3e-ae8d-a69f3ffce69f",
+      "ado_id": 9253,
+      "revision": 1,
+      "path": "modules/ai-security-and-governance/guardrails-and-sandboxing.json",
+      "content_digest": "sha256:73c811543d8346d592b37e67af2427f93b75de9889dc4690b2e61fbfda11a49d",
+      "live_url": "https://project-42.dev/learn/ai-security-and-governance/guardrails-and-sandboxing",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c94f-7d16-b13e-3ac18339f9e0",
+      "ado_id": 9254,
+      "revision": 1,
+      "path": "modules/self-hosted-and-aiops/hardware-and-vram-calculator.json",
+      "content_digest": "sha256:329044e3e58783ccef4f7aa3a193e18493c6153292c9c5da3a20471557e9bf03",
+      "live_url": "https://project-42.dev/learn/self-hosted-and-aiops/hardware-and-vram-calculator",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c957-754d-a826-6d4737b5e614",
+      "ado_id": 9255,
+      "revision": 1,
+      "path": "modules/rag-and-fine-tuning-engineering/lora-qlora-fine-tuning.json",
+      "content_digest": "sha256:f67133e23d3415bd1c2042fb9b47eeba2d35a4ad270d21b3e7f96067c91de7e4",
+      "live_url": "https://project-42.dev/learn/rag-and-fine-tuning-engineering/lora-qlora-fine-tuning",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c962-78b5-bcd2-278e4638100b",
+      "ado_id": 9256,
+      "revision": 1,
+      "path": "modules/agentic-systems-and-mcp/model-context-protocol-mcp.json",
+      "content_digest": "sha256:e337e72f805a5df65a11257f0a1d3aef7d5e784a29db250d0aba258c8781e82e",
+      "live_url": "https://project-42.dev/learn/agentic-systems-and-mcp/model-context-protocol-mcp",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c96e-7aba-9400-0eeb59df487f",
+      "ado_id": 9257,
+      "revision": 1,
+      "path": "modules/agentic-systems-and-mcp/multi-agent-orchestration.json",
+      "content_digest": "sha256:c4419771d4507aca19acf5c915d96f0df7a411202b65f0e9376b61f91aa9f734",
+      "live_url": "https://project-42.dev/learn/agentic-systems-and-mcp/multi-agent-orchestration",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c975-791d-a6a2-63cb688ae27c",
+      "ado_id": 9258,
+      "revision": 1,
+      "path": "modules/self-hosted-and-aiops/open-weights-and-quantization.json",
+      "content_digest": "sha256:ffcad01b3857e202151706245c76b5595680d64c8043840f0e7b12022427b940",
+      "live_url": "https://project-42.dev/learn/self-hosted-and-aiops/open-weights-and-quantization",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c986-7250-88de-0d1b33dfac3c",
+      "ado_id": 9259,
+      "revision": 3,
+      "path": "modules/ai-security-and-governance/owasp-top-10-llm-attacks.json",
+      "content_digest": "sha256:6427d61d7e3f1161509ab7d9ef4cb568bfab7dbb9cb14ebef3e5b50aaf64a91e",
+      "live_url": "https://project-42.dev/learn/ai-security-and-governance/owasp-top-10-llm-attacks",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c9bc-7189-8664-d1a37d3c3269",
+      "ado_id": 9264,
+      "revision": 2,
+      "path": "modules/developer-and-practitioner-ai/structured-outputs-mastery.json",
+      "content_digest": "sha256:21c7cdf69b09d6204fcf55bba64ae266e0a26b8581e02fc518d84e121ee78efa",
+      "live_url": "https://project-42.dev/learn/developer-and-practitioner-ai/structured-outputs-mastery",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0adbd-c9c6-73c5-ad90-5fafbafb18e7",
+      "ado_id": 9265,
+      "revision": 2,
+      "path": "modules/ai-literacy-and-mental-models/token-economics-and-limits.json",
+      "content_digest": "sha256:2e09c11619b57101d565a6dd6a46d753f819596d0fa8111ec5945ce54fc6ff3a",
+      "live_url": "https://project-42.dev/learn/ai-literacy-and-mental-models/token-economics-and-limits",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3b60-7161-8ed8-b5f185ef5729",
+      "ado_id": 9275,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-module:review-agent-results",
+      "content_digest": "sha256:5968814bf0b6f1debf757d5c085148e739ebd229440310a3e2bd2df19985a9ed",
+      "live_url": "https://project-42.dev/learn/reliable-agent-workflows/review-agent-results",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/77",
+        "https://github.com/project42dev/project42-content/pull/78"
+      ],
+      "supporting_artifacts": [
+        {
+          "path": "modules/reliable-agent-workflows/operate-and-recover-agent-systems.json",
+          "digest": "sha256:cfcf2176fb153724281493294fd70512bf17290168457f1b6a6740a0d5002b86"
+        },
+        {
+          "path": "modules/reliable-agent-workflows/reliable-agent-capstone.json",
+          "digest": "sha256:0ddedf2435c8e4a89f367f7858a60c69be8020fe0805ff217f90a0c3bc6ab445"
+        },
+        {
+          "path": "training/reliable-agent-workflows/path-contract.json",
+          "digest": "sha256:95e18094d1a54a3ddf59f2e97252f7c6525b1e568cc87abba5246ec72f628b33"
+        },
+        {
+          "path": "training/reliable-agent-workflows/review-agent-results/class-script.json",
+          "digest": "sha256:659f2f4434ee187d5894f78ce1d558de8c6861ea91ec83f3f86a00ebf78c6a3d"
+        },
+        {
+          "path": "training/reliable-agent-workflows/review-agent-results/integrity.json",
+          "digest": "sha256:e9b20a3a8a87091704b272f6980f4d374449b04bde3d84c9cd3aefde1c9d4069"
+        },
+        {
+          "path": "training/reliable-agent-workflows/review-agent-results/alternatives/en-US-reduced-motion.md",
+          "digest": "sha256:0272a5249880ec60afc704c9db32ec328026fd17eb4c356393bb8cd40a78a393"
+        },
+        {
+          "path": "training/reliable-agent-workflows/review-agent-results/alternatives/en-US-text-only.md",
+          "digest": "sha256:697da704daa40eff9286ad89379cc3cf4f106522e41eceb7510ae9a559c36391"
+        },
+        {
+          "path": "training/reliable-agent-workflows/review-agent-results/captions/en-US.vtt",
+          "digest": "sha256:c7b5a4003783c9fc2c8f2bff8790fd325a3d572acbdf1f097b9dd12980423268"
+        },
+        {
+          "path": "training/reliable-agent-workflows/review-agent-results/transcripts/en-US.md",
+          "digest": "sha256:42bfef6bacc3c7259c414a1b75bffac47fb4a12dcc9dddeb696cb48b607d740e"
+        },
+        {
+          "path": "training/reliable-agent-workflows/operate-and-recover-agent-systems/class-script.json",
+          "digest": "sha256:c01ad5039d1fbba11dc76deaecfd995224e26077f51421eff618753eeab7b8ce"
+        },
+        {
+          "path": "training/reliable-agent-workflows/operate-and-recover-agent-systems/integrity.json",
+          "digest": "sha256:1bcf1bf71a988bee0f64cccc5cff16bcbe388264947e929caf99139a82fcdf8f"
+        },
+        {
+          "path": "training/reliable-agent-workflows/operate-and-recover-agent-systems/alternatives/en-US-reduced-motion.md",
+          "digest": "sha256:4dba289c5e61fc4bece1d6c5ee52857ea166b94154f931212339ef729eb258a8"
+        },
+        {
+          "path": "training/reliable-agent-workflows/operate-and-recover-agent-systems/alternatives/en-US-text-only.md",
+          "digest": "sha256:1ed9d64b5212b229f30226b73a592faba1b8d6a38d2301283128e1a55799722d"
+        },
+        {
+          "path": "training/reliable-agent-workflows/operate-and-recover-agent-systems/captions/en-US.vtt",
+          "digest": "sha256:a563a2e4f00f35c95f52b84acead8acc1112457bd68a352739598ea8b918c3bc"
+        },
+        {
+          "path": "training/reliable-agent-workflows/operate-and-recover-agent-systems/transcripts/en-US.md",
+          "digest": "sha256:7233fdfe767a7707267e6b313114b0c9a1661f804d59bee0c87f346bddc450d6"
+        }
+      ]
+    }
+  ]
+}

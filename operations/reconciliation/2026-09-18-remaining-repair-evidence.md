@@ -1,6 +1,6 @@
 # Remaining September repair delivery
 
-Canonical source: project42-content commit `3fb86dda79c282b4885437e017bdf0d41a1a1ce4`, including PRs 77, 78, and 79. Platform candidate: v0.116.12. This note records review evidence; the exact release manifests and production readback establish publication separately.
+Canonical source: project42-content commit `3fb86dda79c282b4885437e017bdf0d41a1a1ce4`, including PRs 77, 78, and 79. Platform candidate: v0.116.14 (includes the v0.116.12 curriculum, the optional class-segment type correction, and the thirteen-module browser journey contract found by adopter CI). This note records review evidence; the exact release manifests and production readback establish publication separately.
 
 ## First batch: sixteen repairs
 
