@@ -54,6 +54,14 @@ throws(() => parseRuntimeArgs(["--admin-status-report", "--", "--track", "track-
   "status report refuses controller arguments");
 
 {
+  const r = parseRuntimeArgs(["--admin-reconcile-external-publications"]);
+  ok(r.adminReconcileExternalPublications === true && r.controller.length === 0,
+    "external publication reconciliation parses as an isolated admin operation");
+}
+throws(() => parseRuntimeArgs(["--admin-reconcile-external-publications", "extra"]),
+  "external publication reconciliation refuses extra arguments");
+
+{
   const r = parseRuntimeArgs(["--admin-withdraw-gate2", "01a01d34-7172-797b-9a21-10dc8ee80c1a@7,01a01d34-718c-74f0-acff-b1de8c7c0cf3@7"]);
   ok(r.adminWithdrawGate2?.length === 2 && r.adminWithdrawGate2[0].revision === 7,
     "a withdrawn Gate 2 approval names exact distinct revisions");

@@ -18,7 +18,7 @@ export const UNPUBLISHABLE_TARGET_EVENT = "publication.unpublishable-target";
 // Where an item was actually published, or where a closed or superseded item
 // once pointed, is a fact about the past, not stranded work. The same exclusion
 // reportUnmappedPublicationTargets makes, for the same reason.
-const TERMINAL_STATES = Object.freeze(["published", "closed", "superseded", "invalidated"]);
+const TERMINAL_STATES = Object.freeze(["published", "closed", "superseded", "invalidated", "externally-published"]);
 
 /**
  * Thrown where a target path is decided, by the code that decides it.

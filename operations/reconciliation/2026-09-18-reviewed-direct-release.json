@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "external-publication-reconciliation",
+  "content_commit": "2655c4ea6f8710cabf793d67f5f311c1d61ecac4",
+  "platform_commit": "db1938848da2cc5be4a629803001e873fff6d05f",
+  "site_commit": "056c630bf1cdda1a93eaf0747b1acb9b45eb34fd",
+  "platform_version": "0.116.11",
+  "items": [
+    {
+      "item_id": "01a0adbd-c9a1-7843-ba3c-ba37147d7e23",
+      "ado_id": 9261,
+      "revision": 4,
+      "path": "modules/ai-literacy-and-mental-models/prompt-architecture.json",
+      "content_digest": "sha256:5c5ec2cd981c5b8e8bec0677a9dfe93746e31e7e1bd43dbd64138d77ab5b20a9",
+      "live_url": "https://project-42.dev/learn/ai-literacy-and-mental-models/prompt-architecture",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/75"]
+    },
+    {
+      "item_id": "01a0adbd-c9a7-7744-b516-6557337c9116",
+      "ado_id": 9262,
+      "revision": 2,
+      "path": "modules/developer-and-practitioner-ai/provider-sdk-patterns.json",
+      "content_digest": "sha256:54cf995f30974d16b9a7a1a6c963b19a59cd5ac2ab59211743a3d7e02eb4a4bb",
+      "live_url": "https://project-42.dev/learn/developer-and-practitioner-ai/provider-sdk-patterns",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/75"]
+    },
+    {
+      "item_id": "01a0adbd-c9b3-74f1-a449-d3c295ae4f3d",
+      "ado_id": 9263,
+      "revision": 2,
+      "path": "modules/self-hosted-and-aiops/semantic-caching-and-ai-tracing.json",
+      "content_digest": "sha256:634e8318a728fd24e8203a9e2840ecf5a26bc7b0353fe0cf9de4dd272f7f3234",
+      "live_url": "https://project-42.dev/learn/self-hosted-and-aiops/semantic-caching-and-ai-tracing",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/75", "https://github.com/project42dev/project42-content/pull/76"]
+    },
+    {
+      "item_id": "01a0adbd-c9cf-7eaa-a4ec-e7c4868d0051",
+      "ado_id": 9266,
+      "revision": 1,
+      "path": "modules/developer-and-practitioner-ai/vector-embeddings-and-pgvector.json",
+      "content_digest": "sha256:00a748e9a6c1ad7bb4ce0bccf50d63603076c4e4f1d739dad0fea7940df427ea",
+      "live_url": "https://project-42.dev/learn/developer-and-practitioner-ai/vector-embeddings-and-pgvector",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/73", "https://github.com/project42dev/project42-content/pull/74"]
+    }
+  ]
+}
