@@ -488,7 +488,7 @@ export const FORM_INSTRUCTIONS = {
     '  reviewCadenceDays  integer from 1 to 365.',
     '  lastVerified       plain YYYY-MM-DD date, the day the sources were checked.',
     '',
-    'Omit "activity", "comparisonMatrix", "instructorScript" and "capstone" entirely. Each is optional, and the platform validates every one of them in full whenever it is present, so a partial one fails the whole module where an absent one costs nothing.',
+    'For a NEW module, omit "activity", "comparisonMatrix", "instructorScript" and "capstone" unless you can supply each included component completely and validly. For an UPDATE, preserve every existing component, including "activity", "comparisonMatrix", "instructorScript" and "capstone"; correct only fields supported by the findings. The publication gate rejects an update that removes an existing activity or instructorScript.',
     'Do not nest the module under a wrapper key, do not return an array, and do not write Markdown inside the strings either: a paragraph is prose, not a heading, a bullet list, or a fenced block.',
   ],
   // Every field below is taken from the Resource interface in
