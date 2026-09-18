@@ -887,6 +887,35 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
     return summary;
 }
 
+export async function runDeliveryItems({ briefs, workRoot, runRecordDir, proposalRoot, command, env, budget, log, spawn }) {
+    let deliveryFailed = false;
+    for (const [index, brief] of briefs.entries()) {
+        const briefPath = join(workRoot, `brief-${index + 1}.json`);
+        writeFileSync(briefPath, `${JSON.stringify([brief], null, 2)}\n`);
+        log("info", "authoring.delivery.starting", { briefs: 1, item: brief.item_id, executable: command[0] });
+        const result = await spawn(command[0], command.slice(1), {
+            stdio: "inherit",
+            env: {
+                ...env,
+                BRIEF_PATH: briefPath,
+                RUN_RECORD_ROOT: runRecordDir,
+                PROPOSAL_ROOT: proposalRoot,
+                DELIVERY_MODE: "harness",
+                MAX_SPEND_USD_PER_RUN: String(budget.perItemUsd || budget.capUsd),
+            },
+        });
+        if (result.error || result.status !== 0) {
+            deliveryFailed = true;
+            log("error", "authoring.delivery.failed", {
+                item: brief.item_id, exitCode: result.status, reason: result.error?.message,
+            });
+        } else {
+            log("info", "authoring.delivery.completed", { item: brief.item_id });
+        }
+    }
+    return deliveryFailed;
+}
+
 export async function main(argv = process.argv.slice(2), { log = (level, event, detail) => console.log(JSON.stringify({ level, event, ...detail })), env = process.env, spawn = runProcessAsync } = {}) {
     const dbPath = argOf(argv, "state-db");
     if (!dbPath) fail("ERR_ORCHARD_CONFIGURATION", "run-authoring requires --state-db");
@@ -994,38 +1023,12 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
 
     let deliveryFailed = false;
     if (briefs.briefs.length > 0) {
-        const briefPath = join(workRoot, "briefs.json");
-        writeFileSync(briefPath, `${JSON.stringify(briefs.briefs, null, 2)}\n`);
         const command = deliveryCommand(env);
-        log("info", "authoring.delivery.starting", { briefs: briefs.briefs.length, executable: command[0] });
-        const result = await spawn(command[0], command.slice(1), {
-            stdio: "inherit",
-            env: {
-                ...env,
-                BRIEF_PATH: briefPath,
-                RUN_RECORD_ROOT: runRecordDir,
-                PROPOSAL_ROOT: proposalRoot,
-                // "harness" is the only correct value here: this call is
-                // always a one-shot run against a just-written brief file,
-                // exactly what the engine's own docstring calls "harness"
-                // mode ("runs once against a named brief"), never "engine"
-                // mode (its scheduled watched-sources trigger). The engine's
-                // own ValidateSet('harness','engine') rejects anything else,
-                // including the "content-proposal" value this used to send.
-                DELIVERY_MODE: "harness",
-                MAX_SPEND_USD_PER_RUN: String(budget.capUsd),
-            },
-        });
-        if (result.error) fail("ERR_ORCHARD_DELIVERY_FAILED", `the delivery engine could not start: ${result.error.message}`);
-        if (result.status !== 0) {
-            deliveryFailed = true;
-            // The claimed items stay executing on purpose: the run records the
-            // engine did manage to write are still ingested below, and items
-            // with no verdict are picked up by the next run's ingest.
-            log("error", "authoring.delivery.failed", { exitCode: result.status });
-        } else {
-            log("info", "authoring.delivery.completed");
-        }
+        // The engine stops a whole brief file after an empty completion. Keep
+        // each approved item in its own invocation so one failure cannot
+        // prevent unrelated work from reaching review. The per-item caps sum
+        // to no more than the aggregate authoring cap already approved.
+        deliveryFailed = await runDeliveryItems({ briefs: briefs.briefs, workRoot, runRecordDir, proposalRoot, command, env, budget, log, spawn });
     } else {
         log("info", "authoring.nothing-claimed", { effect: "no approved ado-linked work is waiting; the ensemble is not invoked and nothing is spent" });
     }
