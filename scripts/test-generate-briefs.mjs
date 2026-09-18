@@ -32,6 +32,14 @@ import { estate, seedGateItems, walkTo, cleanupFixtures, NOW, candidate } from '
 let passed = 0;
 const failures = [];
 
+// An update must not inherit the new-module shortcut that strips existing
+// teaching components; the publication gate refuses that loss.
+const moduleForm = FORM_INSTRUCTIONS['learning-module-json'].join('\n');
+if (!moduleForm.includes('For an UPDATE, preserve every existing component') ||
+    moduleForm.includes('Omit "activity", "comparisonMatrix", "instructorScript" and "capstone" entirely.')) {
+  failures.push('module update form must preserve existing teaching components');
+}
+
 function check(label, condition) {
   if (condition) { passed += 1; } else { failures.push(label); }
 }
