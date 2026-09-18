@@ -284,7 +284,7 @@ function evidenceRecordsFor(candidate) {
 export function findLiveItem(db, track, semanticIdentity) {
     return db.prepare(`SELECT w.item_id, w.current_state, w.current_revision, w.outcome, r.record_json
       FROM workflow_item w JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
-      WHERE w.track = ? AND w.semantic_identity = ? AND w.current_state NOT IN ('closed', 'superseded')`)
+      WHERE w.track = ? AND w.semantic_identity = ? AND w.current_state NOT IN ('closed', 'superseded', 'invalidated', 'externally-published')`)
         .get(track, semanticIdentity) ?? null;
 }
 

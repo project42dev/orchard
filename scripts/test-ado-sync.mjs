@@ -269,7 +269,7 @@ test('every lifecycle state that can follow a link has an ADO mapping', () => {
     // Part 3's table: started, awaiting review, approved, rework, published,
     // closed, failed and denied must all reflect on the board.
     for (const state of ['executing', 'gate2-ready', 'gate2-pending', 'gate2-approved',
-        'changes-requested', 'blocked', 'published', 'ado-closure-ready', 'closed', 'denied', 'superseded']) {
+        'changes-requested', 'blocked', 'published', 'ado-closure-ready', 'closed', 'denied', 'superseded', 'invalidated', 'externally-published']) {
         assert.ok(ADO_STATE_MAP[state], `${state} must map to an ADO state`);
     }
 });

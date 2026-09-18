@@ -99,6 +99,15 @@ export const OUTCOME_KIND = {
   removal: 'needs-removing',
 };
 
+// A Track 2 "addition" to a selected registry entry adds material to an
+// existing record. The delivery engine must see that record and use its update
+// contract; otherwise it drafts a new skeleton and drops every existing field.
+export function authoringKindFor(outcome, targetPath) {
+  return outcome === 'addition' && isCatalogueTarget(targetPath)
+    ? 'needs-updating'
+    : OUTCOME_KIND[outcome] ?? null;
+}
+
 // The contract surface names (item-record schema) and the operator-config
 // surface keys grew up separately. Both spellings are honoured so an adopter's
 // existing surface-targets file keeps working.
@@ -127,7 +136,7 @@ export const BRIEF_ID_PREFIX = 'p42';
 // ceiling before request one.
 export const ROLE_TOKEN_BUDGET = {
   researcher: 4096,
-  drafter: 8192,
+  drafter: 16384,
   verifier: 8192,
   adversary: 8192,
   arbiter: 8192,
@@ -488,7 +497,7 @@ export const FORM_INSTRUCTIONS = {
     '  reviewCadenceDays  integer from 1 to 365.',
     '  lastVerified       plain YYYY-MM-DD date, the day the sources were checked.',
     '',
-    'Omit "activity", "comparisonMatrix", "instructorScript" and "capstone" entirely. Each is optional, and the platform validates every one of them in full whenever it is present, so a partial one fails the whole module where an absent one costs nothing.',
+    'For a NEW module, omit "activity", "comparisonMatrix", "instructorScript" and "capstone" unless you can supply each included component completely and validly. For an UPDATE, preserve every existing component, including "activity", "comparisonMatrix", "instructorScript" and "capstone"; correct only fields supported by the findings. The publication gate rejects an update that removes an existing activity or instructorScript.',
     'Do not nest the module under a wrapper key, do not return an array, and do not write Markdown inside the strings either: a paragraph is prose, not a heading, a bullet list, or a fenced block.',
   ],
   // Every field below is taken from the Resource interface in
@@ -858,8 +867,12 @@ export function buildPrompt(item, evidence, citations, surfaceConfig, findings =
   }
 
   if (isCatalogueTarget(item.recordedTarget?.path)) {
+    const canonicalId = item.record?.canonical_content_id ?? "";
+    const selectedId = canonicalId.startsWith("catalogue:") ? null : canonicalId.split(":").slice(1).join(":");
     lines.push('', 'FORM. Return exactly one JSON object for the selected catalogue record. No fence, wrapper, prose, or whole-registry rewrite.',
-      `The selected record is ${item.record?.canonical_content_id ?? '(missing selector)'} in ${item.recordedTarget.path}. Keep its id and all existing fields. Change only fields the inspection finding supports.`,
+      `The selected record is ${canonicalId || '(missing selector)'} in ${item.recordedTarget.path}.`,
+      ...(selectedId ? [`Its top-level "id" field MUST be exactly ${JSON.stringify(selectedId)}. Copy that field unchanged from THE EXISTING entry below. A missing or different id prevents publication.`] : []),
+      'Return the full existing record shape, including every existing key and nested value. Change only fields the inspection finding supports.',
       'For a catalogue-wide finding, return only the existing non-array top-level metadata keys; Orchard preserves every array unchanged.');
   } else {
     const form = FORM_INSTRUCTIONS[formFor(item.surface, surfaceConfig)];
@@ -933,6 +946,19 @@ export function failedReviewNoteFor(db, itemId, currentRevision) {
     const summary = JSON.parse(row.record_json).findings?.[0]?.summary;
     return typeof summary === 'string' && summary.trim() ? `${row.role}: ${summary.trim()}` : null;
   }).filter(Boolean);
+  if (!findings.length) {
+    const held = db.prepare(
+      `SELECT record_json FROM observation_event
+        WHERE item_id = ? AND item_revision = ?
+          AND evidence_reference LIKE 'orchard/rejection-evidence/%'
+        ORDER BY observed_at DESC LIMIT 1`,
+    ).get(itemId, currentRevision - 1);
+    if (held) {
+      const rejection = JSON.parse(held.record_json).rejection_evidence;
+      if (rejection?.verifierVerdict === 'failed' && rejection.verifierFinding) findings.push(`factual-verifier: ${rejection.verifierFinding}`);
+      if (rejection?.adversaryVerdict === 'failed' && rejection.adversaryFinding) findings.push(`assessment-reviewer: ${rejection.adversaryFinding}`);
+    }
+  }
   if (!findings.length) return null;
   return `${BLOCKED_RETRY_PREFIX}Previous authoring review findings:\n${findings.join('\n').slice(0, 8000)}`;
 }
@@ -1204,7 +1230,7 @@ export async function generateBriefs({
         id: row.item_id,
         subject_id: row.item_id,
         track: row.track,
-        kind: OUTCOME_KIND[row.outcome] ?? null,
+        kind: authoringKindFor(row.outcome, record.target?.path),
         outcome: row.outcome,
         surface: row.surface,
         semantic_identity: row.semantic_identity,
@@ -1225,7 +1251,7 @@ export async function generateBriefs({
         // candidate IS the inspection finding). Read only for an update,
         // because a Track 1 discovery candidate's evidence_refs are surveyed
         // source URLs rather than a finding about published content.
-        currencyFindings: OUTCOME_KIND[row.outcome] === 'needs-updating'
+        currencyFindings: authoringKindFor(row.outcome, record.target?.path) === 'needs-updating'
           ? (manifest?.evidence_refs ?? []).filter((entry) => typeof entry === 'string' && entry.length > 0)
           : [],
         recordedTarget: record.target ?? null,

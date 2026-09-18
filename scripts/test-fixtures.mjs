@@ -36,6 +36,7 @@ export function runManifest(runId, track = 'track-1') {
         },
         item_count: 0,
     };
+    if (track === 'track-2') record.coverage = { expected: 1, enumerated: 1, inspected: 1, gaps: 0 };
     record.manifest_digest = sha256Digest(record);
     return record;
 }

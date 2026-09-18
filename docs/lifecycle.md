@@ -151,8 +151,23 @@ never through the direct transition table.
 | `deferred` | either pending gate | `decision-deferred`. `review-resumed` returns it to the gate it left. |
 | `changes-requested` | either pending gate | `decision-requested-changes`. A new revision re-enters at the same gate. |
 | `stale-approval` | either approved state | `approval-stale`, when the artifact or the base branch moved after approval. Requires a fresh decision on the new digest. |
-| `blocked` | any state except `closed`, `denied`, `superseded` | a policy, integrity, security or cost block. |
-| `superseded` | any state except `closed`, `superseded` | `superseded`, and only when a `superseding_item_id` is supplied. |
+| `blocked` | any nonterminal state except `denied` | a policy, integrity, security or cost block. |
+| `superseded` | any nonterminal state | `superseded`, and only when a `superseding_item_id` is supplied. |
+| `invalidated` | an ADO-linked finding | `inspection-invalidated`, backed by persisted evidence disproving the finding. |
+| `externally-published` | an active Track 2 item | `external-publication-reconciled`, backed by the exact deployed corpus digest, the live platform version, and a reviewed direct content release. ADO becomes `Resolved`; this does not claim Orchard published it or close it without owner acceptance. |
+
+The external-publication admin command accepts a checked-in dated manifest selected
+with `ORCHARD_EXTERNAL_PUBLICATION_REPORT` (a filename in
+`operations/reconciliation`, never an arbitrary path). Standalone modules bind to
+their file; catalog targets also bind to the exact `canonical_content_id` and
+selected module, path, or guide. Diagram source is hashed with normalized text
+line endings. A manifest may additionally bind class scripts, accessible text,
+captions, integrity records, or related modules through `supporting_artifacts`.
+Every target and supporting digest is checked before the first state mutation.
+The authoritative state and backup are committed before tracker synchronization;
+a tracker failure can be retried against the same evidence without repeating the
+publication transition. Separate manifests allow separately verified batches to
+be reconciled in sequence.
 
 **There is no `verified` state.** Earlier documentation listed one between
 `published` and `closed`. Live verification is a *check* run against a published

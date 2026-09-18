@@ -57,6 +57,39 @@ export async function startJob({ jobResourceId, tokenProvider, fetchImpl = fetch
     return response.json().catch(() => null);
 }
 
+/** A one-item administrative retry must not start the entire authoring queue. */
+export async function startTargetedAuthoringJob({ jobResourceId, itemId, tokenProvider, fetchImpl = fetch }) {
+    if (!/^[0-9a-f-]{36}$/.test(itemId ?? "")) throw new TypeError("targeted authoring requires an item UUID");
+    const token = await tokenProvider();
+    const url = `${ARM_BASE}${jobResourceId}`;
+    const headers = { Authorization: `Bearer ${token}` };
+    const jobResponse = await fetchImpl(`${url}?api-version=${JOBS_API_VERSION}`, { headers });
+    if (!jobResponse.ok) {
+        const detail = await jobResponse.text().catch(() => "");
+        throw new Error(`failed to read authoring job ${jobResourceId}: HTTP ${jobResponse.status} ${detail}`);
+    }
+    const job = await jobResponse.json();
+    const containers = structuredClone(job.properties?.template?.containers ?? []);
+    const authoring = containers.find((container) => container.name === "authoring");
+    if (!authoring) throw new Error(`authoring job ${jobResourceId} has no authoring container`);
+    authoring.env = [
+        ...(authoring.env ?? []).filter((entry) => entry.name !== "ORCHARD_AUTHORING_ITEM_IDS"),
+        { name: "ORCHARD_AUTHORING_ITEM_IDS", value: itemId },
+    ];
+    const response = await fetchImpl(`${url}/start?api-version=${JOBS_API_VERSION}`, {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ containers }),
+    });
+    if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        const error = new Error(`failed to start targeted authoring job ${jobResourceId}: HTTP ${response.status} ${detail}`);
+        error.statusCode = response.status;
+        throw error;
+    }
+    return response.json().catch(() => null);
+}
+
 // One hop per lifecycle state that has downstream, unstarted work waiting on
 // it. gate2-approved -> publication is the one hop that is ALSO gated by a
 // human decision (Gate 2 itself) -- that gate already happened by the time an
@@ -97,8 +130,16 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
         // executing items a crashed run left behind, and Gate 2 rework
         // (lib/rework-recovery.mjs). Rework was invisible here until
         // 2026-09-13, so a request-changes decision never started a redraft.
+        // A downstream role must not restart stale fresh/abandoned authoring
+        // work after authoring deliberately stopped on failed reviews or a
+        // failed delivery engine. Only a new Gate 2 request-changes decision
+        // can start authoring from another role; the survey/approval path
+        // (currentRole=null) and authoring's bounded continuation own the
+        // fresh queue.
         const waiting = hop.state === "ado-linked"
-            ? (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0) + (counts["rework-recoverable"] ?? 0)
+            ? currentRole
+                ? (counts["rework-recoverable"] ?? 0)
+                : (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0) + (counts["rework-recoverable"] ?? 0)
             : (counts[hop.state] ?? 0);
         if (waiting <= 0) continue;
         try {

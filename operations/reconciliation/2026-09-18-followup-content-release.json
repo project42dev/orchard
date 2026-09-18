@@ -1,0 +1,157 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "external-publication-reconciliation",
+  "content_commit": "3fb86dda79c282b4885437e017bdf0d41a1a1ce4",
+  "platform_commit": "e4366396ac8937647a7ff65342e0bf8c634e466a",
+  "site_commit": "f9353d3a45309a6158c94a3aba7c0119ac17d28d",
+  "platform_version": "0.116.14",
+  "items": [
+    {
+      "item_id": "01a0adbd-c887-7539-a1b8-0d775eb18150",
+      "ado_id": 9244,
+      "revision": 1,
+      "path": "diagrams/orchard-lifecycle.mmd",
+      "content_digest": "sha256:532337a36b5a5b189f509cf6349054f1c304420e4bda5b0dc658ba66213702e3",
+      "live_url": "https://project-42.dev/guide/diagrams/orchard-lifecycle",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/62"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3aa8-73f1-b500-124693d10524",
+      "ado_id": 9267,
+      "revision": 2,
+      "path": "catalog.json",
+      "canonical_content_id": "guide:agent-safety-checklist",
+      "content_digest": "sha256:21f4b3d01e6fca0b8c8c02749b58b2836a20d2d7b6aa5303940d6f3150bf5982",
+      "live_url": "https://project-42.dev/guide/resources/agent-safety-checklist",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/65"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3aea-7ed6-a9a6-5296c05f6837",
+      "ado_id": 9268,
+      "revision": 2,
+      "path": "catalog.json",
+      "canonical_content_id": "guide:ai-glossary",
+      "content_digest": "sha256:041b946d5364b9894aab1d050f6d2650178f5d1f9915e282e48ef1e8b6962b38",
+      "live_url": "https://project-42.dev/guide/resources/ai-glossary",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/66",
+        "https://github.com/project42dev/project42-content/pull/67"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3af9-7931-b8d2-dfa0f290a01e",
+      "ado_id": 9269,
+      "revision": 2,
+      "path": "catalog.json",
+      "canonical_content_id": "guide:prompt-checklist",
+      "content_digest": "sha256:d0c5ef43db18d9844663c50fa2b9fcfec7d2cb8525f2d19329f60db71257e934",
+      "live_url": "https://project-42.dev/guide/resources/prompt-checklist",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/66",
+        "https://github.com/project42dev/project42-content/pull/79"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3b0b-7247-83aa-c5b7dc4f67fe",
+      "ado_id": 9270,
+      "revision": 2,
+      "path": "catalog.json",
+      "canonical_content_id": "guide:provider-decision-card",
+      "content_digest": "sha256:10bf6baa818c405f06702ac27f3ccceba46404eb19fad8a48bf62d7cd7d9ea59",
+      "live_url": "https://project-42.dev/guide/resources/provider-decision-card",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/66",
+        "https://github.com/project42dev/project42-content/pull/79"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3b16-7913-a871-d0b71d1afcc1",
+      "ado_id": 9271,
+      "revision": 3,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-module:anthropic-in-practice",
+      "content_digest": "sha256:2a7317c955cc2475167d2fa58d050c5efca8f588d6427aa5d8d806edc7234138",
+      "live_url": "https://project-42.dev/learn/providers-in-practice/anthropic-in-practice",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/68"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3b2c-753d-bab2-2e6242cfaae1",
+      "ado_id": 9272,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-module:choose-a-provider",
+      "content_digest": "sha256:83a3b0979a8dade357fa97a9c5ec28adcd05a4738a5e667a56ed076d29b1d3d6",
+      "live_url": "https://project-42.dev/learn/providers-in-practice/choose-a-provider",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/69"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3b3d-72dc-8f60-7c59a66d416b",
+      "ado_id": 9273,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-module:openai-in-practice",
+      "content_digest": "sha256:3c74df2da98adc9ca9650d6cd71118246e8b93ad4a293f3b7c7b9d42d796a6bb",
+      "live_url": "https://project-42.dev/learn/providers-in-practice/openai-in-practice",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/69",
+        "https://github.com/project42dev/project42-content/pull/72"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3b52-7b88-b004-a009799a5b44",
+      "ado_id": 9274,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-module:prepare-agent-work",
+      "content_digest": "sha256:7a45452dc590c4970e329b9b5052db54707cc5a63713fbbd27a979cdfb21ebc8",
+      "live_url": "https://project-42.dev/learn/reliable-agent-workflows/prepare-agent-work",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/69"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3bad-7f12-8a91-b6927e4b028c",
+      "ado_id": 9282,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-path:developer-and-practitioner-ai",
+      "content_digest": "sha256:7ac9f58e33fde9fd1cbf9e103fc48de4b4d4cbd6fd3f9c11cf646d64e436ade2",
+      "live_url": "https://project-42.dev/learn/developer-and-practitioner-ai",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/62"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3bc8-7b90-9f37-64cbd6137e67",
+      "ado_id": 9285,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-path:providers-in-practice",
+      "content_digest": "sha256:2a607735df5dfd4ecb19c4d9e4a4640947ff21ca2774a56e221c030aa6851f1a",
+      "live_url": "https://project-42.dev/learn/providers-in-practice",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/69"
+      ]
+    },
+    {
+      "item_id": "01a0affb-3bf0-70fd-b04a-0ee01ceb26c4",
+      "ado_id": 9288,
+      "revision": 1,
+      "path": "catalog.json",
+      "canonical_content_id": "learning-path:self-hosted-and-aiops",
+      "content_digest": "sha256:aa6a8ce81f81a0d67b1ca02a955eca8fcc0e986b11371eff8bcf4c829eeb686d",
+      "live_url": "https://project-42.dev/learn/self-hosted-and-aiops",
+      "content_prs": [
+        "https://github.com/project42dev/project42-content/pull/71"
+      ]
+    }
+  ]
+}

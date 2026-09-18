@@ -67,6 +67,8 @@
                 "review-resumed",
                 "superseded",
                 "no-change-reviewed",
+                "inspection-invalidated",
+                "external-publication-reconciled",
                 "escalated-for-human-review"
             ]
         },
@@ -81,6 +83,10 @@
                 "null"
             ],
             "maxLength": 2000
+        },
+        "evidence_ref": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
         },
         "superseding_item_id": {
             "oneOf": [
@@ -636,6 +642,50 @@
                     "const": "no-change-reviewed"
                 }
             }
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "const": "ado-linked"
+                },
+                "to_state": {
+                    "const": "invalidated"
+                },
+                "cause": {
+                    "const": "inspection-invalidated"
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "evidence_ref": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+            },
+            "required": ["reason", "evidence_ref"]
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": ["ado-linked", "executing", "gate2-ready", "gate2-pending", "gate2-approved", "blocked", "changes-requested", "stale-approval"]
+                },
+                "to_state": {
+                    "const": "externally-published"
+                },
+                "cause": {
+                    "const": "external-publication-reconciled"
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "evidence_ref": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+            },
+            "required": ["reason", "evidence_ref"]
         }
     ],
     "allOf": [
@@ -671,7 +721,9 @@
                             "denied",
                             "deferred",
                             "changes-requested",
-                            "blocked"
+                            "blocked",
+                            "invalidated",
+                            "externally-published"
                         ]
                     }
                 },
@@ -743,7 +795,9 @@
                 "changes-requested",
                 "stale-approval",
                 "blocked",
-                "superseded"
+                "superseded",
+                "invalidated",
+                "externally-published"
             ]
         }
     }

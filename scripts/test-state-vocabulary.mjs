@@ -74,7 +74,7 @@ test('every state the machine defines is accepted by the constraint', async () =
             state,
         );
     }
-    assert.equal(LIFECYCLE_STATES.length, 22, 'the machine defines exactly 22 states');
+    assert.equal(LIFECYCLE_STATES.length, 24, 'the machine defines exactly 24 states');
 });
 
 test('the CHECK constraint, the contract enum, and the state machine share one vocabulary', async () => {
@@ -141,6 +141,8 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
         { version: 10, name: '010-superseded-item-uniqueness' },
         { version: 11, name: '011-repoint-publication-targets' },
         { version: 12, name: '012-rotate-gate-trust-anchor' },
+        { version: 13, name: '013-inspection-invalidation' },
+        { version: 14, name: '014-external-publication-reconciliation' },
     ]);
     assert.ok(outcome.verification.ok, `post-migration verification: ${JSON.stringify(outcome.verification)}`);
 
@@ -156,7 +158,7 @@ test('a version 6 database migrates in place: rows carry over, the live-item ind
         // Migration 010 widened the predicate: a superseded item has a
         // successor that IS the live occupant of the subject, so it no longer
         // occupies it either. The invariant the index states is unchanged.
-        assert.ok(index.sql.includes("WHERE current_state NOT IN ('closed', 'superseded')"), 'the index must keep its partial WHERE clause');
+        assert.ok(index.sql.includes("WHERE current_state NOT IN ('closed', 'superseded', 'invalidated', 'externally-published')"), 'the index must keep its partial WHERE clause');
 
         assert.throws(
             () => store.db.prepare('UPDATE workflow_item SET current_state = ? WHERE item_id = ?').run('made-up-state', itemId),

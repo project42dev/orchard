@@ -263,15 +263,19 @@ export function renderGateIssueBody(manifest, { compact = false } = {}) {
         // Found live 2026-08-18, on a CLEAN item this time: "passed every
         // review" plus a wall of digests is still nothing to review -- a
         // badge is a claim, not evidence. Every gate-2 item now shows the
-        // actual artifact content directly, the same way an escalated
-        // item's rejected draft already does, in both renderings. Optional:
+        // actual artifact content directly when it fits. Compact rendering
+        // keeps the content once in the embedded manifest to avoid exceeding
+        // GitHub's issue-body limit with two full copies. Optional:
         // evidence built before this field existed renders without a
         // content section rather than failing (contracts/schemas/gate-2-issue-manifest
         // makes `content` optional for exactly this reason) -- if that gap
         // is ever seen live, it means the item's evidence predates this fix
         // and needs a fresh authoring pass, not a re-render.
-        if (manifest.gate === 'gate-2' && !item.escalated && item.content) {
+        if (manifest.gate === 'gate-2' && !item.escalated && item.content && !compact) {
             lines.push('**The proposed content, in full:**', '', '````', item.content, '````', '');
+        }
+        if (manifest.gate === 'gate-2' && !item.escalated && item.content && compact) {
+            lines.push('**Review the proposed content in full:** expand the machine-readable manifest below and read this item\'s `content` field before deciding.', '');
         }
         lines.push('**Approve this item only:**', '', `\`${decisionCommand(manifest, item)}\``, '',
             'For deny or request-changes, replace `approve` and append `reason="..."`.',

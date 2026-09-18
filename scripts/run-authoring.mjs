@@ -285,6 +285,21 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             const failedReviews = (proposal.modelStages ?? []).filter((stage) =>
                 ["factual-verification", "assessment-review"].includes(stage.stage) && stage.status === "failed");
             if (failedReviews.length > 0) {
+                // The proposal files disappear with this container. Keep the
+                // failed reviewers' actual findings before holding the item,
+                // so an operator can inspect them and a later brief can use
+                // them instead of repeating a generic "failed review" label.
+                const rejection = buildRejectionEvidence(proposal);
+                store.recordObservation({
+                    observation_id: generateUuidV7(),
+                    run_id: row.origin_run_id,
+                    item_id: itemId,
+                    item_revision: Number(row.current_revision),
+                    evidence_reference: `orchard/rejection-evidence/${itemId}:r${Number(row.current_revision)}`,
+                    evidence_digest: sha256Digest(rejection),
+                    observed_at: now,
+                    rejection_evidence: rejection,
+                });
                 summary.held += 1;
                 log("warn", "gate2evidence.held", {
                     item: itemId, code: "evidence.failed-review",
@@ -872,12 +887,51 @@ export async function attemptRejectionRecovery({ store, applied, runRecordDir, p
     return summary;
 }
 
+export async function runDeliveryItems({ briefs, workRoot, runRecordDir, proposalRoot, command, env, budget, log, spawn }) {
+    let deliveryFailed = false;
+    for (const [index, brief] of briefs.entries()) {
+        const briefPath = join(workRoot, `brief-${index + 1}.json`);
+        writeFileSync(briefPath, `${JSON.stringify([brief], null, 2)}\n`);
+        log("info", "authoring.delivery.starting", { briefs: 1, item: brief.subjectId ?? brief.itemId, executable: command[0] });
+        const result = await spawn(command[0], command.slice(1), {
+            stdio: "inherit",
+            env: {
+                ...env,
+                BRIEF_PATH: briefPath,
+                RUN_RECORD_ROOT: runRecordDir,
+                PROPOSAL_ROOT: proposalRoot,
+                DELIVERY_MODE: "harness",
+                MAX_SPEND_USD_PER_RUN: String(budget.capUsd / briefs.length),
+            },
+        });
+        if (result.error || result.status !== 0) {
+            deliveryFailed = true;
+            log("error", "authoring.delivery.failed", {
+                item: brief.subjectId ?? brief.itemId, exitCode: result.status, reason: result.error?.message,
+            });
+        } else {
+            log("info", "authoring.delivery.completed", { item: brief.subjectId ?? brief.itemId });
+        }
+    }
+    return deliveryFailed;
+}
+
 export async function main(argv = process.argv.slice(2), { log = (level, event, detail) => console.log(JSON.stringify({ level, event, ...detail })), env = process.env, spawn = runProcessAsync } = {}) {
     const dbPath = argOf(argv, "state-db");
     if (!dbPath) fail("ERR_ORCHARD_CONFIGURATION", "run-authoring requires --state-db");
     const now = new Date().toISOString();
     const budget = resolveAuthoringBudget(env);
     log("info", "authoring.budget.accepted", budget);
+    // An operator may work one approved item without letting older failed
+    // drafts at the front of the queue consume the whole run's spend cap.
+    const selectedItemIds = env.ORCHARD_AUTHORING_ITEM_IDS
+        ? env.ORCHARD_AUTHORING_ITEM_IDS.split(",").map((id) => id.trim()).filter(Boolean)
+        : null;
+    if (selectedItemIds && (selectedItemIds.length === 0 || selectedItemIds.some((id) => !/^[0-9a-f-]{36}$/.test(id))
+        || new Set(selectedItemIds).size !== selectedItemIds.length)) {
+        fail("ERR_ORCHARD_CONFIGURATION", "ORCHARD_AUTHORING_ITEM_IDS must be distinct comma-separated item UUIDs");
+    }
+    if (selectedItemIds) log("info", "authoring.selection", { items: selectedItemIds });
 
     const workRoot = env.ORCHARD_AUTHORING_WORK_ROOT ?? join(tmpdir(), `orchard-authoring-${process.pid}`);
     const runRecordDir = env.RUN_RECORD_ROOT ?? join(workRoot, "run-records");
@@ -894,11 +948,17 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     // gate2.prep.no-evidence repeated for the same items on every run. Nothing
     // drove the recovery that already existed; this drives it, bounded and
     // reported, because every recovered item is re-drafted and that spends.
+    // A targeted run recovers only its selected IDs. This lets an operator
+    // retry one held draft without opening the rest of the stranded backlog.
     let strandedRecovery = { stranded: 0, recovered: [], refused: [], remaining: 0 };
     {
         const recoveryStore = openStateStore(resolve(dbPath));
         try {
-            strandedRecovery = await recoverStrandedItems({ store: recoveryStore, track: argOf(argv, "track", null), now, env, log });
+            strandedRecovery = await recoverStrandedItems({
+                store: recoveryStore, track: argOf(argv, "track", null), now,
+                env: selectedItemIds ? { ...env, ORCHARD_STRANDED_RECOVERY_ITEM_IDS: selectedItemIds.join(",") } : env,
+                log,
+            });
         } finally {
             recoveryStore.close();
         }
@@ -913,7 +973,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     // lib/rework-recovery.mjs for what it refuses and why it needs no
     // lifetime attempt cap.
     let reworkRecovery = { waiting: 0, recovered: [], refused: [], remaining: 0 };
-    {
+    if (!selectedItemIds) {
         const reworkStore = openStateStore(resolve(dbPath));
         try {
             reworkRecovery = await recoverReworkItems({ store: reworkStore, track: argOf(argv, "track", null), now, env, log, limit: budget.limit });
@@ -932,6 +992,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         inventoryPath: env.MODEL_INVENTORY_PATH ?? env.ORCHARD_INVENTORY_PATH,
         registryPath: env.ORCHARD_REGISTRY_PATH ?? null,
         limit: budget.limit,
+        subjects: selectedItemIds,
         claimedBy: "orchard/run-authoring",
         apply: true,
         now,
@@ -960,38 +1021,14 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         log("info", "removal.finished", removalSummary);
     }
 
+    let deliveryFailed = false;
     if (briefs.briefs.length > 0) {
-        const briefPath = join(workRoot, "briefs.json");
-        writeFileSync(briefPath, `${JSON.stringify(briefs.briefs, null, 2)}\n`);
         const command = deliveryCommand(env);
-        log("info", "authoring.delivery.starting", { briefs: briefs.briefs.length, executable: command[0] });
-        const result = await spawn(command[0], command.slice(1), {
-            stdio: "inherit",
-            env: {
-                ...env,
-                BRIEF_PATH: briefPath,
-                RUN_RECORD_ROOT: runRecordDir,
-                PROPOSAL_ROOT: proposalRoot,
-                // "harness" is the only correct value here: this call is
-                // always a one-shot run against a just-written brief file,
-                // exactly what the engine's own docstring calls "harness"
-                // mode ("runs once against a named brief"), never "engine"
-                // mode (its scheduled watched-sources trigger). The engine's
-                // own ValidateSet('harness','engine') rejects anything else,
-                // including the "content-proposal" value this used to send.
-                DELIVERY_MODE: "harness",
-                MAX_SPEND_USD_PER_RUN: String(budget.capUsd),
-            },
-        });
-        if (result.error) fail("ERR_ORCHARD_DELIVERY_FAILED", `the delivery engine could not start: ${result.error.message}`);
-        if (result.status !== 0) {
-            // The claimed items stay executing on purpose: the run records the
-            // engine did manage to write are still ingested below, and items
-            // with no verdict are picked up by the next run's ingest.
-            log("error", "authoring.delivery.failed", { exitCode: result.status });
-        } else {
-            log("info", "authoring.delivery.completed");
-        }
+        // The engine stops a whole brief file after an empty completion. Keep
+        // each approved item in its own invocation so one failure cannot
+        // prevent unrelated work from reaching review. The per-item caps sum
+        // to no more than the aggregate authoring cap already approved.
+        deliveryFailed = await runDeliveryItems({ briefs: briefs.briefs, workRoot, runRecordDir, proposalRoot, command, env, budget, log, spawn });
     } else {
         log("info", "authoring.nothing-claimed", { effect: "no approved ado-linked work is waiting; the ensemble is not invoked and nothing is spent" });
     }
@@ -1035,7 +1072,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         retried: rejectionRecovery.retried, escalated: rejectionRecovery.escalated,
         drafterRefusals: refusals.map((entry) => ({ item: entry.item, revision: entry.revision, code: entry.code, reason: entry.reason, requiredInputs: entry.requiredInputs })),
     });
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length,
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, deliveryFailed,
         freshQueue: { remaining: briefs.notReached, claimed: briefs.claimed.length },
         gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary, drafterRefusals: refusals };
 }

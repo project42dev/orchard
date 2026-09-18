@@ -33,7 +33,7 @@ export const MIGRATION_EVENT = "publication.target-migration";
 // Where an item was actually published, or where a closed or superseded item
 // once pointed, is a fact about the past. Migration 011 leaves those alone and
 // so does this: they are not stranded work.
-const TERMINAL_STATES = new Set(["published", "closed", "superseded"]);
+const TERMINAL_STATES = new Set(["published", "closed", "superseded", "invalidated", "externally-published"]);
 
 /**
  * Report every live item revision still pointing away from the content
@@ -49,7 +49,7 @@ export function reportUnmappedPublicationTargets({ store, log = () => { } } = {}
            JOIN workflow_item w ON w.item_id = r.item_id
           WHERE r.target_repository <> ?
             AND r.item_revision = w.current_revision
-            AND w.current_state NOT IN ('published', 'closed', 'superseded')
+            AND w.current_state NOT IN ('published', 'closed', 'superseded', 'invalidated', 'externally-published')
           ORDER BY r.item_id`,
     ).all(PUBLICATION_REPOSITORY);
 

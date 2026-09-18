@@ -427,8 +427,10 @@ test("the brief names every required LearningModule field, derived from the plat
     }
     assert.match(prompt, /"beginner", "intermediate", "advanced"/, "the level enum is stated, not left to be guessed");
     assert.match(prompt, /answerIndex/, "and the knowledge check's own required shape");
-    assert.match(prompt, /Omit "activity", "comparisonMatrix", "instructorScript" and "capstone"/,
-        "the optional objects are validated in full when present, so a partial one is worse than none");
+    assert.match(prompt, /For a NEW module, omit "activity", "comparisonMatrix", "instructorScript" and "capstone" unless you can supply each included component completely and validly/,
+        "new optional objects must be complete when included");
+    assert.match(prompt, /For an UPDATE, preserve every existing component/,
+        "updates must retain existing teaching components");
 });
 
 test("every surface's form resolves even when the operator's surface config declares none", () => {
