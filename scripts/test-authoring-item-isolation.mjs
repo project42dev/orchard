@@ -49,3 +49,20 @@ test('a selected single item keeps the approved run cap', async () => {
         rmSync(workRoot, { recursive: true, force: true });
     }
 });
+
+test('production brief subjectId is logged for each isolated delivery', async () => {
+    const workRoot = mkdtempSync(join(tmpdir(), 'orchard-item-log-'));
+    const logs = [];
+    try {
+        await runDeliveryItems({
+            briefs: [{ subjectId: 'real-item-id' }], workRoot,
+            runRecordDir: workRoot, proposalRoot: workRoot, command: ['delivery'], env: {},
+            budget: { perItemUsd: 0.75, capUsd: 34 },
+            log: (level, event, detail) => logs.push({ level, event, detail }),
+            spawn: async () => ({ status: 1, error: null }),
+        });
+        assert.deepEqual(logs.filter((entry) => entry.event === 'authoring.delivery.failed').map((entry) => entry.detail.item), ['real-item-id']);
+    } finally {
+        rmSync(workRoot, { recursive: true, force: true });
+    }
+});
