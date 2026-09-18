@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { applyCatalogueDraft, parseCatalogueDraft, selectedCatalogueContent } from "../scripts/lib/catalogue-deliverable.mjs";
 import { prepareRealCommit } from "../scripts/lib/prepare-gate2-evidence.mjs";
-import { briefFor } from "../scripts/generate-briefs.mjs";
+import { authoringKindFor, briefFor } from "../scripts/generate-briefs.mjs";
 import { sha256Digest } from "../scripts/lib/identity.mjs";
 
 const registry = { schemaVersion: 1, title: "Original", paths: [{ id: "a", title: "A" }, { id: "b", title: "B" }], modules: [], resources: [] };
@@ -63,10 +63,12 @@ test("registry-only preparation writes one protected-tree blob with only the sel
 });
 
 test("a catalogue brief asks for one selected entry rather than the entire registry", () => {
+    assert.equal(authoringKindFor("addition", "catalog.json"), "needs-updating");
+    assert.equal(authoringKindFor("addition", "modules/example.json"), "needs-creating");
     const existing = { required: true, status: "supplied", catalogueEntry: true, canonicalId: "learning-path:a",
         sourcePath: "content/catalog.json", inspectionCommit: "1".repeat(40), content: JSON.stringify(registry.paths[0]), parsed: registry.paths[0] };
     const item = { subject_id: "01930000-0000-7000-8000-000000000001", id: "01930000-0000-7000-8000-000000000001",
-        kind: "needs-updating", surface: "learning", title: "Update path A", level: "intermediate",
+        kind: authoringKindFor("addition", "catalog.json"), surface: "learning", title: "Update path A", level: "intermediate",
         recordedTarget: { repository: "project42dev/project42-content", path: "catalog.json" },
         record: { canonical_content_id: "learning-path:a" } };
     const built = briefFor({ item, roles: {}, targets: { surfaces: {} }, evidence: null,
@@ -76,4 +78,6 @@ test("a catalogue brief asks for one selected entry rather than the entire regis
     assert.doesNotMatch(built.brief.prompt, /Return the COMPLETE corrected file/);
     assert.match(built.brief.prompt, /learning-path:a/);
     assert.match(built.brief.prompt, /top-level "id" field MUST be exactly "a"/);
+    assert.match(built.brief.prompt, /Correct and bring current the existing learning content/);
+    assert.match(built.brief.prompt, /"title":"A"/);
 });
