@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runDeliveryItems } from './run-authoring.mjs';
+import { assertRoleDeliverySucceeded } from './orchard-production-runtime.mjs';
 
 test('an empty completion for one item does not prevent the next item running', async () => {
     const workRoot = mkdtempSync(join(tmpdir(), 'orchard-item-isolation-'));
@@ -65,4 +66,16 @@ test('production brief subjectId is logged for each isolated delivery', async ()
     } finally {
         rmSync(workRoot, { recursive: true, force: true });
     }
+});
+
+test('authoring delivery failure makes the runtime fail after committing state', () => {
+    assert.throws(
+        () => assertRoleDeliverySucceeded('authoring', { briefs: 1, applied: 0, deliveryFailed: true }),
+        (error) => error.code === 'ERR_ORCHARD_DELIVERY_FAILED',
+    );
+    assert.throws(
+        () => assertRoleDeliverySucceeded('authoring', { briefs: 1, applied: 0, deliveryFailed: false }),
+        (error) => error.code === 'ERR_ORCHARD_DELIVERY_FAILED',
+    );
+    assert.doesNotThrow(() => assertRoleDeliverySucceeded('authoring', { briefs: 1, applied: 1, deliveryFailed: false }));
 });

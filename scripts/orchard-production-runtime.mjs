@@ -510,7 +510,17 @@ async function runRoleAzure(role, log) {
         return { statePath: state.path, value: { role, track } };
     });
     await handoffAfterRole({ role, roleResult, adapter, track, log });
+    assertRoleDeliverySucceeded(role, roleResult);
     return outcome;
+}
+
+export function assertRoleDeliverySucceeded(role, result) {
+    if (role !== "authoring" || !result) return;
+    if (result.deliveryFailed || (result.briefs > 0 && result.applied === 0)) {
+        const error = new Error(`authoring produced no usable result: ${result.applied}/${result.briefs} briefs ingested${result.deliveryFailed ? '; delivery engine failed' : ''}`);
+        error.code = "ERR_ORCHARD_DELIVERY_FAILED";
+        throw error;
+    }
 }
 
 // A role releases its state lease before starting its successor. While
