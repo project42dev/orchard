@@ -19,7 +19,7 @@ import { announceRunSummary, runVerdict } from "./lib/run-summary.mjs";
 import { applyGateDecisionsForRun } from "./apply-gate-decisions.mjs";
 import { quarantineGate2Refusals } from "./lib/quarantine-gate2-refusals.mjs";
 import { runTrackerSyncForRun } from "./ado-sync.mjs";
-import { chainNextRoles, continueAuthoringChain } from "./lib/job-chain.mjs";
+import { chainNextRoles, continueAuthoringChain, startTargetedAuthoringJob, defaultArmTokenProvider } from "./lib/job-chain.mjs";
 import { applyRetry } from "./apply-blocked-retry.mjs";
 import { reportUnmappedPublicationTargets } from "./lib/publication-target-migration.mjs";
 import { reportUnpublishableTargets } from "./lib/publishable-target.mjs";
@@ -619,14 +619,16 @@ async function runBlockedRetryAzure(itemId, log) {
         // CAS is there to make visible as a bug, not paper over.
         return { statePath: state.path, value: result };
     });
-    // Same ordering as runRoleAzure: only after the lease is released, so the
-    // authoring run this retry just made eligible acquires its own fresh
-    // lease rather than contending with this one.
+    // Start only the reopened item after the lease is released. A generic
+    // queue chain here also recovers unrelated Gate 2 items and spends on the
+    // oldest briefs before it ever reaches the item the operator named.
     try {
-        const counts = await adapter.peekStateCounts(track);
-        await chainNextRoles({ counts, log });
+        const jobResourceId = process.env.ORCHARD_CHAIN_AUTHORING_JOB_ID;
+        if (!jobResourceId) throw new Error("ORCHARD_CHAIN_AUTHORING_JOB_ID is not configured");
+        const started = await startTargetedAuthoringJob({ jobResourceId, itemId, tokenProvider: defaultArmTokenProvider() });
+        log("info", "admin.blocked-retry.targeted", { item: itemId, execution: started?.name });
     } catch (error) {
-        log("warn", "chain.peek-failed", { error: error.message });
+        log("warn", "admin.blocked-retry.start-failed", { item: itemId, error: error.message, effect: "item remains executing for a targeted operator retry" });
     }
     return outcome;
 }
