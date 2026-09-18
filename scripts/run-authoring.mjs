@@ -285,6 +285,21 @@ export async function attemptGate2Evidence({ store, applied, runRecordDir, propo
             const failedReviews = (proposal.modelStages ?? []).filter((stage) =>
                 ["factual-verification", "assessment-review"].includes(stage.stage) && stage.status === "failed");
             if (failedReviews.length > 0) {
+                // The proposal files disappear with this container. Keep the
+                // failed reviewers' actual findings before holding the item,
+                // so an operator can inspect them and a later brief can use
+                // them instead of repeating a generic "failed review" label.
+                const rejection = buildRejectionEvidence(proposal);
+                store.recordObservation({
+                    observation_id: generateUuidV7(),
+                    run_id: row.origin_run_id,
+                    item_id: itemId,
+                    item_revision: Number(row.current_revision),
+                    evidence_reference: `orchard/rejection-evidence/${itemId}:r${Number(row.current_revision)}`,
+                    evidence_digest: sha256Digest(rejection),
+                    observed_at: now,
+                    rejection_evidence: rejection,
+                });
                 summary.held += 1;
                 log("warn", "gate2evidence.held", {
                     item: itemId, code: "evidence.failed-review",

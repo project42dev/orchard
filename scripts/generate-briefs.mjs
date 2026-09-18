@@ -933,6 +933,19 @@ export function failedReviewNoteFor(db, itemId, currentRevision) {
     const summary = JSON.parse(row.record_json).findings?.[0]?.summary;
     return typeof summary === 'string' && summary.trim() ? `${row.role}: ${summary.trim()}` : null;
   }).filter(Boolean);
+  if (!findings.length) {
+    const held = db.prepare(
+      `SELECT record_json FROM observation_event
+        WHERE item_id = ? AND item_revision = ?
+          AND evidence_reference LIKE 'orchard/rejection-evidence/%'
+        ORDER BY observed_at DESC LIMIT 1`,
+    ).get(itemId, currentRevision - 1);
+    if (held) {
+      const rejection = JSON.parse(held.record_json).rejection_evidence;
+      if (rejection?.verifierVerdict === 'failed' && rejection.verifierFinding) findings.push(`factual-verifier: ${rejection.verifierFinding}`);
+      if (rejection?.adversaryVerdict === 'failed' && rejection.adversaryFinding) findings.push(`assessment-reviewer: ${rejection.adversaryFinding}`);
+    }
+  }
   if (!findings.length) return null;
   return `${BLOCKED_RETRY_PREFIX}Previous authoring review findings:\n${findings.join('\n').slice(0, 8000)}`;
 }
