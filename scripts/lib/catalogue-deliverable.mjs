@@ -66,7 +66,7 @@ export function parseCatalogueDraft({ path, canonicalId, content }) {
     const draft = parseObject(content, "catalogue draft");
     const { id } = selectorFor(path, canonicalId);
     if (id !== null && draft.id !== id) {
-        throw new CatalogueDeliverableError("catalogue.id", `draft for ${canonicalId} must retain id ${id}`);
+        throw new CatalogueDeliverableError("catalogue.id", `draft for ${canonicalId} must retain id ${id}; received ${draft.id === undefined ? "no id" : JSON.stringify(draft.id)}`);
     }
     return draft;
 }
