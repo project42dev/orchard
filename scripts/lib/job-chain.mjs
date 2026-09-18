@@ -97,8 +97,16 @@ export async function chainNextRoles({ counts, env = process.env, tokenProvider 
         // executing items a crashed run left behind, and Gate 2 rework
         // (lib/rework-recovery.mjs). Rework was invisible here until
         // 2026-09-13, so a request-changes decision never started a redraft.
+        // A downstream role must not restart stale fresh/abandoned authoring
+        // work after authoring deliberately stopped on failed reviews or a
+        // failed delivery engine. Only a new Gate 2 request-changes decision
+        // can start authoring from another role; the survey/approval path
+        // (currentRole=null) and authoring's bounded continuation own the
+        // fresh queue.
         const waiting = hop.state === "ado-linked"
-            ? (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0) + (counts["rework-recoverable"] ?? 0)
+            ? currentRole
+                ? (counts["rework-recoverable"] ?? 0)
+                : (counts["ado-linked"] ?? 0) + (counts["authoring-recoverable"] ?? 0) + (counts["rework-recoverable"] ?? 0)
             : (counts[hop.state] ?? 0);
         if (waiting <= 0) continue;
         try {
