@@ -901,7 +901,7 @@ export async function runDeliveryItems({ briefs, workRoot, runRecordDir, proposa
                 RUN_RECORD_ROOT: runRecordDir,
                 PROPOSAL_ROOT: proposalRoot,
                 DELIVERY_MODE: "harness",
-                MAX_SPEND_USD_PER_RUN: String(budget.perItemUsd || budget.capUsd),
+                MAX_SPEND_USD_PER_RUN: String(budget.capUsd / briefs.length),
             },
         });
         if (result.error || result.status !== 0) {
