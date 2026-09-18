@@ -515,8 +515,18 @@ async function runRoleAzure(role, log) {
 export async function handoffAfterRole({ role, roleResult, adapter, track, log,
     continueAuthoring = continueAuthoringChain, chain = chainNextRoles }) {
     let continued = false;
+    const targetedAuthoring = role === "authoring" && Boolean(process.env.ORCHARD_AUTHORING_ITEM_IDS);
     if (role === "authoring") {
-        if (roleResult) {
+        if (targetedAuthoring) {
+            log("info", "chain.continue.targeted", { effect: "a targeted authoring execution does not start the unrestricted queue" });
+        } else if (roleResult) {
+            if (roleResult.deliveryFailed || (roleResult.briefs > 0 && roleResult.applied === 0)) {
+                log("error", "chain.continue.stopped", {
+                    role, briefs: roleResult.briefs, applied: roleResult.applied,
+                    reason: roleResult.deliveryFailed ? "the delivery engine failed" : "no claimed draft produced an ingested verdict",
+                });
+                return;
+            }
             // A full batch whose every draft failed Gate 2 preparation is a
             // quality incident, not progress toward publication. Continuing
             // the fresh queue in that state repeats paid authoring while
@@ -551,7 +561,8 @@ export async function handoffAfterRole({ role, roleResult, adapter, track, log,
     }
     try {
         const counts = await adapter.peekStateCounts(track);
-        await chain({ counts, log, currentRole: role });
+        await chain({ counts, log, currentRole: role,
+            ...(targetedAuthoring ? { env: { ...process.env, ORCHARD_CHAIN_AUTHORING_JOB_ID: "" } } : {}) });
     } catch (error) {
         log("warn", "chain.peek-failed", { error: error.message });
     }
@@ -754,6 +765,7 @@ async function runStatusReportAzure(log) {
             rows = store.db.prepare(
                 `SELECT w.item_id, w.origin_run_id, w.current_state, w.current_revision,
                         w.surface, w.outcome, w.updated_at, r.target_repository, r.target_path,
+                        json_extract(r.record_json, '$.canonical_content_id') AS canonical_content_id,
                         (SELECT e.external_id FROM external_link e
                           WHERE e.item_id = w.item_id AND e.provider = 'ado'
                           ORDER BY e.item_revision DESC, e.linked_at DESC LIMIT 1) AS ado_id
@@ -771,7 +783,7 @@ async function runStatusReportAzure(log) {
             track, item: row.item_id, run: row.origin_run_id, state: row.current_state,
             revision: row.current_revision, surface: row.surface, outcome: row.outcome,
             updatedAt: row.updated_at, repository: row.target_repository, path: row.target_path,
-            adoId: row.ado_id ?? null,
+            adoId: row.ado_id ?? null, canonicalContentId: row.canonical_content_id ?? null,
         });
         return { statePath: state.path, value: { track, total: rows.length, states } };
     });

@@ -893,6 +893,16 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     const now = new Date().toISOString();
     const budget = resolveAuthoringBudget(env);
     log("info", "authoring.budget.accepted", budget);
+    // An operator may work one approved item without letting older failed
+    // drafts at the front of the queue consume the whole run's spend cap.
+    const selectedItemIds = env.ORCHARD_AUTHORING_ITEM_IDS
+        ? env.ORCHARD_AUTHORING_ITEM_IDS.split(",").map((id) => id.trim()).filter(Boolean)
+        : null;
+    if (selectedItemIds && (selectedItemIds.length === 0 || selectedItemIds.some((id) => !/^[0-9a-f-]{36}$/.test(id))
+        || new Set(selectedItemIds).size !== selectedItemIds.length)) {
+        fail("ERR_ORCHARD_CONFIGURATION", "ORCHARD_AUTHORING_ITEM_IDS must be distinct comma-separated item UUIDs");
+    }
+    if (selectedItemIds) log("info", "authoring.selection", { items: selectedItemIds });
 
     const workRoot = env.ORCHARD_AUTHORING_WORK_ROOT ?? join(tmpdir(), `orchard-authoring-${process.pid}`);
     const runRecordDir = env.RUN_RECORD_ROOT ?? join(workRoot, "run-records");
@@ -910,7 +920,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     // drove the recovery that already existed; this drives it, bounded and
     // reported, because every recovered item is re-drafted and that spends.
     let strandedRecovery = { stranded: 0, recovered: [], refused: [], remaining: 0 };
-    {
+    if (!selectedItemIds) {
         const recoveryStore = openStateStore(resolve(dbPath));
         try {
             strandedRecovery = await recoverStrandedItems({ store: recoveryStore, track: argOf(argv, "track", null), now, env, log });
@@ -928,7 +938,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     // lib/rework-recovery.mjs for what it refuses and why it needs no
     // lifetime attempt cap.
     let reworkRecovery = { waiting: 0, recovered: [], refused: [], remaining: 0 };
-    {
+    if (!selectedItemIds) {
         const reworkStore = openStateStore(resolve(dbPath));
         try {
             reworkRecovery = await recoverReworkItems({ store: reworkStore, track: argOf(argv, "track", null), now, env, log, limit: budget.limit });
@@ -947,6 +957,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         inventoryPath: env.MODEL_INVENTORY_PATH ?? env.ORCHARD_INVENTORY_PATH,
         registryPath: env.ORCHARD_REGISTRY_PATH ?? null,
         limit: budget.limit,
+        subjects: selectedItemIds,
         claimedBy: "orchard/run-authoring",
         apply: true,
         now,
@@ -975,6 +986,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         log("info", "removal.finished", removalSummary);
     }
 
+    let deliveryFailed = false;
     if (briefs.briefs.length > 0) {
         const briefPath = join(workRoot, "briefs.json");
         writeFileSync(briefPath, `${JSON.stringify(briefs.briefs, null, 2)}\n`);
@@ -1000,6 +1012,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         });
         if (result.error) fail("ERR_ORCHARD_DELIVERY_FAILED", `the delivery engine could not start: ${result.error.message}`);
         if (result.status !== 0) {
+            deliveryFailed = true;
             // The claimed items stay executing on purpose: the run records the
             // engine did manage to write are still ingested below, and items
             // with no verdict are picked up by the next run's ingest.
@@ -1050,7 +1063,7 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
         retried: rejectionRecovery.retried, escalated: rejectionRecovery.escalated,
         drafterRefusals: refusals.map((entry) => ({ item: entry.item, revision: entry.revision, code: entry.code, reason: entry.reason, requiredInputs: entry.requiredInputs })),
     });
-    return { briefs: briefs.briefs.length, applied: ingested.applied.length,
+    return { briefs: briefs.briefs.length, applied: ingested.applied.length, deliveryFailed,
         freshQueue: { remaining: briefs.notReached, claimed: briefs.claimed.length },
         gate2Evidence, rejectionRecovery, strandedRecovery, reworkRecovery, removals: removalSummary, drafterRefusals: refusals };
 }
