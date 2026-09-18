@@ -99,6 +99,15 @@ export const OUTCOME_KIND = {
   removal: 'needs-removing',
 };
 
+// A Track 2 "addition" to a selected registry entry adds material to an
+// existing record. The delivery engine must see that record and use its update
+// contract; otherwise it drafts a new skeleton and drops every existing field.
+export function authoringKindFor(outcome, targetPath) {
+  return outcome === 'addition' && isCatalogueTarget(targetPath)
+    ? 'needs-updating'
+    : OUTCOME_KIND[outcome] ?? null;
+}
+
 // The contract surface names (item-record schema) and the operator-config
 // surface keys grew up separately. Both spellings are honoured so an adopter's
 // existing surface-targets file keeps working.
@@ -1221,7 +1230,7 @@ export async function generateBriefs({
         id: row.item_id,
         subject_id: row.item_id,
         track: row.track,
-        kind: OUTCOME_KIND[row.outcome] ?? null,
+        kind: authoringKindFor(row.outcome, record.target?.path),
         outcome: row.outcome,
         surface: row.surface,
         semantic_identity: row.semantic_identity,
@@ -1242,7 +1251,7 @@ export async function generateBriefs({
         // candidate IS the inspection finding). Read only for an update,
         // because a Track 1 discovery candidate's evidence_refs are surveyed
         // source URLs rather than a finding about published content.
-        currencyFindings: OUTCOME_KIND[row.outcome] === 'needs-updating'
+        currencyFindings: authoringKindFor(row.outcome, record.target?.path) === 'needs-updating'
           ? (manifest?.evidence_refs ?? []).filter((entry) => typeof entry === 'string' && entry.length > 0)
           : [],
         recordedTarget: record.target ?? null,
