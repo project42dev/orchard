@@ -26,6 +26,7 @@ import { reportUnpublishableTargets } from "./lib/publishable-target.mjs";
 import { blockedNoteFor } from "./generate-briefs.mjs";
 import { holdWithdrawnGate2Approvals, holdStalePublicationApprovals, holdUnsafeGate2Drafts } from "./lib/withdrawn-gate2-approval.mjs";
 import { invalidateDisprovedPathFindings } from "./lib/inspection-invalidation.mjs";
+import { reconcileExternalPublications } from "./lib/external-publication-reconciliation.mjs";
 
 // Both entry points must export `main(argv, options)`, because that is what
 // runController calls. Track 1 pointed at discover-content-opportunities.mjs,
@@ -118,6 +119,10 @@ export function parseRuntimeArgs(argv) {
     if (runtime[0] === "--admin-invalidate-false-paths") {
         if (runtime.length !== 1 || controller.length) throw new TypeError("runtime accepts only --admin-invalidate-false-paths, alone");
         return { adminInvalidateFalsePaths: true, controller };
+    }
+    if (runtime[0] === "--admin-reconcile-external-publications") {
+        if (runtime.length !== 1 || controller.length) throw new TypeError("runtime accepts only --admin-reconcile-external-publications, alone");
+        return { adminReconcileExternalPublications: true, controller };
     }
     const trackIndex = runtime.indexOf("--track");
     const roleIndex = runtime.indexOf("--role");
@@ -830,13 +835,58 @@ async function runInspectionInvalidationAzure(log) {
     });
 }
 
+async function runExternalPublicationReconciliationAzure(log) {
+    const reportPath = join(import.meta.dirname, '..', 'operations', 'reconciliation', '2026-09-18-reviewed-direct-release.json');
+    const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+    const liveResponse = await fetch('https://project-42.dev/release-facts.json', { headers: { 'Cache-Control': 'no-cache' } });
+    if (!liveResponse.ok) throw new Error(`live release facts are unavailable (HTTP ${liveResponse.status})`);
+    const liveReleaseFacts = await liveResponse.json();
+    for (const entry of report.items) {
+        const response = await fetch(entry.live_url, { method: 'HEAD', headers: { 'Cache-Control': 'no-cache' } });
+        if (!response.ok) throw new Error(`released lesson ${entry.live_url} is unavailable (HTTP ${response.status})`);
+    }
+    const clients = blobClients();
+    const root = process.env.ORCHARD_STATE_ROOT ?? '/var/lib/orchard';
+    mkdirSync(root, { recursive: true });
+    const corpusRoot = await materializeCorpusSnapshot({
+        containerClient: clients.artifacts,
+        archiveBlob: process.env.ORCHARD_CORPUS_ARCHIVE_BLOB,
+        manifestBlob: process.env.ORCHARD_CORPUS_MANIFEST_BLOB,
+        expectedCommit: report.platform_commit,
+        destination: join(root, 'platform'),
+        maxArchiveBytes: integer('ORCHARD_MAX_CORPUS_ARCHIVE_BYTES', 268_435_456),
+    });
+    const adapter = new BlobStateAdapter({ containerClient: clients.state, backupContainerClient: clients.backup, workRoot: root });
+    return withFencedState(adapter, { scope: 'track-2', owner: `${process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? 'local'}:${process.pid}` }, async ({ state, assertCurrent }) => {
+        const store = openStateStore(state.path);
+        let applied;
+        try {
+            applied = await reconcileExternalPublications({
+                store, report, deployedPlatformCommit: process.env.ORCHARD_CONTENT_COMMIT, corpusRoot, liveReleaseFacts,
+            });
+        } finally {
+            store.close();
+        }
+        for (const entry of applied) log('info', 'admin.external-publication.item', entry);
+        log('info', 'admin.external-publication.finished', { applied: applied.filter((entry) => !entry.replay).length, replayed: applied.filter((entry) => entry.replay).length });
+        const gateToken = await readGateToken({ log });
+        await runTrackerSyncForRun({ stateDbPath: state.path, log, githubToken: gateToken });
+        await assertCurrent();
+        await announceGatesForRun({ stateDbPath: state.path, track: 'track-2', runId: process.env.CONTAINER_APP_JOB_EXECUTION_NAME ?? 'local-execution', log, token: gateToken });
+        return { statePath: state.path, value: { applied } };
+    });
+}
+
 export async function main(argv = process.argv.slice(2)) {
-    const { track, role, adminRetryBlocked, adminShowReason, adminStatusReport, adminInvalidateFalsePaths, adminWithdrawGate2, adminHoldStalePublication, adminHoldUnsafeGate2, controller } = parseRuntimeArgs(argv);
-    const logRole = role ?? (adminInvalidateFalsePaths ? "admin-invalidate-false-paths" : adminHoldUnsafeGate2 ? "admin-hold-unsafe-gate2" : adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : adminStatusReport ? "admin-status-report" : null);
+    const { track, role, adminRetryBlocked, adminShowReason, adminStatusReport, adminInvalidateFalsePaths, adminReconcileExternalPublications, adminWithdrawGate2, adminHoldStalePublication, adminHoldUnsafeGate2, controller } = parseRuntimeArgs(argv);
+    const logRole = role ?? (adminReconcileExternalPublications ? "admin-reconcile-external-publications" : adminInvalidateFalsePaths ? "admin-invalidate-false-paths" : adminHoldUnsafeGate2 ? "admin-hold-unsafe-gate2" : adminHoldStalePublication ? "admin-hold-stale-publication" : adminWithdrawGate2 ? "admin-withdraw-gate2" : adminRetryBlocked ? "admin-retry-blocked" : adminShowReason ? "admin-show-reason" : adminStatusReport ? "admin-status-report" : null);
     const log = createStructuredLogger({ base: { service: "orchard", ...(logRole ? { role: logRole } : {}), ...(track ? { track } : {}) } });
     log("info", "runtime.started", { argumentCount: controller.length });
     try {
-        if (adminInvalidateFalsePaths) {
+        if (adminReconcileExternalPublications) {
+            if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-reconcile-external-publications requires ORCHARD_RUNTIME_CONFIG=azure");
+            await runExternalPublicationReconciliationAzure(log);
+        } else if (adminInvalidateFalsePaths) {
             if (process.env.ORCHARD_RUNTIME_CONFIG !== "azure") throw new Error("--admin-invalidate-false-paths requires ORCHARD_RUNTIME_CONFIG=azure");
             await runInspectionInvalidationAzure(log);
         } else if (adminHoldUnsafeGate2) {

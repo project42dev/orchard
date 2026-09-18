@@ -151,8 +151,10 @@ never through the direct transition table.
 | `deferred` | either pending gate | `decision-deferred`. `review-resumed` returns it to the gate it left. |
 | `changes-requested` | either pending gate | `decision-requested-changes`. A new revision re-enters at the same gate. |
 | `stale-approval` | either approved state | `approval-stale`, when the artifact or the base branch moved after approval. Requires a fresh decision on the new digest. |
-| `blocked` | any state except `closed`, `denied`, `superseded` | a policy, integrity, security or cost block. |
-| `superseded` | any state except `closed`, `superseded` | `superseded`, and only when a `superseding_item_id` is supplied. |
+| `blocked` | any nonterminal state except `denied` | a policy, integrity, security or cost block. |
+| `superseded` | any nonterminal state | `superseded`, and only when a `superseding_item_id` is supplied. |
+| `invalidated` | an ADO-linked finding | `inspection-invalidated`, backed by persisted evidence disproving the finding. |
+| `externally-published` | an active Track 2 item | `external-publication-reconciled`, backed by the exact deployed corpus digest, the live platform version, and a reviewed direct content release. ADO becomes `Resolved`; this does not claim Orchard published it or close it without owner acceptance. |
 
 **There is no `verified` state.** Earlier documentation listed one between
 `published` and `closed`. Live verification is a *check* run against a published

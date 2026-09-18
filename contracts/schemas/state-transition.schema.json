@@ -68,6 +68,7 @@
                 "superseded",
                 "no-change-reviewed",
                 "inspection-invalidated",
+                "external-publication-reconciled",
                 "escalated-for-human-review"
             ]
         },
@@ -663,6 +664,28 @@
                 }
             },
             "required": ["reason", "evidence_ref"]
+        },
+        {
+            "properties": {
+                "from_state": {
+                    "enum": ["ado-linked", "executing", "gate2-ready", "gate2-pending", "gate2-approved", "blocked", "changes-requested", "stale-approval"]
+                },
+                "to_state": {
+                    "const": "externally-published"
+                },
+                "cause": {
+                    "const": "external-publication-reconciled"
+                },
+                "reason": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "evidence_ref": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+            },
+            "required": ["reason", "evidence_ref"]
         }
     ],
     "allOf": [
@@ -699,7 +722,8 @@
                             "deferred",
                             "changes-requested",
                             "blocked",
-                            "invalidated"
+                            "invalidated",
+                            "externally-published"
                         ]
                     }
                 },
@@ -772,7 +796,8 @@
                 "stale-approval",
                 "blocked",
                 "superseded",
-                "invalidated"
+                "invalidated",
+                "externally-published"
             ]
         }
     }

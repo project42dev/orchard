@@ -78,6 +78,7 @@ export const ADO_STATE_MAP = {
     denied: 'Removed',
     superseded: 'Removed',
     invalidated: 'Removed',
+    'externally-published': 'Resolved',
 };
 
 // Where User Stories live under the project.
@@ -331,6 +332,7 @@ export function transitionComment(orchardState, target) {
     if (orchardState === 'denied') return 'The owner denied this item at a gate. It will not proceed.';
     if (orchardState === 'superseded') return 'A newer Orchard item supersedes this one.';
     if (orchardState === 'invalidated') return 'A corrected inspection disproved this finding; the evidence is recorded in Orchard.';
+    if (orchardState === 'externally-published') return 'A reviewed manual content release delivered this item outside Orchard publication. The exact release evidence is recorded in Orchard; owner closure remains separate.';
     if (orchardState === 'blocked') return 'Orchard blocked this item (policy, integrity, security or cost). It is not silently Active: it needs attention.';
     if (orchardState === 'changes-requested') return 'The owner requested changes at a gate. The item returns for rework.';
     if (orchardState === 'closed') return 'Orchard closed this item with a complete closure evidence packet.';
