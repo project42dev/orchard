@@ -919,11 +919,17 @@ export async function main(argv = process.argv.slice(2), { log = (level, event, 
     // gate2.prep.no-evidence repeated for the same items on every run. Nothing
     // drove the recovery that already existed; this drives it, bounded and
     // reported, because every recovered item is re-drafted and that spends.
+    // A targeted run recovers only its selected IDs. This lets an operator
+    // retry one held draft without opening the rest of the stranded backlog.
     let strandedRecovery = { stranded: 0, recovered: [], refused: [], remaining: 0 };
-    if (!selectedItemIds) {
+    {
         const recoveryStore = openStateStore(resolve(dbPath));
         try {
-            strandedRecovery = await recoverStrandedItems({ store: recoveryStore, track: argOf(argv, "track", null), now, env, log });
+            strandedRecovery = await recoverStrandedItems({
+                store: recoveryStore, track: argOf(argv, "track", null), now,
+                env: selectedItemIds ? { ...env, ORCHARD_STRANDED_RECOVERY_ITEM_IDS: selectedItemIds.join(",") } : env,
+                log,
+            });
         } finally {
             recoveryStore.close();
         }

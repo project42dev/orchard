@@ -75,4 +75,5 @@ test("a catalogue brief asks for one selected entry rather than the entire regis
     assert.match(built.brief.prompt, /Return one complete corrected JSON object for this entry only/);
     assert.doesNotMatch(built.brief.prompt, /Return the COMPLETE corrected file/);
     assert.match(built.brief.prompt, /learning-path:a/);
+    assert.match(built.brief.prompt, /top-level "id" field MUST be exactly "a"/);
 });

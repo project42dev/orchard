@@ -858,8 +858,12 @@ export function buildPrompt(item, evidence, citations, surfaceConfig, findings =
   }
 
   if (isCatalogueTarget(item.recordedTarget?.path)) {
+    const canonicalId = item.record?.canonical_content_id ?? "";
+    const selectedId = canonicalId.startsWith("catalogue:") ? null : canonicalId.split(":").slice(1).join(":");
     lines.push('', 'FORM. Return exactly one JSON object for the selected catalogue record. No fence, wrapper, prose, or whole-registry rewrite.',
-      `The selected record is ${item.record?.canonical_content_id ?? '(missing selector)'} in ${item.recordedTarget.path}. Keep its id and all existing fields. Change only fields the inspection finding supports.`,
+      `The selected record is ${canonicalId || '(missing selector)'} in ${item.recordedTarget.path}.`,
+      ...(selectedId ? [`Its top-level "id" field MUST be exactly ${JSON.stringify(selectedId)}. Copy that field unchanged from THE EXISTING entry below. A missing or different id prevents publication.`] : []),
+      'Return the full existing record shape, including every existing key and nested value. Change only fields the inspection finding supports.',
       'For a catalogue-wide finding, return only the existing non-array top-level metadata keys; Orchard preserves every array unchanged.');
   } else {
     const form = FORM_INSTRUCTIONS[formFor(item.surface, surfaceConfig)];
