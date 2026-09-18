@@ -513,6 +513,21 @@ export async function handoffAfterRole({ role, roleResult, adapter, track, log,
     let continued = false;
     if (role === "authoring") {
         if (roleResult) {
+            // A full batch whose every draft failed Gate 2 preparation is a
+            // quality incident, not progress toward publication. Continuing
+            // the fresh queue in that state repeats paid authoring while
+            // producing nothing reviewable. Require an operator to inspect
+            // the findings and restart after correcting the cause.
+            const failedBatch = roleResult.applied > 0
+                && roleResult.gate2Evidence?.prepared === 0
+                && roleResult.gate2Evidence?.held >= roleResult.applied;
+            if (failedBatch) {
+                log("warn", "chain.continue.stopped", {
+                    role, applied: roleResult.applied, held: roleResult.gate2Evidence.held,
+                    reason: "every authored item was held before Gate 2; inspect review findings before restarting",
+                });
+                return;
+            }
             try {
                 continued = await continueAuthoring({ freshQueue: roleResult.freshQueue, strandedRecovery: roleResult.strandedRecovery, reworkRecovery: roleResult.reworkRecovery, log });
             } catch (error) {

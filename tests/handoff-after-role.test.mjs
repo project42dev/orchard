@@ -25,3 +25,19 @@ test("last authoring batch hands off to Gate 2 preparation", async () => {
     });
     assert.deepEqual(calls, ["continue", "peek", "downstream"]);
 });
+
+test("a batch with every draft held stops the paid authoring chain", async () => {
+    const calls = [];
+    const logs = [];
+    await handoffAfterRole({
+        role: "authoring",
+        roleResult: { applied: 3, gate2Evidence: { prepared: 0, held: 3 }, freshQueue: { remaining: 29, claimed: 3 } },
+        track: "track-2",
+        adapter: { peekStateCounts: async () => { calls.push("peek"); return {}; } },
+        continueAuthoring: async () => { calls.push("continue"); return true; },
+        chain: async () => calls.push("downstream"),
+        log: (level, event, detail) => logs.push({ level, event, detail }),
+    });
+    assert.deepEqual(calls, []);
+    assert.ok(logs.some(({ event, detail }) => event === "chain.continue.stopped" && detail.held === 3));
+});
