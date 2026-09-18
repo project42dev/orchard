@@ -153,7 +153,7 @@ export function renderGateIssue({ gate, track, items, marker, runId, manifest })
     if (head.length + embedded.length > 60_000) {
         const compactHead = buildHead({ gate, track, items, marker, runId, manifest, compact: true });
         if (compactHead.length + embedded.length <= 60_000) return compactHead + embedded;
-        return `${compactHead}\n\n> The machine-readable manifest is omitted from this issue: it would exceed GitHub's body limit even in the compact rendering. Batch digest \`${manifest.batch_digest}\` cannot currently bind a decision -- this batch needs a smaller MAX_GATE_BATCH_SIZE or the manifest moved out of the issue body entirely, neither of which this code does yet.`;
+        throw new Error(`gate issue for batch ${manifest.batch.ordinal}/${manifest.batch.count} exceeds GitHub's body limit even after compacting; no unapprovable issue was created`);
     }
     return head + embedded;
 }
@@ -543,4 +543,3 @@ export async function announceGatesForRun({ stateDbPath, track, runId, log, env 
         db?.close();
     }
 }
-
