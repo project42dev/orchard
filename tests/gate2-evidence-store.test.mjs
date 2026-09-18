@@ -135,6 +135,34 @@ function handoffCount(store, id) {
     return Number(store.db.prepare("SELECT count(*) AS n FROM agent_handoff WHERE item_id = ?").get(id).n);
 }
 
+test("a failed authoring review is persisted before its draft container exits", async () => {
+    const { store, dbPath, id } = await gate2ReadyItem("held-review-evidence");
+    const authoringDisk = scratchDir("held-review-evidence");
+    const proposalRoot = join(authoringDisk, "proposals");
+    mkdirSync(proposalRoot, { recursive: true });
+    const file = `proposal-${id}.json`;
+    const proposal = passingProposal(DRAFT);
+    proposal.modelStages[2] = chunkedStage("factual-verification", "Check the cited OWASP version", "failed");
+    proposal.modelStages[3] = chunkedStage("assessment-review", "Fix the unsafe assessment answer", "failed");
+    writeFileSync(join(proposalRoot, file), JSON.stringify(proposal));
+
+    const result = await attemptGate2Evidence({
+        store, applied: [{ subjectId: id, from: "executing", to: "gate2-ready", file }],
+        runRecordDir: proposalRoot, proposalRoot, now: PREPARED_AT,
+        log: quiet,
+    });
+    assert.deepEqual(result, { prepared: 0, held: 1 });
+    const observed = store.db.prepare(
+        "SELECT record_json FROM observation_event WHERE item_id = ? AND evidence_reference = ?",
+    ).get(id, `orchard/rejection-evidence/${id}:r1`);
+    assert.ok(observed, "the reviewer findings survive without the authoring container's disk");
+    const rejection = JSON.parse(observed.record_json).rejection_evidence;
+    assert.equal(rejection.verifierFinding, "Check the cited OWASP version");
+    assert.equal(rejection.adversaryFinding, "Fix the unsafe assessment answer");
+    assert.equal(stateOf(dbPath, id), "gate2-ready");
+    store.close();
+});
+
 /**
  * The evidence document exactly as attemptGate2Evidence builds it in
  * production: real handoffs from a six-stage proposal, a real binding, a real
