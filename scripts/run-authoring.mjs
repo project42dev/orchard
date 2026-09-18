@@ -892,7 +892,7 @@ export async function runDeliveryItems({ briefs, workRoot, runRecordDir, proposa
     for (const [index, brief] of briefs.entries()) {
         const briefPath = join(workRoot, `brief-${index + 1}.json`);
         writeFileSync(briefPath, `${JSON.stringify([brief], null, 2)}\n`);
-        log("info", "authoring.delivery.starting", { briefs: 1, item: brief.item_id, executable: command[0] });
+        log("info", "authoring.delivery.starting", { briefs: 1, item: brief.itemId, executable: command[0] });
         const result = await spawn(command[0], command.slice(1), {
             stdio: "inherit",
             env: {
@@ -901,16 +901,16 @@ export async function runDeliveryItems({ briefs, workRoot, runRecordDir, proposa
                 RUN_RECORD_ROOT: runRecordDir,
                 PROPOSAL_ROOT: proposalRoot,
                 DELIVERY_MODE: "harness",
-                MAX_SPEND_USD_PER_RUN: String(budget.perItemUsd || budget.capUsd),
+                MAX_SPEND_USD_PER_RUN: String(budget.capUsd / briefs.length),
             },
         });
         if (result.error || result.status !== 0) {
             deliveryFailed = true;
             log("error", "authoring.delivery.failed", {
-                item: brief.item_id, exitCode: result.status, reason: result.error?.message,
+                item: brief.itemId, exitCode: result.status, reason: result.error?.message,
             });
         } else {
-            log("info", "authoring.delivery.completed", { item: brief.item_id });
+            log("info", "authoring.delivery.completed", { item: brief.itemId });
         }
     }
     return deliveryFailed;
