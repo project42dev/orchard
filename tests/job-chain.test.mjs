@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chainNextRoles, continueAuthoringChain, startJob } from "../scripts/lib/job-chain.mjs";
+import { chainNextRoles, continueAuthoringChain, startJob, startTargetedAuthoringJob } from "../scripts/lib/job-chain.mjs";
 
 function fakeToken(value = "fake-token") {
     return async () => value;
@@ -22,6 +22,26 @@ test("startJob posts to the ARM start endpoint with a bearer token", async () =>
     assert.equal(calls[0].options.method, "POST");
     assert.equal(calls[0].options.headers.Authorization, "Bearer abc123");
     assert.deepEqual(result, { name: "exec-1" });
+});
+
+test("an administrative retry starts authoring for only its named item", async () => {
+    const calls = [];
+    const itemId = "01a0adbd-c9a1-7843-ba3c-ba37147d7e23";
+    const fetchImpl = async (url, options) => {
+        calls.push({ url, options });
+        if (calls.length === 1) return { ok: true, json: async () => ({ properties: { template: { containers: [
+            { name: "authoring", image: "orchard@sha256:test", args: ["--role", "authoring"], env: [{ name: "EXISTING", value: "kept" }] },
+        ] } } }) };
+        return { ok: true, json: async () => ({ name: "targeted-exec" }) };
+    };
+    const result = await startTargetedAuthoringJob({ jobResourceId: "/jobs/caj-auth", itemId, tokenProvider: fakeToken(), fetchImpl });
+    assert.equal(result.name, "targeted-exec");
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].url, "https://management.azure.com/jobs/caj-auth?api-version=2024-03-01");
+    const body = JSON.parse(calls[1].options.body);
+    assert.deepEqual(body.containers[0].args, ["--role", "authoring"]);
+    assert.deepEqual(body.containers[0].env, [{ name: "EXISTING", value: "kept" }, { name: "ORCHARD_AUTHORING_ITEM_IDS", value: itemId }]);
+    assert.equal(calls[1].options.headers["Content-Type"], "application/json");
 });
 
 test("startJob throws with the response body on a non-ok response", async () => {
