@@ -50,10 +50,9 @@ export async function holdStalePublicationApprovals({ store, items, now = new Da
         reason: "The approved publication artifact is no longer the accepted content on main. Re-author against current main and obtain a new Gate 2 approval before publication." });
 }
 
-// A review batch can be withdrawn before any Gate 2 decision. This is used
-// when the evidence is unsafe: failed factual reviews or a draft that drops
-// existing course components. Exact revision and pending state are required,
-// so a later revised artifact cannot be caught by an old incident action.
+// A rejected draft can be held before it is announced or after a Gate 2
+// issue is opened. Exact revision and state are required so a later revised
+// artifact cannot be caught by an old incident action.
 export async function holdUnsafeGate2Drafts({ store, items, now = new Date().toISOString(), actor = "orchard/admin-unsafe-gate2" }) {
     const held = [];
     const skipped = [];
@@ -63,18 +62,18 @@ export async function holdUnsafeGate2Drafts({ store, items, now = new Date().toI
              JOIN item_revision r ON r.item_id = w.item_id AND r.item_revision = w.current_revision
              WHERE w.item_id = ?`,
         ).get(itemId);
-        if (!row || Number(row.current_revision) !== Number(revision) || row.current_state !== "gate2-pending") {
+        if (!row || Number(row.current_revision) !== Number(revision) || !["gate2-ready", "gate2-pending"].includes(row.current_state)) {
             skipped.push({ itemId, revision, state: row?.current_state ?? null });
             continue;
         }
         await store.recordTransition({
             schema_version: "1.0.0", transition_id: generateUuidV7(), run_id: row.run_id,
-            item_id: itemId, item_revision: Number(revision), from_state: "gate2-pending",
+            item_id: itemId, item_revision: Number(revision), from_state: row.current_state,
             to_state: "blocked", cause: "policy-block",
-            reason: "Owner halted the Gate 2 batch: factual review failed on 14 drafts and a passing course draft removed existing teaching components. Re-author and review before publication.",
+            reason: "The current draft failed review or was superseded by a verified manual correction. Re-author and review before publication; this revision must not reach Gate 2.",
             actor, occurred_at: now, correlation_id: generateUuidV7(),
         });
-        held.push({ itemId, revision: Number(revision) });
+        held.push({ itemId, revision: Number(revision), previousState: row.current_state });
     }
     return { held, skipped };
 }

@@ -38,6 +38,19 @@ test("unsafe pending Gate 2 evidence can be held without approving it", async ()
     store.close();
 });
 
+test("unsafe Gate 2 evidence can be held before an approval issue is announced", async () => {
+    const { store, runId } = await estate();
+    const [itemId] = await seedGateItems(store, runId, ["unsafe-ready"]);
+    await walkTo(store, runId, itemId, "gate2-ready");
+    const result = await holdUnsafeGate2Drafts({ store, items: [{ itemId, revision: 1 }], now: NOW });
+    assert.equal(result.held[0].previousState, "gate2-ready");
+    assert.equal(store.db.prepare("SELECT current_state FROM workflow_item WHERE item_id = ?").get(itemId).current_state, "blocked");
+    const replay = await holdUnsafeGate2Drafts({ store, items: [{ itemId, revision: 1 }], now: NOW });
+    assert.equal(replay.held.length, 0);
+    assert.equal(replay.skipped[0].state, "blocked");
+    store.close();
+});
+
 test("a closed stale PR blocks its exact approved revision", async () => {
     const { store, runId } = await estate();
     const [itemId] = await seedGateItems(store, runId, ["stale-publication"]);
