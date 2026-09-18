@@ -163,6 +163,30 @@ test("the authoring hop fires for Gate 2 rework alone -- a request-changes decis
     assert.equal(logs.find((l) => l.event === "chain.triggered").detail.waiting, 1);
 });
 
+test("Gate 2 prep cannot restart authoring from stale approved or abandoned work", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await chainNextRoles({
+        counts: { "ado-linked": 28, "authoring-recoverable": 3 },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" },
+        tokenProvider: fakeToken(), fetchImpl, currentRole: "gate2-prep",
+    });
+    assert.deepEqual(triggered, []);
+    assert.deepEqual(started, []);
+});
+
+test("a downstream Gate 2 request-changes decision still starts its redraft", async () => {
+    const started = [];
+    const fetchImpl = async (url) => { started.push(url); return { ok: true, json: async () => ({ name: "exec" }) }; };
+    const triggered = await chainNextRoles({
+        counts: { "ado-linked": 28, "rework-recoverable": 1 },
+        env: { ORCHARD_CHAIN_AUTHORING_JOB_ID: "/jobs/caj-auth" },
+        tokenProvider: fakeToken(), fetchImpl, currentRole: "gate2-prep",
+    });
+    assert.deepEqual(triggered, ["authoring"]);
+    assert.equal(started.length, 1);
+});
+
 test("the authoring hop ignores raw changes-requested counts -- only the classified rework count starts it", async () => {
     // A Gate 1 return is also changes-requested. The raw GROUP BY count includes
     // it; authoring refuses it; so it must not start an authoring run.
