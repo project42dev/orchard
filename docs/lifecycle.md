@@ -156,6 +156,19 @@ never through the direct transition table.
 | `invalidated` | an ADO-linked finding | `inspection-invalidated`, backed by persisted evidence disproving the finding. |
 | `externally-published` | an active Track 2 item | `external-publication-reconciled`, backed by the exact deployed corpus digest, the live platform version, and a reviewed direct content release. ADO becomes `Resolved`; this does not claim Orchard published it or close it without owner acceptance. |
 
+The external-publication admin command accepts a checked-in dated manifest selected
+with `ORCHARD_EXTERNAL_PUBLICATION_REPORT` (a filename in
+`operations/reconciliation`, never an arbitrary path). Standalone modules bind to
+their file; catalog targets also bind to the exact `canonical_content_id` and
+selected module, path, or guide. Diagram source is hashed with normalized text
+line endings. A manifest may additionally bind class scripts, accessible text,
+captions, integrity records, or related modules through `supporting_artifacts`.
+Every target and supporting digest is checked before the first state mutation.
+The authoritative state and backup are committed before tracker synchronization;
+a tracker failure can be retried against the same evidence without repeating the
+publication transition. Separate manifests allow separately verified batches to
+be reconciled in sequence.
+
 **There is no `verified` state.** Earlier documentation listed one between
 `published` and `closed`. Live verification is a *check* run against a published
 item — see step 14 in [lifecycle-steps.md](lifecycle-steps.md) — not a state the
