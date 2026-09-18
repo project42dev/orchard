@@ -7,6 +7,33 @@
   "platform_version": "0.116.11",
   "items": [
     {
+      "item_id": "01a0adbd-c8de-7cb1-a3c6-ccca5012a0dc",
+      "ado_id": 9245,
+      "revision": 4,
+      "path": "modules/rag-and-fine-tuning-engineering/advanced-rag-and-hybrid-search.json",
+      "content_digest": "sha256:f766cbe58704fa2fb46e157e51099e34fa49ed22c9a8f35f96be2ea83128474c",
+      "live_url": "https://project-42.dev/learn/rag-and-fine-tuning-engineering/advanced-rag-and-hybrid-search",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/63"]
+    },
+    {
+      "item_id": "01a0adbd-c91b-73f2-960b-645e1b3ff886",
+      "ado_id": 9249,
+      "revision": 1,
+      "path": "modules/ai-literacy-and-mental-models/ai-mental-models.json",
+      "content_digest": "sha256:9e2e1dbcb51e006d61b456a5e5ea7054fd786b1320969c4460887da6af2d1207",
+      "live_url": "https://project-42.dev/learn/ai-literacy-and-mental-models/ai-mental-models",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/61"]
+    },
+    {
+      "item_id": "01a0adbd-c996-7891-85dd-e6aa23f92977",
+      "ado_id": 9260,
+      "revision": 3,
+      "path": "modules/self-hosted-and-aiops/production-vllm-and-ollama.json",
+      "content_digest": "sha256:af68c35eae23c797be046597719146f6c001745824ab0850fe9a659c368bc8d2",
+      "live_url": "https://project-42.dev/learn/self-hosted-and-aiops/production-vllm-and-ollama",
+      "content_prs": ["https://github.com/project42dev/project42-content/pull/64"]
+    },
+    {
       "item_id": "01a0adbd-c9a1-7843-ba3c-ba37147d7e23",
       "ado_id": 9261,
       "revision": 4,
