@@ -57,7 +57,7 @@ const TRANSITION_CAUSE = {
 
 // States a human or the publication engine owns. An ingest may never move an
 // item out of one.
-export const TERMINAL_STATES = new Set(['published', 'closed', 'denied', 'superseded']);
+export const TERMINAL_STATES = new Set(['published', 'closed', 'denied', 'superseded', 'invalidated']);
 
 // The only state an authoring result can legally arrive at.
 const AUTHORING_STATE = 'executing';

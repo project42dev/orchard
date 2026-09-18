@@ -84,7 +84,7 @@ test("009 rotates the gate trust anchor only, and the anchor stays immutable aft
     db.close();
 
     const outcome = migrateContentDb(path);
-    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor", "010-superseded-item-uniqueness", "011-repoint-publication-targets", "012-rotate-gate-trust-anchor"]);
+    assert.deepEqual(outcome.applied.map((m) => m.name), ["009-rotate-gate-trust-anchor", "010-superseded-item-uniqueness", "011-repoint-publication-targets", "012-rotate-gate-trust-anchor", "013-inspection-invalidation"]);
     assert.ok(outcome.verification.ok, JSON.stringify(outcome.verification));
 
     const after = new DatabaseSync(path);

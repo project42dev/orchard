@@ -1,0 +1,429 @@
+{
+  "schema_version": "1.0.0",
+  "kind": "inspection-invalidation",
+  "content_commit": "d5754bdeca6386eafcffdc1c1cd25d5242168878",
+  "inspection_fix": "github:pull:335",
+  "inspected_on": "2026-09-18",
+  "basis": "The platform effective catalogue loads catalog.json inline modules and modules/**/*.json before resolving path moduleIds.",
+  "items": [
+    {
+      "ado_id": 9276,
+      "item_id": "01a0affb-3b6d-70ad-8186-f33f7addf35e",
+      "path_id": "agentic-ai-literacy",
+      "expected_state": "ado-linked",
+      "module_count": 5,
+      "modules": [
+        {
+          "id": "agentic-ai-layers",
+          "source": "modules/agentic-ai-literacy/agentic-ai-layers.json"
+        },
+        {
+          "id": "agentic-control-flow",
+          "source": "modules/agentic-ai-literacy/agentic-control-flow.json"
+        },
+        {
+          "id": "agentic-tools-state-authority",
+          "source": "modules/agentic-ai-literacy/agentic-tools-state-authority.json"
+        },
+        {
+          "id": "agentic-product-comparison",
+          "source": "modules/agentic-ai-literacy/agentic-product-comparison.json"
+        },
+        {
+          "id": "agentic-classification-capstone",
+          "source": "modules/agentic-ai-literacy/agentic-classification-capstone.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9277,
+      "item_id": "01a0affb-3b7b-7b47-8151-a0899f4d35be",
+      "path_id": "agentic-systems-and-mcp",
+      "expected_state": "ado-linked",
+      "module_count": 4,
+      "modules": [
+        {
+          "id": "agent-architecture-spectrum",
+          "source": "modules/agentic-systems-and-mcp/agent-architecture-spectrum.json"
+        },
+        {
+          "id": "model-context-protocol-mcp",
+          "source": "modules/agentic-systems-and-mcp/model-context-protocol-mcp.json"
+        },
+        {
+          "id": "multi-agent-orchestration",
+          "source": "modules/agentic-systems-and-mcp/multi-agent-orchestration.json"
+        },
+        {
+          "id": "agent-safety-and-spend-brakes",
+          "source": "modules/agentic-systems-and-mcp/agent-safety-and-spend-brakes.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9278,
+      "item_id": "01a0affb-3b83-7a2f-a4ba-956c133059eb",
+      "path_id": "ai-foundations",
+      "expected_state": "ado-linked",
+      "module_count": 16,
+      "modules": [
+        {
+          "id": "what-ai-does",
+          "source": "modules/ai-foundations/what-ai-does.json"
+        },
+        {
+          "id": "ai-systems-and-use-cases",
+          "source": "modules/ai-foundations/ai-systems-and-use-cases.json"
+        },
+        {
+          "id": "language-models-and-generation",
+          "source": "modules/ai-foundations/language-models-and-generation.json"
+        },
+        {
+          "id": "context-tokens-and-modalities",
+          "source": "modules/ai-foundations/context-tokens-and-modalities.json"
+        },
+        {
+          "id": "privacy-safety-and-responsibility",
+          "source": "modules/ai-foundations/privacy-safety-and-responsibility.json"
+        },
+        {
+          "id": "prompt-with-purpose",
+          "source": "modules/ai-foundations/prompt-with-purpose.json"
+        },
+        {
+          "id": "prompt-anatomy-and-success-criteria",
+          "source": "modules/ai-foundations/prompt-anatomy-and-success-criteria.json"
+        },
+        {
+          "id": "context-and-evidence-construction",
+          "source": "modules/ai-foundations/context-and-evidence-construction.json"
+        },
+        {
+          "id": "examples-and-output-contracts",
+          "source": "modules/ai-foundations/examples-and-output-contracts.json"
+        },
+        {
+          "id": "verification-and-iterative-improvement",
+          "source": "modules/ai-foundations/verification-and-iterative-improvement.json"
+        },
+        {
+          "id": "research-with-evidence",
+          "source": "modules/ai-foundations/research-with-evidence.json"
+        },
+        {
+          "id": "writing-and-transformation-workflow",
+          "source": "modules/ai-foundations/writing-and-transformation-workflow.json"
+        },
+        {
+          "id": "coding-and-analysis-workflow",
+          "source": "modules/ai-foundations/coding-and-analysis-workflow.json"
+        },
+        {
+          "id": "safe-tool-use-workflow",
+          "source": "modules/ai-foundations/safe-tool-use-workflow.json"
+        },
+        {
+          "id": "agents-and-guardrails",
+          "source": "modules/ai-foundations/agents-and-guardrails.json"
+        },
+        {
+          "id": "ai-foundations-capstone",
+          "source": "modules/ai-foundations/ai-foundations-capstone.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9279,
+      "item_id": "01a0affb-3b90-7929-b1f3-a9c59c4f9d5f",
+      "path_id": "ai-literacy-and-mental-models",
+      "expected_state": "ado-linked",
+      "module_count": 3,
+      "modules": [
+        {
+          "id": "ai-mental-models",
+          "source": "modules/ai-literacy-and-mental-models/ai-mental-models.json"
+        },
+        {
+          "id": "prompt-architecture",
+          "source": "modules/ai-literacy-and-mental-models/prompt-architecture.json"
+        },
+        {
+          "id": "token-economics-and-limits",
+          "source": "modules/ai-literacy-and-mental-models/token-economics-and-limits.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9280,
+      "item_id": "01a0affb-3b9b-74aa-ac2e-6c9635b67537",
+      "path_id": "ai-security-and-governance",
+      "expected_state": "ado-linked",
+      "module_count": 3,
+      "modules": [
+        {
+          "id": "owasp-top-10-llm-attacks",
+          "source": "modules/ai-security-and-governance/owasp-top-10-llm-attacks.json"
+        },
+        {
+          "id": "guardrails-and-sandboxing",
+          "source": "modules/ai-security-and-governance/guardrails-and-sandboxing.json"
+        },
+        {
+          "id": "ai-compliance-and-crypto-receipts",
+          "source": "modules/ai-security-and-governance/ai-compliance-and-crypto-receipts.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9281,
+      "item_id": "01a0affb-3ba6-7e30-9770-fd3f6e0d0717",
+      "path_id": "anthropic-claude-practice",
+      "expected_state": "ado-linked",
+      "module_count": 7,
+      "modules": [
+        {
+          "id": "anthropic-ecosystem-and-interfaces",
+          "source": "modules/anthropic-claude-practice/anthropic-ecosystem-and-interfaces.json"
+        },
+        {
+          "id": "claude-prompting-in-practice",
+          "source": "modules/anthropic-claude-practice/claude-prompting-in-practice.json"
+        },
+        {
+          "id": "claude-api-and-sdk-workflows",
+          "source": "modules/anthropic-claude-practice/claude-api-and-sdk-workflows.json"
+        },
+        {
+          "id": "claude-tools-and-agent-loops",
+          "source": "modules/anthropic-claude-practice/claude-tools-and-agent-loops.json"
+        },
+        {
+          "id": "claude-safety-and-trust-boundaries",
+          "source": "modules/anthropic-claude-practice/claude-safety-and-trust-boundaries.json"
+        },
+        {
+          "id": "claude-evaluation-and-observability",
+          "source": "modules/anthropic-claude-practice/claude-evaluation-and-observability.json"
+        },
+        {
+          "id": "migrating-to-and-from-claude",
+          "source": "modules/anthropic-claude-practice/migrating-to-and-from-claude.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9283,
+      "item_id": "01a0affb-3bb5-787d-8c7e-7d5a498b7dab",
+      "path_id": "google-gemini-practice",
+      "expected_state": "ado-linked",
+      "module_count": 7,
+      "modules": [
+        {
+          "id": "gemini-ecosystem-and-interfaces",
+          "source": "modules/google-gemini-practice/gemini-ecosystem-and-interfaces.json"
+        },
+        {
+          "id": "gemini-prompting-in-practice",
+          "source": "modules/google-gemini-practice/gemini-prompting-in-practice.json"
+        },
+        {
+          "id": "gemini-api-and-sdk-workflows",
+          "source": "modules/google-gemini-practice/gemini-api-and-sdk-workflows.json"
+        },
+        {
+          "id": "gemini-tools-and-agent-loops",
+          "source": "modules/google-gemini-practice/gemini-tools-and-agent-loops.json"
+        },
+        {
+          "id": "gemini-safety-and-trust-boundaries",
+          "source": "modules/google-gemini-practice/gemini-safety-and-trust-boundaries.json"
+        },
+        {
+          "id": "gemini-evaluation-and-observability",
+          "source": "modules/google-gemini-practice/gemini-evaluation-and-observability.json"
+        },
+        {
+          "id": "migrating-to-and-from-gemini",
+          "source": "modules/google-gemini-practice/migrating-to-and-from-gemini.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9284,
+      "item_id": "01a0affb-3bbe-7673-8bbc-b0742f4bacb3",
+      "path_id": "openai-practice",
+      "expected_state": "ado-linked",
+      "module_count": 7,
+      "modules": [
+        {
+          "id": "openai-ecosystem-and-interfaces",
+          "source": "modules/openai-practice/openai-ecosystem-and-interfaces.json"
+        },
+        {
+          "id": "openai-prompting-in-practice",
+          "source": "modules/openai-practice/openai-prompting-in-practice.json"
+        },
+        {
+          "id": "openai-responses-api-and-sdk-workflows",
+          "source": "modules/openai-practice/openai-responses-api-and-sdk-workflows.json"
+        },
+        {
+          "id": "openai-tools-and-codex-agent-loops",
+          "source": "modules/openai-practice/openai-tools-and-codex-agent-loops.json"
+        },
+        {
+          "id": "openai-safety-and-trust-boundaries",
+          "source": "modules/openai-practice/openai-safety-and-trust-boundaries.json"
+        },
+        {
+          "id": "openai-evaluation-and-observability",
+          "source": "modules/openai-practice/openai-evaluation-and-observability.json"
+        },
+        {
+          "id": "migrating-to-and-from-openai",
+          "source": "modules/openai-practice/migrating-to-and-from-openai.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9286,
+      "item_id": "01a0affb-3bda-7e4c-b2ab-9de9e92a3552",
+      "path_id": "rag-and-fine-tuning-engineering",
+      "expected_state": "ado-linked",
+      "module_count": 4,
+      "modules": [
+        {
+          "id": "advanced-rag-and-hybrid-search",
+          "source": "modules/rag-and-fine-tuning-engineering/advanced-rag-and-hybrid-search.json"
+        },
+        {
+          "id": "graph-rag-and-knowledge-graphs",
+          "source": "modules/rag-and-fine-tuning-engineering/graph-rag-and-knowledge-graphs.json"
+        },
+        {
+          "id": "lora-qlora-fine-tuning",
+          "source": "modules/rag-and-fine-tuning-engineering/lora-qlora-fine-tuning.json"
+        },
+        {
+          "id": "dpo-and-model-evaluation",
+          "source": "modules/rag-and-fine-tuning-engineering/dpo-and-model-evaluation.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9287,
+      "item_id": "01a0affb-3be6-789f-93a4-afd0e7119c2d",
+      "path_id": "reliable-agent-workflows",
+      "expected_state": "ado-linked",
+      "module_count": 12,
+      "modules": [
+        {
+          "id": "prepare-agent-work",
+          "source": "catalog.json#modules"
+        },
+        {
+          "id": "control-agent-actions",
+          "source": "catalog.json#modules"
+        },
+        {
+          "id": "context-engineering",
+          "source": "modules/reliable-agent-workflows/context-engineering.json"
+        },
+        {
+          "id": "memory-boundaries",
+          "source": "modules/reliable-agent-workflows/memory-boundaries.json"
+        },
+        {
+          "id": "mcp-architecture",
+          "source": "modules/reliable-agent-workflows/mcp-architecture.json"
+        },
+        {
+          "id": "mcp-trust-and-security",
+          "source": "modules/reliable-agent-workflows/mcp-trust-and-security.json"
+        },
+        {
+          "id": "orchestration-patterns",
+          "source": "modules/reliable-agent-workflows/orchestration-patterns.json"
+        },
+        {
+          "id": "multi-agent-handoffs",
+          "source": "modules/reliable-agent-workflows/multi-agent-handoffs.json"
+        },
+        {
+          "id": "agent-evaluation",
+          "source": "modules/reliable-agent-workflows/agent-evaluation.json"
+        },
+        {
+          "id": "agent-observability",
+          "source": "modules/reliable-agent-workflows/agent-observability.json"
+        },
+        {
+          "id": "review-agent-results",
+          "source": "catalog.json#modules"
+        },
+        {
+          "id": "reliable-agent-capstone",
+          "source": "modules/reliable-agent-workflows/reliable-agent-capstone.json"
+        }
+      ]
+    },
+    {
+      "ado_id": 9289,
+      "item_id": "01a0affb-3bf8-72c1-bdc5-fd5b4947c378",
+      "path_id": "self-hosted-model-operations",
+      "expected_state": "ado-linked",
+      "module_count": 12,
+      "modules": [
+        {
+          "id": "deployment-shape-and-operating-model",
+          "source": "modules/self-hosted-model-operations/deployment-shape-and-operating-model.json"
+        },
+        {
+          "id": "model-identity-license-and-provenance",
+          "source": "modules/self-hosted-model-operations/model-identity-license-and-provenance.json"
+        },
+        {
+          "id": "model-artifact-integrity",
+          "source": "modules/self-hosted-model-operations/model-artifact-integrity.json"
+        },
+        {
+          "id": "hardware-runtime-and-capacity-planning",
+          "source": "modules/self-hosted-model-operations/hardware-runtime-and-capacity-planning.json"
+        },
+        {
+          "id": "serving-api-and-compatibility-contracts",
+          "source": "modules/self-hosted-model-operations/serving-api-and-compatibility-contracts.json"
+        },
+        {
+          "id": "endpoint-identity-network-and-secrets",
+          "source": "modules/self-hosted-model-operations/endpoint-identity-network-and-secrets.json"
+        },
+        {
+          "id": "evaluate-the-exact-serving-build",
+          "source": "modules/self-hosted-model-operations/evaluate-the-exact-serving-build.json"
+        },
+        {
+          "id": "observability-cost-and-performance",
+          "source": "modules/self-hosted-model-operations/observability-cost-and-performance.json"
+        },
+        {
+          "id": "scaling-failure-and-capacity-controls",
+          "source": "modules/self-hosted-model-operations/scaling-failure-and-capacity-controls.json"
+        },
+        {
+          "id": "model-update-and-rollback-lifecycle",
+          "source": "modules/self-hosted-model-operations/model-update-and-rollback-lifecycle.json"
+        },
+        {
+          "id": "model-incident-response-and-recovery",
+          "source": "modules/self-hosted-model-operations/model-incident-response-and-recovery.json"
+        },
+        {
+          "id": "self-hosted-model-operations-capstone",
+          "source": "modules/self-hosted-model-operations/self-hosted-model-operations-capstone.json"
+        }
+      ]
+    }
+  ]
+}

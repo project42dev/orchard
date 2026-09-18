@@ -383,6 +383,12 @@ export class StateStore {
                 .get(record.item_id, record.item_revision);
             if (!link) throw new StateConflictError("the ado-linked transition requires a persisted ADO external link");
         }
+        if (record.to_state === "invalidated") {
+            const evidence = this.db.prepare(`SELECT 1 FROM observation_event
+                WHERE item_id = ? AND item_revision = ? AND evidence_digest = ?`).get(
+                record.item_id, record.item_revision, record.evidence_ref);
+            if (!evidence) throw new StateConflictError("inspection invalidation requires persisted matching evidence");
+        }
         if (["ado-closure-ready", "closed"].includes(record.to_state)) {
             const packet = this.db.prepare("SELECT packet_digest FROM closure_packet WHERE item_id = ? AND item_revision = ?")
                 .get(record.item_id, record.item_revision);
