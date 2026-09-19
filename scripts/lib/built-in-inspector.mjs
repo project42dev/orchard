@@ -1,14 +1,14 @@
 import { readFileSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { sha256Digest } from "./identity.mjs";
-import { TRACK_2_CLASSIFICATIONS, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./track-2-controller.mjs";
+import { TRACK_2_CLASSIFICATIONS } from "./track-2-controller.mjs";
 
 const DIGEST = /^sha256:[a-f0-9]{64}$/;
 
 function loadResults(path, options = {}) {
     const resolved = resolve(path);
     const maxBytes = options.maxBytes ?? 8_388_608;
-    const maxResults = options.maxResults ?? TRACK_2_EXPECTED_CANONICAL_ITEMS;
+    const maxResults = options.maxResults ?? options.expectedStableIds?.length;
     if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || !Number.isSafeInteger(maxResults) || maxResults < 1) throw new TypeError("inspection result bounds must be positive safe integers");
     const size = statSync(resolved).size;
     if (size < 1 || size > maxBytes) throw new Error("inspection result file exceeds its byte bound");

@@ -12,7 +12,7 @@ import { materializeCorpusSnapshot } from "./lib/corpus-snapshot.mjs";
 import { createFoundryInspectionProducer, estimateFoundryInspectionCost, produceInspectionResultFile, summarizeFoundryInspectionUsage } from "./lib/foundry-inspection-producer.mjs";
 import { generateUuidV7, sha256Digest } from "./lib/identity.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
-import { createTrack2RunRecord, enumerateCanonicalCorpus, TRACK_2_EXPECTED_CANONICAL_ITEMS } from "./lib/track-2-controller.mjs";
+import { createTrack2RunRecord, enumerateCanonicalCorpus } from "./lib/track-2-controller.mjs";
 import { loadApprovedSourceRegistry } from "./lib/track-1-controller.mjs";
 import { announceGatesForRun, readGateToken } from "./announce-gates.mjs";
 import { announceRunSummary, runVerdict } from "./lib/run-summary.mjs";
@@ -313,7 +313,6 @@ async function runAzure(track, log) {
                 const commit = required("ORCHARD_CONTENT_COMMIT");
                 const platformRoot = await materializeCorpusSnapshot({ containerClient: clients.artifacts, archiveBlob: required("ORCHARD_CORPUS_ARCHIVE_BLOB"), manifestBlob: required("ORCHARD_CORPUS_MANIFEST_BLOB"), expectedCommit: commit, destination: join(root, "platform"), maxArchiveBytes: integer("ORCHARD_MAX_CORPUS_ARCHIVE_BYTES", 268_435_456) });
                 const items = enumerateCanonicalCorpus(platformRoot, commit);
-                if (items.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`production Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${items.length}`);
                 const runId = generateUuidV7();
                 const startedAt = new Date().toISOString();
                 const concurrency = integer("ORCHARD_INSPECTION_CONCURRENCY", 4);

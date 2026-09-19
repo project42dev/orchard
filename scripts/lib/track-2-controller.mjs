@@ -19,7 +19,6 @@ export const TRACK_2_CLASSIFICATIONS = Object.freeze([
 export const TRACK_2_ACTIONABLE_CLASSIFICATIONS = Object.freeze(
     TRACK_2_CLASSIFICATIONS.filter((classification) => classification !== "evidence-backed-no-change"),
 );
-export const TRACK_2_EXPECTED_CANONICAL_ITEMS = 212;
 
 function posixRelative(root, path) { return relative(root, path).split(sep).join("/"); }
 
@@ -355,9 +354,11 @@ export async function runTrack2(options) {
     const commitVerifier = options.commitVerifier ?? verifyPinnedCommit;
     commitVerifier(options.platformRoot, options.contentCommit);
     const allItems = enumerateCanonicalCorpus(options.platformRoot);
-    const expectedCanonicalItems = options.expectedCanonicalItems ?? TRACK_2_EXPECTED_CANONICAL_ITEMS;
-    if (!Number.isSafeInteger(expectedCanonicalItems) || expectedCanonicalItems < 1) throw new TypeError("expectedCanonicalItems must be a positive safe integer");
-    if (options.mode === "full" && allItems.length !== expectedCanonicalItems) {
+    const expectedCanonicalItems = options.expectedCanonicalItems;
+    if (expectedCanonicalItems !== undefined && (!Number.isSafeInteger(expectedCanonicalItems) || expectedCanonicalItems < 1)) {
+        throw new TypeError("expectedCanonicalItems must be a positive safe integer");
+    }
+    if (options.mode === "full" && expectedCanonicalItems !== undefined && allItems.length !== expectedCanonicalItems) {
         throw new Error(`full Track 2 requires exactly ${expectedCanonicalItems} canonical items; enumerated ${allItems.length}`);
     }
     const subset = options.mode === "subset" ? new Set(options.subsetIds ?? []) : null;
