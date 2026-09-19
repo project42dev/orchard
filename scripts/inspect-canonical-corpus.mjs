@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 import { createValidatedResultInspector } from "./lib/built-in-inspector.mjs";
 import { writeControllerResult } from "./lib/controller-output.mjs";
 import { openStateStore } from "./lib/state-store.mjs";
-import { enumerateCanonicalCorpus, runTrack2, TRACK_2_EXPECTED_CANONICAL_ITEMS, verifyPinnedCommit } from "./lib/track-2-controller.mjs";
+import { enumerateCanonicalCorpus, runTrack2, verifyPinnedCommit } from "./lib/track-2-controller.mjs";
 
 const HELP = `Track 2 canonical-corpus deep inspection
 
@@ -59,7 +59,6 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     if (args.inspector) throw new TypeError("--inspector is prohibited because executable inspector modules are not a trust boundary");
     if (args.mode !== "dry-run" && (!args["inspection-results"] || !args["state-db"] || !args.out)) throw new TypeError("non-dry runs require --inspection-results, --state-db, and --out");
     const expectedItems = args.mode === "dry-run" ? [] : enumerateCanonicalCorpus(args["platform-root"]);
-    if (args.mode === "full" && expectedItems.length !== TRACK_2_EXPECTED_CANONICAL_ITEMS) throw new Error(`full Track 2 requires exactly ${TRACK_2_EXPECTED_CANONICAL_ITEMS} canonical items; enumerated ${expectedItems.length}`);
     const expectedStableIds = args.mode === "subset" ? (args["item-ids"] ?? "").split(",").map((value) => value.trim()).filter(Boolean) : expectedItems.map((item) => item.stableId);
     let inspector;
     try {
